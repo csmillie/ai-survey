@@ -26,7 +26,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          show_full_output: true
           prompt: |
             Review this pull request for code quality, potential bugs, security, and performance.
-          claude_args: "--max-turns 5"
+            Post your review as a single PR comment using gh pr comment.
+          claude_args: "--max-turns 10"
