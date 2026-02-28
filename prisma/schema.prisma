@@ -258,7 +258,7 @@ model LlmResponse {
   threadKey     String
   rawText       String   @db.LongText
   parsedJson    Json?
-  reasoningText String?      @db.Text
+  reasoningText String?  @db.Text
   citationsJson Json?
   usageJson           Json?
   requestMessagesJson Json?
