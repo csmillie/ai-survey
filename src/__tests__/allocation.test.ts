@@ -182,6 +182,56 @@ describe("allocateJobs", () => {
     expect(modelAQ2.threadKey).not.toBe(modelBQ2.threadKey);
   });
 
+  it("includes questionType and config in payload for RANKED questions", async () => {
+    const rankedQuestion = {
+      ...makeQuestion("q-ranked", 0, "Rate {{brand}}"),
+      type: "RANKED" as const,
+      configJson: {
+        scalePreset: "1-10",
+        scaleMin: 1,
+        scaleMax: 10,
+        includeReasoning: true,
+      },
+    };
+
+    vi.mocked(prisma.question.findMany).mockResolvedValue([rankedQuestion]);
+    vi.mocked(prisma.variable.findMany).mockResolvedValue([]);
+
+    const result = await allocateJobs({
+      runId: RUN_ID,
+      surveyId: SURVEY_ID,
+      modelTargetIds: [MODEL_A],
+    });
+
+    expect(result.jobs[0].payloadJson).toMatchObject({
+      questionType: "RANKED",
+      questionConfig: {
+        scalePreset: "1-10",
+        scaleMin: 1,
+        scaleMax: 10,
+        includeReasoning: true,
+      },
+    });
+  });
+
+  it("sets questionType to OPEN_ENDED for standard questions", async () => {
+    vi.mocked(prisma.question.findMany).mockResolvedValue([
+      makeQuestion("q1", 0, "Tell me about {{brand}}"),
+    ]);
+    vi.mocked(prisma.variable.findMany).mockResolvedValue([]);
+
+    const result = await allocateJobs({
+      runId: RUN_ID,
+      surveyId: SURVEY_ID,
+      modelTargetIds: [MODEL_A],
+    });
+
+    expect(result.jobs[0].payloadJson).toMatchObject({
+      questionType: "OPEN_ENDED",
+    });
+    expect(result.jobs[0].payloadJson).not.toHaveProperty("questionConfig");
+  });
+
   it("resolves variables in prompt templates", async () => {
     const questions = [
       makeQuestion("q1", 1, "Tell me about {{topic}} in {{language}}"),
