@@ -140,3 +140,23 @@ export const estimateRunSchema = z.object({
 });
 
 export type EstimateRunInput = z.infer<typeof estimateRunSchema>;
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+export const createUserSchema = z.object({
+  email: z.email(),
+  password: z.string().min(8),
+  name: z.string().max(100).optional(),
+  role: z.enum(["USER", "ADMIN"]).optional(),
+});
+
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+
+export const updateSystemSettingSchema = z.object({
+  key: z.string().min(1).max(200),
+  value: z.string(),
+});
+
+export type UpdateSystemSettingInput = z.infer<typeof updateSystemSettingSchema>;

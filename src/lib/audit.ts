@@ -36,6 +36,11 @@ export const PROFILE_UPDATED = "PROFILE_UPDATED" as const;
 export const PASSWORD_CHANGED = "PASSWORD_CHANGED" as const;
 export const ACCOUNT_DISABLED = "ACCOUNT_DISABLED" as const;
 
+export const USER_CREATED = "USER_CREATED" as const;
+export const USER_ROLE_CHANGED = "USER_ROLE_CHANGED" as const;
+export const USER_ENABLED = "USER_ENABLED" as const;
+export const SETTINGS_UPDATED = "SETTINGS_UPDATED" as const;
+
 export type AuditAction =
   | typeof LOGIN_SUCCESS
   | typeof LOGIN_FAILED
@@ -59,7 +64,11 @@ export type AuditAction =
   | typeof EXPORT_CREATED
   | typeof PROFILE_UPDATED
   | typeof PASSWORD_CHANGED
-  | typeof ACCOUNT_DISABLED;
+  | typeof ACCOUNT_DISABLED
+  | typeof USER_CREATED
+  | typeof USER_ROLE_CHANGED
+  | typeof USER_ENABLED
+  | typeof SETTINGS_UPDATED;
 
 // ---------------------------------------------------------------------------
 // Audit event creation

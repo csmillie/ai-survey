@@ -7,7 +7,7 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireSession();
+  const session = await requireSession();
 
   return (
     <>
@@ -24,6 +24,14 @@ export default async function AppLayout({
               >
                 Surveys
               </Link>
+              {session.role === "ADMIN" && (
+                <Link
+                  href="/app/admin/users"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-4">

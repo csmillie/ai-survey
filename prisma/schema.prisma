@@ -279,6 +279,13 @@ model AnalysisResult {
   response                LlmResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
 }
 
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 model AuditEvent {
   id          String   @id @default(uuid())
   actorUserId String
