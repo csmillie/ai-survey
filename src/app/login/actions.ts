@@ -56,6 +56,11 @@ export async function loginAction(
     return { error: "Invalid credentials." };
   }
 
+  // Check after password verification to avoid leaking account state
+  if (user.disabledAt) {
+    return { error: "This account has been disabled." };
+  }
+
   // Create session token
   const token = await createSession(user.id, user.role);
 
