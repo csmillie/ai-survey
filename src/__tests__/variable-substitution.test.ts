@@ -49,4 +49,14 @@ describe("substituteVariables", () => {
     expect(result).toBe("");
     expect(unresolved).toEqual([]);
   });
+
+  it("does not resolve prototype-inherited keys like toString or constructor", () => {
+    const { result, unresolved } = substituteVariables(
+      "{{toString}} and {{constructor}}",
+      {}
+    );
+    expect(result).toBe("{{toString}} and {{constructor}}");
+    expect(unresolved).toContain("toString");
+    expect(unresolved).toContain("constructor");
+  });
 });
