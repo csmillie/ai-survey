@@ -7,6 +7,12 @@ import type { LlmMessage } from "@/providers/types";
 import { JSON_ENFORCEMENT_BLOCK } from "@/providers/types";
 import { repairAndParseJson } from "@/lib/json-repair";
 import { createAuditEvent, RUN_COMPLETED, RUN_FAILED } from "@/lib/audit";
+import {
+  buildRankedSystemPrompt,
+  buildRankedEnforcementBlock,
+  clampScore,
+} from "@/lib/ranked-prompt";
+import { rankedResponseSchema } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +44,8 @@ export async function handleExecuteQuestion(
     threadKey,
     renderedPrompt,
     questionMode,
+    questionType,
+    questionConfig,
   } = payload;
 
   try {
@@ -47,11 +55,14 @@ export async function handleExecuteQuestion(
     });
 
     // 2. Build messages
+    const isRanked = questionType === "RANKED" && questionConfig;
+
     const messages: LlmMessage[] = [
       {
         role: "system",
-        content:
-          "You are a research assistant. Answer questions accurately with citations.",
+        content: isRanked
+          ? buildRankedSystemPrompt()
+          : "You are a research assistant. Answer questions accurately with citations.",
       },
     ];
 
@@ -72,7 +83,13 @@ export async function handleExecuteQuestion(
     }
 
     // Add the user message
-    const userContent = renderedPrompt + JSON_ENFORCEMENT_BLOCK;
+    const userContent = isRanked
+      ? renderedPrompt + buildRankedEnforcementBlock({
+          scaleMin: questionConfig!.scaleMin,
+          scaleMax: questionConfig!.scaleMax,
+          includeReasoning: questionConfig!.includeReasoning,
+        })
+      : renderedPrompt + JSON_ENFORCEMENT_BLOCK;
     messages.push({ role: "user", content: userContent });
 
     // 3. Call LLM provider
@@ -84,7 +101,23 @@ export async function handleExecuteQuestion(
 
     // 4. Parse response
     const { parsed, error: parseError } = repairAndParseJson(response.text);
-    const typedParsed = parsed as ParsedLlmResponse | null;
+
+    let reasoningText: string | null = null;
+
+    if (isRanked && parsed) {
+      const rankedResult = rankedResponseSchema.safeParse(parsed);
+      if (rankedResult.success) {
+        const clamped = clampScore(
+          rankedResult.data.score,
+          questionConfig!.scaleMin,
+          questionConfig!.scaleMax,
+        );
+        (parsed as Record<string, unknown>).score = clamped;
+        reasoningText = rankedResult.data.reasoning ?? null;
+      }
+    }
+
+    const typedParsed = parsed as Record<string, unknown> | null;
 
     // 5. Calculate cost
     const inputCost = new Prisma.Decimal(response.usage.inputTokens)
@@ -107,9 +140,10 @@ export async function handleExecuteQuestion(
         parsedJson: typedParsed
           ? (typedParsed as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        citationsJson: typedParsed?.citations
-          ? (typedParsed.citations as unknown as Prisma.InputJsonValue)
+        citationsJson: !isRanked && typedParsed && "citations" in typedParsed
+          ? ((typedParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
+        reasoningText,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
         costUsd,
         latencyMs: response.latencyMs,
@@ -164,12 +198,15 @@ export async function handleExecuteQuestion(
       },
     });
 
-    // 9. Enqueue ANALYZE_RESPONSE job
-    await enqueueAnalyzeJob({
-      runId,
-      responseId: llmResponse.id,
-      modelTargetId,
-    });
+    // 9. Enqueue ANALYZE_RESPONSE job (skip for ranked without reasoning)
+    const shouldAnalyze = !isRanked || (isRanked && questionConfig?.includeReasoning);
+    if (shouldAnalyze) {
+      await enqueueAnalyzeJob({
+        runId,
+        responseId: llmResponse.id,
+        modelTargetId,
+      });
+    }
 
     // 10. Check if all EXECUTE_QUESTION jobs for this run are done
     await checkRunCompletion(runId);
