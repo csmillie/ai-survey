@@ -42,10 +42,6 @@ export async function loginAction(
     return { error: "Invalid credentials." };
   }
 
-  if (user.disabledAt) {
-    return { error: "This account has been disabled." };
-  }
-
   // Verify password
   const passwordValid = await verifyPassword(password, user.passwordHash);
 
@@ -58,6 +54,11 @@ export async function loginAction(
       meta: { email },
     });
     return { error: "Invalid credentials." };
+  }
+
+  // Check after password verification to avoid leaking account state
+  if (user.disabledAt) {
+    return { error: "This account has been disabled." };
   }
 
   // Create session token

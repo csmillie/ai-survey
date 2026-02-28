@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +77,14 @@ export function SettingsForm({ name, email }: SettingsFormProps): React.ReactEle
     null
   );
 
+  const passwordFormRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (passwordState?.success) {
+      passwordFormRef.current?.reset();
+    }
+  }, [passwordState]);
+
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Profile */}
@@ -121,7 +129,7 @@ export function SettingsForm({ name, email }: SettingsFormProps): React.ReactEle
           <CardTitle>Change Password</CardTitle>
           <CardDescription>Update your password. Must be at least 8 characters.</CardDescription>
         </CardHeader>
-        <form action={passwordAction}>
+        <form ref={passwordFormRef} action={passwordAction}>
           <CardContent className="space-y-4">
             <StatusMessage state={passwordState} />
             <div className="space-y-2">
@@ -182,7 +190,14 @@ export function SettingsForm({ name, email }: SettingsFormProps): React.ReactEle
             Once disabled, you will be logged out and unable to sign in. This cannot be undone from the UI.
           </CardDescription>
         </CardHeader>
-        <form action={disableAction}>
+        <form
+          action={disableAction}
+          onSubmit={(e) => {
+            if (!window.confirm("Are you sure you want to disable your account? This cannot be undone from the UI.")) {
+              e.preventDefault();
+            }
+          }}
+        >
           <CardContent className="space-y-4">
             <StatusMessage state={disableState} />
             <div className="space-y-2">

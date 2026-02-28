@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 type Theme = "light" | "dark";
 
 export function ThemeToggle(): React.ReactElement {
-  const [theme, setTheme] = useState<Theme>("light");
-
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark") {
-      setTheme("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
     }
-  }, []);
+    return "light";
+  });
 
   function applyTheme(next: Theme): void {
     setTheme(next);
