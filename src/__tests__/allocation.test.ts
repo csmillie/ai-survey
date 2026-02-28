@@ -35,6 +35,8 @@ const makeQuestion = (
   order,
   title: `Question ${id}`,
   promptTemplate: template,
+  type: "OPEN_ENDED" as const,
+  configJson: null,
   mode,
   threadKey,
   createdAt: new Date(),

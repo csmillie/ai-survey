@@ -25,6 +25,11 @@ enum QuestionMode {
   THREADED
 }
 
+enum QuestionType {
+  OPEN_ENDED
+  RANKED
+}
+
 enum Provider {
   OPENAI
   ANTHROPIC
@@ -131,6 +136,8 @@ model Question {
   order           Int
   title           String
   promptTemplate  String       @db.Text
+  type            QuestionType @default(OPEN_ENDED)
+  configJson      Json?
   mode            QuestionMode @default(STATELESS)
   threadKey       String?
   createdAt       DateTime     @default(now())
@@ -251,6 +258,7 @@ model LlmResponse {
   threadKey     String
   rawText       String   @db.LongText
   parsedJson    Json?
+  reasoningText String?      @db.Text
   citationsJson Json?
   usageJson           Json?
   requestMessagesJson Json?
