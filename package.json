@@ -7,7 +7,7 @@
     "dev:web": "next dev -p 5001",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src/",
+    "lint": "eslint .",
     "worker": "tsx src/worker/index.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
