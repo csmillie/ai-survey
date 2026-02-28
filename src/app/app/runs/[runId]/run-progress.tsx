@@ -36,9 +36,13 @@ interface ResponseData {
   id: string;
   questionId: string;
   questionTitle: string;
+  questionType: string;
+  questionConfig: { scaleMin: number; scaleMax: number } | null;
   modelName: string;
   provider: string;
   answerText: string;
+  score: number | null;
+  reasoningText: string | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
   sentimentScore: number | null;
   costUsd: string | null;
@@ -311,6 +315,19 @@ export function RunProgressView({
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}
+                {(() => {
+                  const scores = group.responses
+                    .filter((r) => r.score !== null)
+                    .map((r) => r.score!);
+                  if (scores.length === 0) return null;
+                  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                  const config = group.responses[0]?.questionConfig;
+                  return config ? (
+                    <span className="ml-2 font-medium">
+                      Avg: {avg.toFixed(1)} / {config.scaleMax}
+                    </span>
+                  ) : null;
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -431,7 +448,15 @@ function ResponseRow({
           </div>
         </TableCell>
         <TableCell className="max-w-md">
-          <p className="truncate text-sm">{truncatedAnswer}</p>
+          {response.score !== null && response.questionConfig ? (
+            <ScoreBar
+              score={response.score}
+              min={response.questionConfig.scaleMin}
+              max={response.questionConfig.scaleMax}
+            />
+          ) : (
+            <p className="truncate text-sm">{truncatedAnswer}</p>
+          )}
         </TableCell>
         <TableCell className="text-center">
           <SentimentBadge score={response.sentimentScore} />
@@ -459,12 +484,29 @@ function ResponseRow({
         <TableRow>
           <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
-              {/* Full answer */}
+              {/* Full answer or reasoning */}
               <div>
-                <h4 className="mb-1 text-sm font-medium">Full Answer</h4>
-                <p className="whitespace-pre-wrap text-sm">
-                  {response.answerText}
-                </p>
+                <h4 className="mb-1 text-sm font-medium">
+                  {response.score !== null ? "Score & Reasoning" : "Full Answer"}
+                </h4>
+                {response.score !== null && response.questionConfig ? (
+                  <div className="space-y-2">
+                    <ScoreBar
+                      score={response.score}
+                      min={response.questionConfig.scaleMin}
+                      max={response.questionConfig.scaleMax}
+                    />
+                    {response.reasoningText && (
+                      <p className="whitespace-pre-wrap text-sm text-[hsl(var(--muted-foreground))]">
+                        {response.reasoningText}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm">
+                    {response.answerText}
+                  </p>
+                )}
               </div>
 
               {/* Citations */}
@@ -704,6 +746,41 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-lg font-semibold text-[hsl(var(--foreground))]">
         {value}
       </p>
+    </div>
+  );
+}
+
+function ScoreBar({
+  score,
+  min,
+  max,
+}: {
+  score: number;
+  min: number;
+  max: number;
+}) {
+  const percentage = ((score - min) / (max - min)) * 100;
+
+  let colorClass: string;
+  if (percentage >= 70) {
+    colorClass = "bg-green-500";
+  } else if (percentage >= 40) {
+    colorClass = "bg-yellow-500";
+  } else {
+    colorClass = "bg-red-500";
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-semibold whitespace-nowrap">
+        {score} / {max}
+      </span>
+      <div className="h-2 flex-1 rounded-full bg-[hsl(var(--muted))]">
+        <div
+          className={`h-full rounded-full ${colorClass}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
     </div>
   );
 }

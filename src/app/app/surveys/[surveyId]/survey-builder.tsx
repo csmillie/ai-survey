@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { SCALE_PRESETS } from "@/lib/schemas";
 import {
   updateSurveyAction,
   addQuestionAction,
@@ -55,6 +56,13 @@ interface QuestionData {
   mode: string;
   threadKey: string | null;
   order: number;
+  type: string;
+  configJson: {
+    scalePreset: string;
+    scaleMin: number;
+    scaleMax: number;
+    includeReasoning: boolean;
+  } | null;
 }
 
 interface VariableData {
@@ -316,6 +324,12 @@ function QuestionsTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const addFormRef = useRef<HTMLFormElement>(null);
 
+  const [questionType, setQuestionType] = useState<"OPEN_ENDED" | "RANKED">("OPEN_ENDED");
+  const [scalePreset, setScalePreset] = useState<string>("1-5");
+  const [scaleMin, setScaleMin] = useState(1);
+  const [scaleMax, setScaleMax] = useState(5);
+  const [includeReasoning, setIncludeReasoning] = useState(true);
+
   const boundAddQuestion = addQuestionAction.bind(null, surveyId);
 
   async function handleAddQuestion(formData: FormData) {
@@ -325,6 +339,11 @@ function QuestionsTab({
       return;
     }
     addFormRef.current?.reset();
+    setQuestionType("OPEN_ENDED");
+    setScalePreset("1-5");
+    setScaleMin(1);
+    setScaleMax(5);
+    setIncludeReasoning(true);
     setAddDialogOpen(false);
   }
 
@@ -346,12 +365,41 @@ function QuestionsTab({
               <DialogTitle>Add Question</DialogTitle>
             </DialogHeader>
             <form ref={addFormRef} action={handleAddQuestion} className="space-y-4">
+              {/* Question Type Selector */}
+              <div className="space-y-2">
+                <Label>Question Type</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={questionType === "OPEN_ENDED" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setQuestionType("OPEN_ENDED")}
+                  >
+                    Open Ended
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={questionType === "RANKED" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setQuestionType("RANKED")}
+                  >
+                    Ranked
+                  </Button>
+                </div>
+                <input type="hidden" name="type" value={questionType} />
+              </div>
+
+              {/* Prompt Template */}
               <div className="space-y-2">
                 <Label htmlFor="q-prompt">Question</Label>
                 <Textarea
                   id="q-prompt"
                   name="promptTemplate"
-                  placeholder="e.g., What do you think about {{brand}}?"
+                  placeholder={
+                    questionType === "RANKED"
+                      ? `e.g., How would you rate {{brand}}?`
+                      : "e.g., What do you think about {{brand}}?"
+                  }
                   rows={4}
                   required
                 />
@@ -359,6 +407,73 @@ function QuestionsTab({
                   Use {"{{variable_name}}"} syntax for variable substitution.
                 </p>
               </div>
+
+              {/* Ranked Configuration */}
+              {questionType === "RANKED" && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <h4 className="text-sm font-medium">Scale Configuration</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="q-scalePreset">Scale Preset</Label>
+                    <Select
+                      id="q-scalePreset"
+                      value={scalePreset}
+                      onChange={(e) => {
+                        const preset = e.target.value;
+                        setScalePreset(preset);
+                        const defaults = SCALE_PRESETS[preset as keyof typeof SCALE_PRESETS];
+                        if (defaults) {
+                          setScaleMin(defaults.min);
+                          setScaleMax(defaults.max);
+                        }
+                      }}
+                    >
+                      <SelectOption value="1-5">1 to 5</SelectOption>
+                      <SelectOption value="1-10">1 to 10</SelectOption>
+                      <SelectOption value="1-100">1 to 100</SelectOption>
+                      <SelectOption value="percentage">Percentage</SelectOption>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="q-scaleMin">Min</Label>
+                      <Input
+                        id="q-scaleMin"
+                        type="number"
+                        value={scaleMin}
+                        onChange={(e) => setScaleMin(Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="q-scaleMax">Max</Label>
+                      <Input
+                        id="q-scaleMax"
+                        type="number"
+                        value={scaleMax}
+                        onChange={(e) => setScaleMax(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="q-includeReasoning"
+                      type="checkbox"
+                      checked={includeReasoning}
+                      onChange={(e) => setIncludeReasoning(e.target.checked)}
+                      className="h-4 w-4 rounded border-[hsl(var(--input))]"
+                    />
+                    <Label htmlFor="q-includeReasoning" className="text-sm font-normal">
+                      Include reasoning in response
+                    </Label>
+                  </div>
+                  <input
+                    type="hidden"
+                    name="configJson"
+                    value={JSON.stringify({ scalePreset, scaleMin, scaleMax, includeReasoning })}
+                  />
+                </div>
+              )}
+
+              {/* Mode */}
               <div className="space-y-2">
                 <Label htmlFor="q-mode">Mode</Label>
                 <Select id="q-mode" name="mode" defaultValue="STATELESS">
@@ -366,6 +481,8 @@ function QuestionsTab({
                   <SelectOption value="THREADED">Threaded</SelectOption>
                 </Select>
               </div>
+
+              {/* Thread Key */}
               <div className="space-y-2">
                 <Label htmlFor="q-threadKey">Thread Key (optional)</Label>
                 <Input
@@ -400,6 +517,7 @@ function QuestionsTab({
                 <TableHead className="w-[50px]">#</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Prompt Preview</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Mode</TableHead>
                 <TableHead className="w-[140px]">Actions</TableHead>
               </TableRow>
@@ -423,6 +541,13 @@ function QuestionsTab({
                       <p className="line-clamp-2 text-sm text-[hsl(var(--muted-foreground))]">
                         {q.promptTemplate}
                       </p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {q.type === "RANKED" && q.configJson
+                          ? `Ranked ${q.configJson.scaleMin}-${q.configJson.scaleMax}`
+                          : "Open Ended"}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -470,6 +595,22 @@ function QuestionEditRow({
 }) {
   const boundUpdate = updateQuestionAction.bind(null, surveyId, question.id);
 
+  const [editType, setEditType] = useState<"OPEN_ENDED" | "RANKED">(
+    question.type === "RANKED" ? "RANKED" : "OPEN_ENDED"
+  );
+  const [editScalePreset, setEditScalePreset] = useState<string>(
+    question.configJson?.scalePreset ?? "1-5"
+  );
+  const [editScaleMin, setEditScaleMin] = useState(
+    question.configJson?.scaleMin ?? 1
+  );
+  const [editScaleMax, setEditScaleMax] = useState(
+    question.configJson?.scaleMax ?? 5
+  );
+  const [editIncludeReasoning, setEditIncludeReasoning] = useState(
+    question.configJson?.includeReasoning ?? true
+  );
+
   async function handleSubmit(formData: FormData) {
     const result = await boundUpdate(formData);
     if (result && !result.success) {
@@ -481,8 +622,32 @@ function QuestionEditRow({
 
   return (
     <TableRow>
-      <TableCell colSpan={5}>
+      <TableCell colSpan={6}>
         <form action={handleSubmit} className="space-y-3 py-2">
+          {/* Type Selector */}
+          <div className="space-y-1">
+            <Label>Question Type</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={editType === "OPEN_ENDED" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setEditType("OPEN_ENDED")}
+              >
+                Open Ended
+              </Button>
+              <Button
+                type="button"
+                variant={editType === "RANKED" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setEditType("RANKED")}
+              >
+                Ranked
+              </Button>
+            </div>
+            <input type="hidden" name="type" value={editType} />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label htmlFor={`edit-q-title-${question.id}`}>Title</Label>
@@ -517,6 +682,77 @@ function QuestionEditRow({
               required
             />
           </div>
+
+          {/* Ranked Configuration */}
+          {editType === "RANKED" && (
+            <div className="space-y-3 rounded-lg border p-3">
+              <h4 className="text-sm font-medium">Scale Configuration</h4>
+              <div className="space-y-2">
+                <Label htmlFor={`edit-q-scalePreset-${question.id}`}>Scale Preset</Label>
+                <Select
+                  id={`edit-q-scalePreset-${question.id}`}
+                  value={editScalePreset}
+                  onChange={(e) => {
+                    const preset = e.target.value;
+                    setEditScalePreset(preset);
+                    const defaults = SCALE_PRESETS[preset as keyof typeof SCALE_PRESETS];
+                    if (defaults) {
+                      setEditScaleMin(defaults.min);
+                      setEditScaleMax(defaults.max);
+                    }
+                  }}
+                >
+                  <SelectOption value="1-5">1 to 5</SelectOption>
+                  <SelectOption value="1-10">1 to 10</SelectOption>
+                  <SelectOption value="1-100">1 to 100</SelectOption>
+                  <SelectOption value="percentage">Percentage</SelectOption>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-q-scaleMin-${question.id}`}>Min</Label>
+                  <Input
+                    id={`edit-q-scaleMin-${question.id}`}
+                    type="number"
+                    value={editScaleMin}
+                    onChange={(e) => setEditScaleMin(Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-q-scaleMax-${question.id}`}>Max</Label>
+                  <Input
+                    id={`edit-q-scaleMax-${question.id}`}
+                    type="number"
+                    value={editScaleMax}
+                    onChange={(e) => setEditScaleMax(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`edit-q-includeReasoning-${question.id}`}
+                  type="checkbox"
+                  checked={editIncludeReasoning}
+                  onChange={(e) => setEditIncludeReasoning(e.target.checked)}
+                  className="h-4 w-4 rounded border-[hsl(var(--input))]"
+                />
+                <Label htmlFor={`edit-q-includeReasoning-${question.id}`} className="text-sm font-normal">
+                  Include reasoning in response
+                </Label>
+              </div>
+              <input
+                type="hidden"
+                name="configJson"
+                value={JSON.stringify({
+                  scalePreset: editScalePreset,
+                  scaleMin: editScaleMin,
+                  scaleMax: editScaleMax,
+                  includeReasoning: editIncludeReasoning,
+                })}
+              />
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label htmlFor={`edit-q-threadKey-${question.id}`}>
               Thread Key

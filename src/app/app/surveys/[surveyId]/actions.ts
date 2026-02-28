@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { requireSurveyAccess } from "@/lib/survey-auth";
@@ -87,11 +88,25 @@ export async function addQuestionAction(surveyId: string, formData: FormData): P
       ? promptTemplate.slice(0, 60).trim() || "Untitled Question"
       : "Untitled Question";
 
+  const typeRaw = formData.get("type");
+  const configJsonRaw = formData.get("configJson");
+
+  let parsedConfig: unknown;
+  if (typeof configJsonRaw === "string" && configJsonRaw) {
+    try {
+      parsedConfig = JSON.parse(configJsonRaw);
+    } catch {
+      return { success: false, error: "Invalid configuration JSON" };
+    }
+  }
+
   const raw = {
     title,
     promptTemplate,
     mode: formData.get("mode") || undefined,
     threadKey: formData.get("threadKey") || undefined,
+    type: (typeof typeRaw === "string" && typeRaw) ? typeRaw : undefined,
+    configJson: parsedConfig,
   };
 
   const parsed = createQuestionSchema.safeParse(raw);
@@ -114,6 +129,10 @@ export async function addQuestionAction(surveyId: string, formData: FormData): P
       mode: parsed.data.mode ?? "STATELESS",
       threadKey: parsed.data.threadKey,
       order: nextOrder,
+      type: parsed.data.type ?? "OPEN_ENDED",
+      configJson: parsed.data.configJson
+        ? (parsed.data.configJson as unknown as Prisma.InputJsonValue)
+        : undefined,
     },
   });
 
@@ -142,21 +161,39 @@ export async function updateQuestionAction(
   const promptTemplate = formData.get("promptTemplate");
   const mode = formData.get("mode");
   const threadKey = formData.get("threadKey");
+  const type = formData.get("type");
+  const configJson = formData.get("configJson");
 
   if (typeof title === "string" && title.trim()) raw.title = title.trim();
   if (typeof promptTemplate === "string" && promptTemplate.trim())
     raw.promptTemplate = promptTemplate.trim();
   if (typeof mode === "string" && mode) raw.mode = mode;
   if (typeof threadKey === "string") raw.threadKey = threadKey || undefined;
+  if (typeof type === "string" && type) raw.type = type;
+  if (typeof configJson === "string" && configJson) {
+    try {
+      raw.configJson = JSON.parse(configJson) as unknown;
+    } catch {
+      return { success: false, error: "Invalid configuration JSON" };
+    }
+  }
 
   const parsed = updateQuestionSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: `Invalid question data: ${parsed.error.issues.map((i) => i.message).join(", ")}` };
   }
 
+  // Build update data, converting configJson for Prisma
+  const updateData: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.configJson) {
+    updateData.configJson = parsed.data.configJson as unknown as Prisma.InputJsonValue;
+  } else if (parsed.data.type === "OPEN_ENDED") {
+    updateData.configJson = Prisma.JsonNull;
+  }
+
   await prisma.question.update({
     where: { id: questionId, surveyId },
-    data: parsed.data,
+    data: updateData,
   });
 
   await createAuditEvent({

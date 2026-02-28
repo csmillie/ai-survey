@@ -23,6 +23,13 @@ export interface ExecuteQuestionPayload {
   threadKey: string;
   renderedPrompt: string;
   questionMode: string;
+  questionType?: "OPEN_ENDED" | "RANKED";
+  questionConfig?: {
+    scalePreset: string;
+    scaleMin: number;
+    scaleMax: number;
+    includeReasoning: boolean;
+  };
 }
 
 export interface AnalyzeResponsePayload {

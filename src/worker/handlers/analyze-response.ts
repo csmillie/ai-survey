@@ -51,11 +51,14 @@ export async function handleAnalyzeResponse(
       return;
     }
 
-    // 3. Extract answer text
-    const parsed = llmResponse.parsedJson as unknown as ParsedLlmResponse;
-    const answerText = parsed.answerText ?? "";
+    // 3. Extract text to analyze
+    const parsed = llmResponse.parsedJson as unknown as Record<string, unknown>;
+    // For ranked questions, analyze the reasoning text; for open-ended, analyze answerText
+    const textToAnalyze = llmResponse.reasoningText
+      ?? (parsed as unknown as ParsedLlmResponse).answerText
+      ?? "";
 
-    if (!answerText) {
+    if (!textToAnalyze) {
       await prisma.analysisResult.create({
         data: {
           responseId,
@@ -67,14 +70,14 @@ export async function handleAnalyzeResponse(
     }
 
     // 4. Run analysis
-    const sentimentScore = analyzeSentiment(answerText);
-    const entities = extractEntities(answerText);
-    const brandMentions = extractBrandMentions(answerText);
-    const institutionMentions = extractInstitutionMentions(answerText);
+    const sentimentScore = analyzeSentiment(textToAnalyze);
+    const entities = extractEntities(textToAnalyze);
+    const brandMentions = extractBrandMentions(textToAnalyze);
+    const institutionMentions = extractInstitutionMentions(textToAnalyze);
 
     // 5. Build flags
     const flags: string[] = [];
-    if (answerText.length < 20) {
+    if (textToAnalyze.length < 20) {
       flags.push("short_answer");
     }
     if (Math.abs(sentimentScore) > 0.8) {
