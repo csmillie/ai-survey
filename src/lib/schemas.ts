@@ -76,6 +76,38 @@ export const updateSurveySchema = z.object({
 export type UpdateSurveyInput = z.infer<typeof updateSurveySchema>;
 
 // ---------------------------------------------------------------------------
+// Ranked Question Config
+// ---------------------------------------------------------------------------
+
+export const SCALE_PRESETS = {
+  "1-5": { min: 1, max: 5 },
+  "1-10": { min: 1, max: 10 },
+  "1-100": { min: 1, max: 100 },
+  "percentage": { min: 0, max: 100 },
+} as const;
+
+export type ScalePreset = keyof typeof SCALE_PRESETS;
+
+export const rankedConfigSchema = z.object({
+  scalePreset: z.enum(["1-5", "1-10", "1-100", "percentage"]),
+  scaleMin: z.number().int().min(0),
+  scaleMax: z.number().int().min(1),
+  includeReasoning: z.boolean(),
+}).refine((data) => data.scaleMin < data.scaleMax, {
+  message: "scaleMin must be less than scaleMax",
+  path: ["scaleMin"],
+});
+
+export type RankedConfig = z.infer<typeof rankedConfigSchema>;
+
+export const rankedResponseSchema = z.object({
+  score: z.number(),
+  reasoning: z.string().optional(),
+});
+
+export type RankedResponsePayload = z.infer<typeof rankedResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Question
 // ---------------------------------------------------------------------------
 
@@ -85,6 +117,8 @@ export const createQuestionSchema = z.object({
   mode: z.enum(["STATELESS", "THREADED"]).optional(),
   threadKey: z.string().optional(),
   order: z.number().int().optional(),
+  type: z.enum(["OPEN_ENDED", "RANKED"]).optional(),
+  configJson: rankedConfigSchema.optional(),
 });
 
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
