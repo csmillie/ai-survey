@@ -72,6 +72,7 @@ Refer to [docs/DEPLOYMENT_VPS.md](docs/DEPLOYMENT_VPS.md) for full details.
 8. Configure Nginx as reverse proxy with SSE support:
    ```nginx
    location /api/runs/ {
+     # Production: next start defaults to port 3000 (dev uses 5001)
      proxy_pass http://localhost:3000;
      proxy_http_version 1.1;
      proxy_set_header Connection '';

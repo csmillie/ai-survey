@@ -83,7 +83,7 @@ Do NOT commit if any of these fail. Fix issues first.
 ### Error Handling
 
 - Validate all external input (user input, API responses, env vars) with Zod at system boundaries.
-- Use `src/lib/env.ts` typed accessors for all environment variables. Never read `process.env` directly.
+- Use `src/lib/env.ts` typed accessors for all environment variables. Never read `process.env` directly. Exception: `src/worker/index.ts` runs as a standalone `tsx` process outside Next.js and cannot use `@/` path aliases.
 - Server Actions return `{ success: boolean; error?: string }` patterns.
 - LLM responses go through `src/lib/json-repair.ts` for resilient parsing.
 
