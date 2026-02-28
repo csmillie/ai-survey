@@ -111,7 +111,7 @@ export type RankedResponsePayload = z.infer<typeof rankedResponseSchema>;
 // Question
 // ---------------------------------------------------------------------------
 
-export const createQuestionSchema = z.object({
+const questionSchemaBase = z.object({
   title: z.string(),
   promptTemplate: z.string(),
   mode: z.enum(["STATELESS", "THREADED"]).optional(),
@@ -121,9 +121,14 @@ export const createQuestionSchema = z.object({
   configJson: rankedConfigSchema.optional(),
 });
 
+export const createQuestionSchema = questionSchemaBase.refine(
+  (data) => data.type !== "RANKED" || data.configJson !== undefined,
+  { message: "configJson is required for RANKED questions", path: ["configJson"] },
+);
+
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 
-export const updateQuestionSchema = createQuestionSchema.partial();
+export const updateQuestionSchema = questionSchemaBase.partial();
 
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 

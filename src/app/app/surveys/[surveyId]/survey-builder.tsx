@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { SCALE_PRESETS } from "@/lib/schemas";
 import {
   updateSurveyAction,
   addQuestionAction,
@@ -312,13 +313,6 @@ function SurveyHeader({
 // Questions Tab
 // ---------------------------------------------------------------------------
 
-const PRESET_DEFAULTS: Record<string, { min: number; max: number }> = {
-  "1-5": { min: 1, max: 5 },
-  "1-10": { min: 1, max: 10 },
-  "1-100": { min: 1, max: 100 },
-  "percentage": { min: 0, max: 100 },
-};
-
 function QuestionsTab({
   surveyId,
   questions,
@@ -403,7 +397,7 @@ function QuestionsTab({
                   name="promptTemplate"
                   placeholder={
                     questionType === "RANKED"
-                      ? "e.g., On a scale of {{scaleMin}} to {{scaleMax}}, how would you rate {{brand}}?"
+                      ? `e.g., How would you rate {{brand}}?`
                       : "e.g., What do you think about {{brand}}?"
                   }
                   rows={4}
@@ -426,7 +420,7 @@ function QuestionsTab({
                       onChange={(e) => {
                         const preset = e.target.value;
                         setScalePreset(preset);
-                        const defaults = PRESET_DEFAULTS[preset];
+                        const defaults = SCALE_PRESETS[preset as keyof typeof SCALE_PRESETS];
                         if (defaults) {
                           setScaleMin(defaults.min);
                           setScaleMax(defaults.max);
@@ -701,7 +695,7 @@ function QuestionEditRow({
                   onChange={(e) => {
                     const preset = e.target.value;
                     setEditScalePreset(preset);
-                    const defaults = PRESET_DEFAULTS[preset];
+                    const defaults = SCALE_PRESETS[preset as keyof typeof SCALE_PRESETS];
                     if (defaults) {
                       setEditScaleMin(defaults.min);
                       setEditScaleMax(defaults.max);

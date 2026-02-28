@@ -91,15 +91,22 @@ export async function addQuestionAction(surveyId: string, formData: FormData): P
   const typeRaw = formData.get("type");
   const configJsonRaw = formData.get("configJson");
 
+  let parsedConfig: unknown;
+  if (typeof configJsonRaw === "string" && configJsonRaw) {
+    try {
+      parsedConfig = JSON.parse(configJsonRaw);
+    } catch {
+      return { success: false, error: "Invalid configuration JSON" };
+    }
+  }
+
   const raw = {
     title,
     promptTemplate,
     mode: formData.get("mode") || undefined,
     threadKey: formData.get("threadKey") || undefined,
     type: (typeof typeRaw === "string" && typeRaw) ? typeRaw : undefined,
-    configJson: typeof configJsonRaw === "string" && configJsonRaw
-      ? JSON.parse(configJsonRaw) as unknown
-      : undefined,
+    configJson: parsedConfig,
   };
 
   const parsed = createQuestionSchema.safeParse(raw);
@@ -163,8 +170,13 @@ export async function updateQuestionAction(
   if (typeof mode === "string" && mode) raw.mode = mode;
   if (typeof threadKey === "string") raw.threadKey = threadKey || undefined;
   if (typeof type === "string" && type) raw.type = type;
-  if (typeof configJson === "string" && configJson)
-    raw.configJson = JSON.parse(configJson) as unknown;
+  if (typeof configJson === "string" && configJson) {
+    try {
+      raw.configJson = JSON.parse(configJson) as unknown;
+    } catch {
+      return { success: false, error: "Invalid configuration JSON" };
+    }
+  }
 
   const parsed = updateQuestionSchema.safeParse(raw);
   if (!parsed.success) {
@@ -175,6 +187,8 @@ export async function updateQuestionAction(
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.configJson) {
     updateData.configJson = parsed.data.configJson as unknown as Prisma.InputJsonValue;
+  } else if (parsed.data.type === "OPEN_ENDED") {
+    updateData.configJson = Prisma.JsonNull;
   }
 
   await prisma.question.update({

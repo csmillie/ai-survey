@@ -23,7 +23,7 @@ export interface ExecuteQuestionPayload {
   threadKey: string;
   renderedPrompt: string;
   questionMode: string;
-  questionType?: string;
+  questionType?: "OPEN_ENDED" | "RANKED";
   questionConfig?: {
     scalePreset: string;
     scaleMin: number;

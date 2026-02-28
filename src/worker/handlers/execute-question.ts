@@ -55,7 +55,8 @@ export async function handleExecuteQuestion(
     });
 
     // 2. Build messages
-    const isRanked = questionType === "RANKED" && questionConfig;
+    const isRanked = questionType === "RANKED" && !!questionConfig;
+    const rankedConfig = isRanked ? questionConfig : null;
 
     const messages: LlmMessage[] = [
       {
@@ -83,11 +84,11 @@ export async function handleExecuteQuestion(
     }
 
     // Add the user message
-    const userContent = isRanked
+    const userContent = isRanked && rankedConfig
       ? renderedPrompt + buildRankedEnforcementBlock({
-          scaleMin: questionConfig!.scaleMin,
-          scaleMax: questionConfig!.scaleMax,
-          includeReasoning: questionConfig!.includeReasoning,
+          scaleMin: rankedConfig.scaleMin,
+          scaleMax: rankedConfig.scaleMax,
+          includeReasoning: rankedConfig.includeReasoning,
         })
       : renderedPrompt + JSON_ENFORCEMENT_BLOCK;
     messages.push({ role: "user", content: userContent });
@@ -103,21 +104,24 @@ export async function handleExecuteQuestion(
     const { parsed, error: parseError } = repairAndParseJson(response.text);
 
     let reasoningText: string | null = null;
+    let finalParsed = parsed as Record<string, unknown> | null;
 
-    if (isRanked && parsed) {
+    if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
       if (rankedResult.success) {
         const clamped = clampScore(
           rankedResult.data.score,
-          questionConfig!.scaleMin,
-          questionConfig!.scaleMax,
+          rankedConfig.scaleMin,
+          rankedConfig.scaleMax,
         );
-        (parsed as Record<string, unknown>).score = clamped;
+        finalParsed = { ...parsed as Record<string, unknown>, score: clamped };
         reasoningText = rankedResult.data.reasoning ?? null;
+      } else {
+        console.warn(
+          `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
+        );
       }
     }
-
-    const typedParsed = parsed as Record<string, unknown> | null;
 
     // 5. Calculate cost
     const inputCost = new Prisma.Decimal(response.usage.inputTokens)
@@ -137,11 +141,11 @@ export async function handleExecuteQuestion(
         threadKey,
         rawText: response.text,
         requestMessagesJson: messages as unknown as Prisma.InputJsonValue,
-        parsedJson: typedParsed
-          ? (typedParsed as unknown as Prisma.InputJsonValue)
+        parsedJson: finalParsed
+          ? (finalParsed as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        citationsJson: !isRanked && typedParsed && "citations" in typedParsed
-          ? ((typedParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
+        citationsJson: !isRanked && finalParsed && "citations" in finalParsed
+          ? ((finalParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         reasoningText,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
@@ -199,7 +203,7 @@ export async function handleExecuteQuestion(
     });
 
     // 9. Enqueue ANALYZE_RESPONSE job (skip for ranked without reasoning)
-    const shouldAnalyze = !isRanked || (isRanked && questionConfig?.includeReasoning);
+    const shouldAnalyze = !isRanked || (isRanked && rankedConfig?.includeReasoning);
     if (shouldAnalyze) {
       await enqueueAnalyzeJob({
         runId,
