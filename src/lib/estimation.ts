@@ -44,6 +44,18 @@ function decimalToNumber(value: Decimal): number {
   return Number(value);
 }
 
+function calculateModelCostUsd(
+  inputTokens: number,
+  outputTokens: number,
+  inputCostPerMillionTokens: Decimal,
+  outputCostPerMillionTokens: Decimal,
+): number {
+  return (
+    (inputTokens * decimalToNumber(inputCostPerMillionTokens)) / 1_000_000 +
+    (outputTokens * decimalToNumber(outputCostPerMillionTokens)) / 1_000_000
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Estimation
 // ---------------------------------------------------------------------------
@@ -85,14 +97,12 @@ export async function estimateRun(params: {
     const estimatedInputTokens = jobCount * AVG_INPUT_TOKENS_PER_QUESTION;
     const estimatedOutputTokens = jobCount * AVG_OUTPUT_TOKENS_PER_QUESTION;
 
-    // Cost = inputTokens * inputCostPerToken + outputTokens * outputCostPerToken
-    // Token costs are per 1M tokens in the database
-    const inputCostPerToken = decimalToNumber(model.inputTokenCostUsd);
-    const outputCostPerToken = decimalToNumber(model.outputTokenCostUsd);
-
-    const estimatedCostUsd =
-      (estimatedInputTokens * inputCostPerToken) / 1_000_000 +
-      (estimatedOutputTokens * outputCostPerToken) / 1_000_000;
+    const estimatedCostUsd = calculateModelCostUsd(
+      estimatedInputTokens,
+      estimatedOutputTokens,
+      model.inputTokenCostUsd,
+      model.outputTokenCostUsd,
+    );
 
     perModel.push({
       modelTargetId: model.id,
