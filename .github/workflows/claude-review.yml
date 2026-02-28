@@ -29,4 +29,4 @@ jobs:
           prompt: |
             Review this pull request for code quality, potential bugs, security, and performance.
             Post your review as a single PR comment using gh pr comment.
-          claude_args: "--max-turns 10 --allowedTools Read,Glob,Grep,Bash"
+          claude_args: "--max-turns 20 --allowedTools Read,Glob,Grep,Bash"

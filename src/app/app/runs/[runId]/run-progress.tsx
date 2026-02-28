@@ -19,7 +19,14 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { cancelRunAction, exportRunAction } from "./actions";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,6 +51,12 @@ interface ResponseData {
     places: string[];
     organizations: string[];
   } | null;
+}
+
+interface DebugData {
+  rawText: string;
+  requestMessages: Array<{ role: string; content: string }> | null;
+  usageJson: { inputTokens: number; outputTokens: number } | null;
 }
 
 interface QuestionGroup {
@@ -358,6 +371,25 @@ function ResponseRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugData, setDebugData] = useState<DebugData | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+
+  const handleDebugOpen = useCallback(async () => {
+    setDebugOpen(true);
+    if (debugData) return;
+    setDebugLoading(true);
+    const result = await getResponseDebugData(response.id);
+    if (result.success) {
+      setDebugData({
+        rawText: result.rawText,
+        requestMessages: result.requestMessages,
+        usageJson: result.usageJson,
+      });
+    }
+    setDebugLoading(false);
+  }, [response.id, debugData]);
+
   const truncatedAnswer =
     response.answerText.length > 120
       ? response.answerText.slice(0, 120) + "..."
@@ -367,11 +399,35 @@ function ResponseRow({
     <>
       <TableRow className="cursor-pointer" onClick={onToggle}>
         <TableCell>
-          <div>
+          <div className="flex items-center gap-1.5">
             <span className="font-medium">{response.modelName}</span>
-            <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
               {response.provider}
             </span>
+            <button
+              type="button"
+              title="View API call details"
+              className="ml-1 rounded p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDebugOpen();
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </button>
           </div>
         </TableCell>
         <TableCell className="max-w-md">
@@ -496,6 +552,80 @@ function ResponseRow({
           </TableCell>
         </TableRow>
       )}
+
+      {/* Debug Dialog */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              API Call — {response.provider} / {response.modelName}
+            </DialogTitle>
+            <DialogDescription>
+              Full request and response for this LLM call
+              {debugData?.usageJson && (
+                <span className="ml-2">
+                  ({debugData.usageJson.inputTokens.toLocaleString()} input /{" "}
+                  {debugData.usageJson.outputTokens.toLocaleString()} output tokens)
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-4">
+            {debugLoading ? (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                Loading...
+              </p>
+            ) : debugData ? (
+              <>
+                {/* Request Messages */}
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">Request Messages</h4>
+                  {debugData.requestMessages ? (
+                    <div className="space-y-3">
+                      {debugData.requestMessages.map((msg, i) => (
+                        <div key={`${msg.role}-${i}`}>
+                          <Badge
+                            variant={
+                              msg.role === "system"
+                                ? "secondary"
+                                : msg.role === "assistant"
+                                  ? "outline"
+                                  : "default"
+                            }
+                            className="mb-1"
+                          >
+                            {msg.role}
+                          </Badge>
+                          <pre className="mt-1 whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                            {msg.content}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                      Request data not available for this response.
+                    </p>
+                  )}
+                </div>
+
+                {/* Raw Response */}
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">Raw Response</h4>
+                  <pre className="whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                    {debugData.rawText}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                Failed to load debug data.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

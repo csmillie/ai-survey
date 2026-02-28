@@ -103,6 +103,7 @@ export async function handleExecuteQuestion(
         questionId,
         threadKey,
         rawText: response.text,
+        requestMessagesJson: messages as unknown as Prisma.InputJsonValue,
         parsedJson: typedParsed
           ? (typedParsed as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
