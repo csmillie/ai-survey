@@ -26,21 +26,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { cancelRunAction, exportRunAction } from "./actions";
+import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface RequestMessage {
-  role: string;
-  content: string;
-}
-
-interface UsageData {
-  inputTokens: number;
-  outputTokens: number;
-}
 
 interface ResponseData {
   id: string;
@@ -49,9 +39,6 @@ interface ResponseData {
   modelName: string;
   provider: string;
   answerText: string;
-  rawText: string;
-  requestMessages: RequestMessage[] | null;
-  usageJson: UsageData | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
   sentimentScore: number | null;
   costUsd: string | null;
@@ -64,6 +51,12 @@ interface ResponseData {
     places: string[];
     organizations: string[];
   } | null;
+}
+
+interface DebugData {
+  rawText: string;
+  requestMessages: Array<{ role: string; content: string }> | null;
+  usageJson: { inputTokens: number; outputTokens: number } | null;
 }
 
 interface QuestionGroup {
@@ -379,6 +372,23 @@ function ResponseRow({
   onToggle: () => void;
 }) {
   const [debugOpen, setDebugOpen] = useState(false);
+  const [debugData, setDebugData] = useState<DebugData | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+
+  const handleDebugOpen = useCallback(async () => {
+    setDebugOpen(true);
+    if (debugData) return;
+    setDebugLoading(true);
+    const result = await getResponseDebugData(response.id);
+    if (result.success) {
+      setDebugData({
+        rawText: result.rawText,
+        requestMessages: result.requestMessages,
+        usageJson: result.usageJson,
+      });
+    }
+    setDebugLoading(false);
+  }, [response.id, debugData]);
 
   const truncatedAnswer =
     response.answerText.length > 120
@@ -400,7 +410,7 @@ function ResponseRow({
               className="ml-1 rounded p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]"
               onClick={(e) => {
                 e.stopPropagation();
-                setDebugOpen(true);
+                handleDebugOpen();
               }}
             >
               <svg
@@ -552,55 +562,67 @@ function ResponseRow({
             </DialogTitle>
             <DialogDescription>
               Full request and response for this LLM call
-              {response.usageJson && (
+              {debugData?.usageJson && (
                 <span className="ml-2">
-                  ({response.usageJson.inputTokens.toLocaleString()} input /{" "}
-                  {response.usageJson.outputTokens.toLocaleString()} output tokens)
+                  ({debugData.usageJson.inputTokens.toLocaleString()} input /{" "}
+                  {debugData.usageJson.outputTokens.toLocaleString()} output tokens)
                 </span>
               )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-4 space-y-4">
-            {/* Request Messages */}
-            <div>
-              <h4 className="mb-2 text-sm font-semibold">Request Messages</h4>
-              {response.requestMessages ? (
-                <div className="space-y-3">
-                  {response.requestMessages.map((msg, i) => (
-                    <div key={i}>
-                      <Badge
-                        variant={
-                          msg.role === "system"
-                            ? "secondary"
-                            : msg.role === "assistant"
-                              ? "outline"
-                              : "default"
-                        }
-                        className="mb-1"
-                      >
-                        {msg.role}
-                      </Badge>
-                      <pre className="mt-1 whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
-                        {msg.content}
-                      </pre>
+            {debugLoading ? (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                Loading...
+              </p>
+            ) : debugData ? (
+              <>
+                {/* Request Messages */}
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">Request Messages</h4>
+                  {debugData.requestMessages ? (
+                    <div className="space-y-3">
+                      {debugData.requestMessages.map((msg, i) => (
+                        <div key={`${msg.role}-${i}`}>
+                          <Badge
+                            variant={
+                              msg.role === "system"
+                                ? "secondary"
+                                : msg.role === "assistant"
+                                  ? "outline"
+                                  : "default"
+                            }
+                            className="mb-1"
+                          >
+                            {msg.role}
+                          </Badge>
+                          <pre className="mt-1 whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                            {msg.content}
+                          </pre>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                      Request data not available for this response.
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Request data not available for this response.
-                </p>
-              )}
-            </div>
 
-            {/* Raw Response */}
-            <div>
-              <h4 className="mb-2 text-sm font-semibold">Raw Response</h4>
-              <pre className="whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
-                {response.rawText}
-              </pre>
-            </div>
+                {/* Raw Response */}
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold">Raw Response</h4>
+                  <pre className="whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                    {debugData.rawText}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                Failed to load debug data.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

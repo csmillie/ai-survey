@@ -111,6 +111,61 @@ export async function cancelRunAction(runId: string): Promise<ActionResult> {
 // exportRunAction
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// getResponseDebugData
+// ---------------------------------------------------------------------------
+
+interface DebugDataResult {
+  success: true;
+  rawText: string;
+  requestMessages: Array<{ role: string; content: string }> | null;
+  usageJson: { inputTokens: number; outputTokens: number } | null;
+}
+
+export async function getResponseDebugData(
+  responseId: string
+): Promise<DebugDataResult | ActionError> {
+  const session = await requireSession();
+
+  const resp = await prisma.llmResponse.findUnique({
+    where: { id: responseId },
+    select: {
+      rawText: true,
+      requestMessagesJson: true,
+      usageJson: true,
+      run: { select: { surveyId: true } },
+    },
+  });
+
+  if (!resp) {
+    return { success: false, error: "Response not found" };
+  }
+
+  const hasAccess = await canAccessSurvey(session.userId, resp.run.surveyId, "VIEW");
+  if (!hasAccess) {
+    return { success: false, error: "Access denied" };
+  }
+
+  return {
+    success: true,
+    rawText: resp.rawText,
+    requestMessages:
+      (resp.requestMessagesJson as unknown as Array<{
+        role: string;
+        content: string;
+      }>) ?? null,
+    usageJson:
+      (resp.usageJson as unknown as {
+        inputTokens: number;
+        outputTokens: number;
+      }) ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// exportRunAction
+// ---------------------------------------------------------------------------
+
 export async function exportRunAction(runId: string): Promise<ActionResult> {
   const session = await requireSession();
 
