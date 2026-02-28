@@ -28,7 +28,7 @@ export function substituteVariables(
   const unresolvedSet = new Set<string>();
 
   const result = template.replace(PLACEHOLDER_REGEX, (match, key: string) => {
-    if (Object.prototype.hasOwnProperty.call(variables, key)) {
+    if (key in variables) {
       return variables[key];
     }
     unresolvedSet.add(key);
