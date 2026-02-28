@@ -42,6 +42,10 @@ export async function loginAction(
     return { error: "Invalid credentials." };
   }
 
+  if (user.disabledAt) {
+    return { error: "This account has been disabled." };
+  }
+
   // Verify password
   const passwordValid = await verifyPassword(password, user.passwordHash);
 
