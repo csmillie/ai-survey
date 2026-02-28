@@ -252,8 +252,9 @@ model LlmResponse {
   rawText       String   @db.LongText
   parsedJson    Json?
   citationsJson Json?
-  usageJson     Json?
-  costUsd       Decimal? @db.Decimal(12, 6)
+  usageJson           Json?
+  requestMessagesJson Json?
+  costUsd             Decimal? @db.Decimal(12, 6)
   latencyMs     Int?
   createdAt     DateTime @default(now())
 

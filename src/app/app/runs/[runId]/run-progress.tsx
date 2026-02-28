@@ -19,11 +19,28 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction } from "./actions";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface RequestMessage {
+  role: string;
+  content: string;
+}
+
+interface UsageData {
+  inputTokens: number;
+  outputTokens: number;
+}
 
 interface ResponseData {
   id: string;
@@ -32,6 +49,9 @@ interface ResponseData {
   modelName: string;
   provider: string;
   answerText: string;
+  rawText: string;
+  requestMessages: RequestMessage[] | null;
+  usageJson: UsageData | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
   sentimentScore: number | null;
   costUsd: string | null;
@@ -358,6 +378,8 @@ function ResponseRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const [debugOpen, setDebugOpen] = useState(false);
+
   const truncatedAnswer =
     response.answerText.length > 120
       ? response.answerText.slice(0, 120) + "..."
@@ -367,11 +389,35 @@ function ResponseRow({
     <>
       <TableRow className="cursor-pointer" onClick={onToggle}>
         <TableCell>
-          <div>
+          <div className="flex items-center gap-1.5">
             <span className="font-medium">{response.modelName}</span>
-            <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
               {response.provider}
             </span>
+            <button
+              type="button"
+              title="View API call details"
+              className="ml-1 rounded p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDebugOpen(true);
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </button>
           </div>
         </TableCell>
         <TableCell className="max-w-md">
@@ -496,6 +542,68 @@ function ResponseRow({
           </TableCell>
         </TableRow>
       )}
+
+      {/* Debug Dialog */}
+      <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              API Call — {response.provider} / {response.modelName}
+            </DialogTitle>
+            <DialogDescription>
+              Full request and response for this LLM call
+              {response.usageJson && (
+                <span className="ml-2">
+                  ({response.usageJson.inputTokens.toLocaleString()} input /{" "}
+                  {response.usageJson.outputTokens.toLocaleString()} output tokens)
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-4">
+            {/* Request Messages */}
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">Request Messages</h4>
+              {response.requestMessages ? (
+                <div className="space-y-3">
+                  {response.requestMessages.map((msg, i) => (
+                    <div key={i}>
+                      <Badge
+                        variant={
+                          msg.role === "system"
+                            ? "secondary"
+                            : msg.role === "assistant"
+                              ? "outline"
+                              : "default"
+                        }
+                        className="mb-1"
+                      >
+                        {msg.role}
+                      </Badge>
+                      <pre className="mt-1 whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                        {msg.content}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                  Request data not available for this response.
+                </p>
+              )}
+            </div>
+
+            {/* Raw Response */}
+            <div>
+              <h4 className="mb-2 text-sm font-semibold">Raw Response</h4>
+              <pre className="whitespace-pre-wrap rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/50 p-3 text-xs font-mono">
+                {response.rawText}
+              </pre>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -90,6 +90,17 @@ export default async function RunPage({ params }: RunPageProps) {
       modelName: resp.modelTarget.modelName,
       provider: resp.modelTarget.provider,
       answerText: parsed?.answerText ?? resp.rawText,
+      rawText: resp.rawText,
+      requestMessages:
+        (resp.requestMessagesJson as unknown as Array<{
+          role: string;
+          content: string;
+        }>) ?? null,
+      usageJson:
+        (resp.usageJson as unknown as {
+          inputTokens: number;
+          outputTokens: number;
+        }) ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
       costUsd: resp.costUsd?.toString() ?? null,
