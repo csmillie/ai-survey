@@ -7,19 +7,19 @@ import {
 } from "@/lib/schemas";
 
 describe("rankedConfigSchema", () => {
-  it("accepts valid ranked config with 1-5 preset", () => {
+  it("accepts valid ranked config with 0-5 preset", () => {
     const result = rankedConfigSchema.safeParse({
-      scalePreset: "1-5",
-      scaleMin: 1,
+      scalePreset: "0-5",
+      scaleMin: 0,
       scaleMax: 5,
       includeReasoning: true,
     });
     expect(result.success).toBe(true);
   });
 
-  it("accepts percentage preset with 0-100 range", () => {
+  it("accepts 0-100 preset", () => {
     const result = rankedConfigSchema.safeParse({
-      scalePreset: "percentage",
+      scalePreset: "0-100",
       scaleMin: 0,
       scaleMax: 100,
       includeReasoning: false,
@@ -29,7 +29,7 @@ describe("rankedConfigSchema", () => {
 
   it("accepts custom min/max overriding preset defaults", () => {
     const result = rankedConfigSchema.safeParse({
-      scalePreset: "1-5",
+      scalePreset: "0-5",
       scaleMin: 2,
       scaleMax: 4,
       includeReasoning: false,
@@ -47,9 +47,19 @@ describe("rankedConfigSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects removed percentage preset", () => {
+    const result = rankedConfigSchema.safeParse({
+      scalePreset: "percentage",
+      scaleMin: 0,
+      scaleMax: 100,
+      includeReasoning: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects when scaleMin >= scaleMax", () => {
     const result = rankedConfigSchema.safeParse({
-      scalePreset: "1-5",
+      scalePreset: "0-5",
       scaleMin: 5,
       scaleMax: 5,
       includeReasoning: true,
@@ -59,7 +69,7 @@ describe("rankedConfigSchema", () => {
 
   it("rejects negative scaleMin", () => {
     const result = rankedConfigSchema.safeParse({
-      scalePreset: "1-5",
+      scalePreset: "0-5",
       scaleMin: -1,
       scaleMax: 5,
       includeReasoning: true,
@@ -106,8 +116,8 @@ describe("createQuestionSchema with type", () => {
       promptTemplate: "Rate {{brand}}",
       type: "RANKED",
       configJson: {
-        scalePreset: "1-10",
-        scaleMin: 1,
+        scalePreset: "0-10",
+        scaleMin: 0,
         scaleMax: 10,
         includeReasoning: true,
       },
@@ -136,8 +146,8 @@ describe("updateQuestionSchema with type", () => {
     const result = updateQuestionSchema.safeParse({
       type: "RANKED",
       configJson: {
-        scalePreset: "1-10",
-        scaleMin: 1,
+        scalePreset: "0-10",
+        scaleMin: 0,
         scaleMax: 10,
         includeReasoning: true,
       },

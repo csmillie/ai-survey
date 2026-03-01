@@ -187,8 +187,8 @@ describe("allocateJobs", () => {
       ...makeQuestion("q-ranked", 0, "Rate {{brand}}"),
       type: "RANKED" as const,
       configJson: {
-        scalePreset: "1-10",
-        scaleMin: 1,
+        scalePreset: "0-10",
+        scaleMin: 0,
         scaleMax: 10,
         includeReasoning: true,
       },
@@ -206,8 +206,8 @@ describe("allocateJobs", () => {
     expect(result.jobs[0].payloadJson).toMatchObject({
       questionType: "RANKED",
       questionConfig: {
-        scalePreset: "1-10",
-        scaleMin: 1,
+        scalePreset: "0-10",
+        scaleMin: 0,
         scaleMax: 10,
         includeReasoning: true,
       },

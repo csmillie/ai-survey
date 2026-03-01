@@ -80,16 +80,15 @@ export type UpdateSurveyInput = z.infer<typeof updateSurveySchema>;
 // ---------------------------------------------------------------------------
 
 export const SCALE_PRESETS = {
-  "1-5": { min: 1, max: 5 },
-  "1-10": { min: 1, max: 10 },
-  "1-100": { min: 1, max: 100 },
-  "percentage": { min: 0, max: 100 },
+  "0-5": { min: 0, max: 5 },
+  "0-10": { min: 0, max: 10 },
+  "0-100": { min: 0, max: 100 },
 } as const;
 
 export type ScalePreset = keyof typeof SCALE_PRESETS;
 
 export const rankedConfigSchema = z.object({
-  scalePreset: z.enum(["1-5", "1-10", "1-100", "percentage"]),
+  scalePreset: z.enum(["0-5", "0-10", "0-100"]),
   scaleMin: z.number().int().min(0),
   scaleMax: z.number().int().min(1).max(1000),
   includeReasoning: z.boolean(),
