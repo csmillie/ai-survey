@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { ExecuteQuestionPayload } from "@/lib/queue";
-import { enqueueAnalyzeJob } from "@/lib/queue";
+import { enqueueAnalyzeJob, enqueueComputeMetricsJob } from "@/lib/queue";
 import { getProvider } from "@/providers/registry";
 import type { LlmMessage } from "@/providers/types";
 import { JSON_ENFORCEMENT_BLOCK } from "@/providers/types";
@@ -312,4 +312,26 @@ async function checkRunCompletion(runId: string): Promise<void> {
       failedJobs,
     },
   });
+
+  // Enqueue COMPUTE_METRICS job for completed runs
+  if (newStatus === "COMPLETED") {
+    const runModel = await prisma.runModel.findFirst({
+      where: { runId },
+      select: { modelTargetId: true },
+    });
+    if (runModel) {
+      try {
+        await enqueueComputeMetricsJob({
+          runId,
+          modelTargetId: runModel.modelTargetId,
+        });
+      } catch (err) {
+        // Idempotency key collision means job already exists — safe to ignore
+        console.warn(
+          `[execute-question] Could not enqueue COMPUTE_METRICS for run ${runId}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
+    }
+  }
 }

@@ -1,0 +1,126 @@
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { getDriftDataAction } from "./actions";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface DriftPoint {
+  runDate: string;
+  models: Record<string, number>;
+}
+
+interface DriftChartProps {
+  runId: string;
+}
+
+// ---------------------------------------------------------------------------
+// Colors for model lines
+// ---------------------------------------------------------------------------
+
+const LINE_COLORS = [
+  "hsl(220, 70%, 55%)",
+  "hsl(160, 60%, 45%)",
+  "hsl(340, 65%, 50%)",
+  "hsl(40, 80%, 50%)",
+  "hsl(270, 55%, 55%)",
+  "hsl(190, 65%, 45%)",
+];
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function DriftChart({ runId }: DriftChartProps) {
+  const [data, setData] = useState<DriftPoint[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDriftDataAction(runId).then((result) => {
+      if (result.success) {
+        setData(result.data);
+      }
+      setLoading(false);
+    });
+  }, [runId]);
+
+  // Transform data for recharts: each row = { date, model1: score, model2: score, ... }
+  const { chartData, modelNames } = useMemo(() => {
+    if (!data || data.length === 0) return { chartData: [], modelNames: [] };
+
+    const names = new Set<string>();
+    for (const point of data) {
+      for (const name of Object.keys(point.models)) {
+        names.add(name);
+      }
+    }
+
+    const rows = data.map((point) => {
+      const row: Record<string, string | number> = {
+        date: new Date(point.runDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+      };
+      for (const name of names) {
+        row[name] = point.models[name] ?? 0;
+      }
+      return row;
+    });
+
+    return { chartData: rows, modelNames: [...names] };
+  }, [data]);
+
+  if (loading) {
+    return (
+      <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        Loading drift data...
+      </p>
+    );
+  }
+
+  if (!data || data.length < 2) {
+    return (
+      <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+        Run this survey multiple times to see reliability trends over time.
+      </p>
+    );
+  }
+
+  return (
+    <div className="pt-4">
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <XAxis dataKey="date" fontSize={12} />
+          <YAxis domain={[0, 10]} fontSize={12} />
+          <Tooltip />
+          <Legend />
+          {modelNames.map((name, i) => (
+            <Line
+              key={name}
+              type="monotone"
+              dataKey={name}
+              stroke={LINE_COLORS[i % LINE_COLORS.length]}
+              strokeWidth={2}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

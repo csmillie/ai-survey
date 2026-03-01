@@ -1,8 +1,8 @@
 # LLM Survey Platform (v1)
 
-A SurveyMonkey-style platform for running structured prompt surveys against multiple LLM chat APIs.
+A SurveyMonkey-style platform for running structured prompt surveys against multiple LLM chat APIs, with **ModelTrust** — a post-run analytics layer that scores model reliability, measures cross-model agreement, recommends models, and tracks quality drift over time.
 
-**Tech:** Next.js 16 (App Router), TypeScript (strict), Tailwind CSS, shadcn/ui, Prisma + MySQL, custom MySQL-backed job queue, SSE for live progress.
+**Tech:** Next.js 16 (App Router), TypeScript (strict), Tailwind CSS, shadcn/ui, Prisma + MySQL, custom MySQL-backed job queue, SSE for live progress, Recharts for drift visualization.
 
 ## How to Run Locally
 
@@ -83,6 +83,60 @@ Refer to [docs/DEPLOYMENT_VPS.md](docs/DEPLOYMENT_VPS.md) for full details.
 9. Set up TLS with Let's Encrypt / certbot
 10. (Optional) Use Docker Compose for containerized deployment
 
+## ModelTrust: Post-Run Analytics
+
+ModelTrust automatically analyzes completed survey runs to evaluate model quality and help users decide which models to trust.
+
+### Architecture
+
+```
+Run COMPLETED
+  |
+  v
+checkRunCompletion() ─── enqueues COMPUTE_METRICS job
+  |
+  v
+Worker claims COMPUTE_METRICS
+  |
+  ├── Wait for all ANALYZE_RESPONSE jobs to finish
+  |
+  ├── Load all responses + analysis for the run
+  |
+  ├── computeReliabilityScore() per model
+  |   ├── JSON valid rate, empty/short answer rate
+  |   ├── Citation rate, latency/cost variance
+  |   └── Score: 0-10 with penalty breakdown
+  |
+  ├── computeAgreement() per question
+  |   ├── Open-ended: TF-IDF + cosine similarity clustering
+  |   └── Ranked: score stdev vs scale range
+  |
+  ├── computeRecommendation()
+  |   ├── Top model by reliability (cost tie-break)
+  |   └── Flag human review if score < 7.0 or ≥30% questions flagged
+  |
+  └── Persist to RunModelMetric, RunQuestionAgreement, SurveyRun.recommendationJson
+```
+
+### Human/AI Boundary
+
+| What the system decides | What requires human review |
+|---|---|
+| Reliability scores (deterministic formula) | Final model selection for production use |
+| Agreement clustering (TF-IDF + cosine sim) | Interpretation of outlier responses |
+| Model recommendation (top score + cost) | Whether flagged questions indicate real problems |
+| Drift trend visualization | Strategic decisions based on drift patterns |
+
+The system flags uncertainty (scores < 7.0, low agreement, high disagreement) but never makes autonomous production decisions. Humans always have the final call.
+
+### If I Joined Wealthsimple
+
+- **Automated model evaluation pipelines** — Apply ModelTrust scoring to evaluate LLM providers before deploying customer-facing AI features, catching quality regressions before they reach production
+- **Cross-model consensus for high-stakes decisions** — Use agreement detection to validate AI-generated financial advice by requiring multiple model agreement before surfacing recommendations
+- **Cost-quality optimization** — Leverage reliability + cost data to route queries to the cheapest model that meets quality thresholds, reducing AI spend without sacrificing accuracy
+- **Continuous drift monitoring** — Track model reliability over time to detect provider degradation early, enabling proactive vendor switching rather than reactive incident response
+- **Human-in-the-loop guardrails** — Apply the human review flagging pattern to any AI system where confidence is low, ensuring sensitive financial decisions always have human oversight
+
 ## Project Structure
 
 ```
@@ -99,7 +153,12 @@ src/
       runs/[runId]/events/ # SSE endpoint
   components/ui/           # shadcn/ui components
   lib/                     # Core utilities
-    analysis/              # Sentiment + entity extraction
+    analysis/              # NLP + ModelTrust analytics
+      reliability.ts       # Reliability score computation
+      agreement.ts         # TF-IDF agreement engine
+      recommendation.ts    # Model recommendation engine
+      sentiment.ts         # Sentiment analysis
+      entities.ts          # Entity extraction
   providers/               # LLM provider adapters
   worker/                  # MySQL-backed job queue worker
     handlers/              # Job handlers

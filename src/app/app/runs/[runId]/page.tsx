@@ -26,6 +26,23 @@ interface AnalysisEntities {
   organizations: string[];
 }
 
+interface PenaltyBreakdown {
+  jsonInvalid: number;
+  emptyAnswer: number;
+  shortAnswer: number;
+  missingCitations: number;
+  latencyVariance: number;
+  costVariance: number;
+}
+
+interface Recommendation {
+  recommendedModelId: string | null;
+  recommendedModelName: string | null;
+  reliabilityScore: number | null;
+  reason: string;
+  humanReviewRequired: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -121,6 +138,54 @@ export default async function RunPage({ params }: RunPageProps) {
     return sum + (r.costUsd ? parseFloat(r.costUsd) : 0);
   }, 0);
 
+  // Load ModelTrust metrics (may be empty for older runs)
+  const modelMetrics = await prisma.runModelMetric.findMany({
+    where: { runId },
+    include: {
+      modelTarget: {
+        select: { modelName: true, provider: true },
+      },
+    },
+    orderBy: { reliabilityScore: "desc" },
+  });
+
+  const questionAgreements = await prisma.runQuestionAgreement.findMany({
+    where: { runId },
+    include: {
+      question: {
+        select: { title: true },
+      },
+    },
+    orderBy: { agreementPercent: "asc" },
+  });
+
+  const modelMetricsData = modelMetrics.map((m) => ({
+    modelTargetId: m.modelTargetId,
+    modelName: m.modelTarget.modelName,
+    provider: m.modelTarget.provider,
+    reliabilityScore: m.reliabilityScore,
+    jsonValidRate: m.jsonValidRate,
+    emptyAnswerRate: m.emptyAnswerRate,
+    shortAnswerRate: m.shortAnswerRate,
+    citationRate: m.citationRate,
+    latencyCv: m.latencyCv,
+    costCv: m.costCv,
+    penaltyBreakdown: m.penaltyBreakdownJson as unknown as PenaltyBreakdown,
+    totalResponses: m.totalResponses,
+  }));
+
+  const questionAgreementsData = questionAgreements.map((a) => ({
+    questionId: a.questionId,
+    questionTitle: a.question.title,
+    agreementPercent: a.agreementPercent,
+    outlierModels: a.outlierModelsJson as string[],
+    humanReviewFlag: a.humanReviewFlag,
+  }));
+
+  const recommendation = run.recommendationJson
+    ? (run.recommendationJson as unknown as Recommendation)
+    : null;
+
   return (
     <RunProgressView
       runId={runId}
@@ -132,6 +197,9 @@ export default async function RunPage({ params }: RunPageProps) {
       failedJobs={failedJobs}
       responses={responses}
       totalCostUsd={totalCostUsd}
+      modelMetrics={modelMetricsData}
+      questionAgreements={questionAgreementsData}
+      recommendation={recommendation}
     />
   );
 }

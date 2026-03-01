@@ -202,3 +202,81 @@ export async function exportRunAction(runId: string): Promise<ActionResult> {
 
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// getDriftDataAction
+// ---------------------------------------------------------------------------
+
+interface DriftPoint {
+  runDate: string;
+  models: Record<string, number>;
+}
+
+interface DriftDataSuccess {
+  success: true;
+  data: DriftPoint[];
+}
+
+export async function getDriftDataAction(
+  runId: string
+): Promise<DriftDataSuccess | ActionError> {
+  const session = await requireSession();
+
+  // Load the current run to get its surveyId
+  const currentRun = await prisma.surveyRun.findUnique({
+    where: { id: runId },
+    select: { surveyId: true },
+  });
+
+  if (!currentRun) {
+    return { success: false, error: "Run not found" };
+  }
+
+  const hasAccess = await canAccessSurvey(
+    session.userId,
+    currentRun.surveyId,
+    "VIEW"
+  );
+  if (!hasAccess) {
+    return { success: false, error: "Access denied" };
+  }
+
+  // Load last 10 completed runs for this survey with their metrics
+  const runs = await prisma.surveyRun.findMany({
+    where: {
+      surveyId: currentRun.surveyId,
+      status: "COMPLETED",
+    },
+    select: {
+      id: true,
+      completedAt: true,
+      modelMetrics: {
+        select: {
+          reliabilityScore: true,
+          modelTarget: {
+            select: { modelName: true },
+          },
+        },
+      },
+    },
+    orderBy: { completedAt: "desc" },
+    take: 10,
+  });
+
+  // Transform into DriftPoint format (chronological order)
+  const data: DriftPoint[] = runs
+    .reverse()
+    .filter((r) => r.modelMetrics.length > 0)
+    .map((r) => {
+      const models: Record<string, number> = {};
+      for (const m of r.modelMetrics) {
+        models[m.modelTarget.modelName] = m.reliabilityScore;
+      }
+      return {
+        runDate: r.completedAt?.toISOString() ?? r.id,
+        models,
+      };
+    });
+
+  return { success: true, data };
+}
