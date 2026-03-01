@@ -34,9 +34,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
-import type { PenaltyBreakdown, ModelMetricData, RecommendationData } from "./types";
-
-export type { PenaltyBreakdown, ModelMetricData, RecommendationData };
+import type { ModelMetricData, RecommendationData } from "./types";
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
   ssr: false,

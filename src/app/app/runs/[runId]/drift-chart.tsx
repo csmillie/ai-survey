@@ -46,11 +46,14 @@ const LINE_COLORS = [
 export function DriftChart({ runId }: DriftChartProps) {
   const [data, setData] = useState<DriftPoint[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getDriftDataAction(runId).then((result) => {
       if (result.success) {
         setData(result.data);
+      } else {
+        setError(result.error);
       }
       setLoading(false);
     });
@@ -87,6 +90,14 @@ export function DriftChart({ runId }: DriftChartProps) {
     return (
       <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
         Loading drift data...
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <p className="py-8 text-center text-sm text-[hsl(var(--destructive))]">
+        Failed to load drift data: {error}
       </p>
     );
   }

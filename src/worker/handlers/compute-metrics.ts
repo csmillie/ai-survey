@@ -128,59 +128,34 @@ export async function handleComputeMetrics(
       }
     }
 
+    // 3–5. Compute all metrics, then persist atomically in a transaction
     const modelScores: ModelScore[] = [];
+    const modelUpserts: Array<{
+      modelTargetId: string;
+      result: ReturnType<typeof computeReliabilityScore>;
+    }> = [];
 
     for (const [modelTargetId, data] of byModel) {
       const metrics: ResponseMetrics[] = data.responses.map((r) => {
         const flags = (r.analysis?.flagsJson as string[] | null) ?? [];
         const parsed = r.parsedJson as Record<string, unknown> | null;
         const citations = r.citationsJson as unknown[] | null;
+        const isRanked = r.question.type === "RANKED";
 
         return {
           hasValidJson: parsed !== null && !flags.includes("invalid_json"),
           isEmpty: flags.includes("empty_answer") || !r.rawText.trim(),
           isShort: flags.includes("short_answer"),
-          hasCitations:
-            (citations !== null && Array.isArray(citations) && citations.length > 0) ||
-            r.question.type === "RANKED",
+          hasCitations: isRanked
+            ? true // RANKED questions don't require citations; exclude from penalty
+            : citations !== null && Array.isArray(citations) && citations.length > 0,
           latencyMs: r.latencyMs ?? 0,
           costUsd: r.costUsd ? Number(r.costUsd) : 0,
         };
       });
 
       const result = computeReliabilityScore(metrics);
-
-      await prisma.runModelMetric.upsert({
-        where: {
-          runId_modelTargetId: { runId, modelTargetId },
-        },
-        create: {
-          runId,
-          modelTargetId,
-          reliabilityScore: result.score,
-          jsonValidRate: result.jsonValidRate,
-          emptyAnswerRate: result.emptyAnswerRate,
-          shortAnswerRate: result.shortAnswerRate,
-          citationRate: result.citationRate,
-          latencyCv: result.latencyCv,
-          costCv: result.costCv,
-          penaltyBreakdownJson:
-            result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
-          totalResponses: result.totalResponses,
-        },
-        update: {
-          reliabilityScore: result.score,
-          jsonValidRate: result.jsonValidRate,
-          emptyAnswerRate: result.emptyAnswerRate,
-          shortAnswerRate: result.shortAnswerRate,
-          citationRate: result.citationRate,
-          latencyCv: result.latencyCv,
-          costCv: result.costCv,
-          penaltyBreakdownJson:
-            result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
-          totalResponses: result.totalResponses,
-        },
-      });
+      modelUpserts.push({ modelTargetId, result });
 
       const totalCost = data.responses.reduce(
         (sum, r) => sum + (r.costUsd ? Number(r.costUsd) : 0),
@@ -222,6 +197,10 @@ export async function handleComputeMetrics(
     }
 
     const questionReviews: QuestionReview[] = [];
+    const questionUpserts: Array<{
+      questionId: string;
+      agreement: ReturnType<typeof computeOpenEndedAgreement>;
+    }> = [];
 
     for (const [questionId, data] of byQuestion) {
       let agreement;
@@ -256,49 +235,90 @@ export async function handleComputeMetrics(
         agreement = computeOpenEndedAgreement(openEndedResponses);
       }
 
-      await prisma.runQuestionAgreement.upsert({
-        where: {
-          runId_questionId: { runId, questionId },
-        },
-        create: {
-          runId,
-          questionId,
-          agreementPercent: agreement.agreementPercent,
-          outlierModelsJson:
-            agreement.outlierModels as unknown as Prisma.InputJsonValue,
-          humanReviewFlag: agreement.humanReviewFlag,
-          clusterDetailsJson: agreement.clusterDetails
-            ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-        },
-        update: {
-          agreementPercent: agreement.agreementPercent,
-          outlierModelsJson:
-            agreement.outlierModels as unknown as Prisma.InputJsonValue,
-          humanReviewFlag: agreement.humanReviewFlag,
-          clusterDetailsJson: agreement.clusterDetails
-            ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-        },
-      });
-
+      questionUpserts.push({ questionId, agreement });
       questionReviews.push({
         questionId,
         humanReviewFlag: agreement.humanReviewFlag,
       });
     }
 
-    // 5. Compute recommendation and update run
+    // 5. Compute recommendation
     const recommendation = computeRecommendation(modelScores, questionReviews);
-    await prisma.surveyRun.update({
-      where: { id: runId },
-      data: {
-        recommendationJson:
-          recommendation as unknown as Prisma.InputJsonValue,
-      },
+
+    // 6. Persist all metrics atomically
+    await prisma.$transaction(async (tx) => {
+      for (const { modelTargetId, result } of modelUpserts) {
+        await tx.runModelMetric.upsert({
+          where: {
+            runId_modelTargetId: { runId, modelTargetId },
+          },
+          create: {
+            runId,
+            modelTargetId,
+            reliabilityScore: result.score,
+            jsonValidRate: result.jsonValidRate,
+            emptyAnswerRate: result.emptyAnswerRate,
+            shortAnswerRate: result.shortAnswerRate,
+            citationRate: result.citationRate,
+            latencyCv: result.latencyCv,
+            costCv: result.costCv,
+            penaltyBreakdownJson:
+              result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
+            totalResponses: result.totalResponses,
+          },
+          update: {
+            reliabilityScore: result.score,
+            jsonValidRate: result.jsonValidRate,
+            emptyAnswerRate: result.emptyAnswerRate,
+            shortAnswerRate: result.shortAnswerRate,
+            citationRate: result.citationRate,
+            latencyCv: result.latencyCv,
+            costCv: result.costCv,
+            penaltyBreakdownJson:
+              result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
+            totalResponses: result.totalResponses,
+          },
+        });
+      }
+
+      for (const { questionId, agreement } of questionUpserts) {
+        await tx.runQuestionAgreement.upsert({
+          where: {
+            runId_questionId: { runId, questionId },
+          },
+          create: {
+            runId,
+            questionId,
+            agreementPercent: agreement.agreementPercent,
+            outlierModelsJson:
+              agreement.outlierModels as unknown as Prisma.InputJsonValue,
+            humanReviewFlag: agreement.humanReviewFlag,
+            clusterDetailsJson: agreement.clusterDetails
+              ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          },
+          update: {
+            agreementPercent: agreement.agreementPercent,
+            outlierModelsJson:
+              agreement.outlierModels as unknown as Prisma.InputJsonValue,
+            humanReviewFlag: agreement.humanReviewFlag,
+            clusterDetailsJson: agreement.clusterDetails
+              ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          },
+        });
+      }
+
+      await tx.surveyRun.update({
+        where: { id: runId },
+        data: {
+          recommendationJson:
+            recommendation as unknown as Prisma.InputJsonValue,
+        },
+      });
     });
 
-    // 6. Mark job as SUCCEEDED
+    // 7. Mark job as SUCCEEDED
     await prisma.job.update({
       where: { id: jobId },
       data: {

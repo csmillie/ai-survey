@@ -232,6 +232,9 @@ model ConversationThread {
   @@index([runId])
 }
 
+/// Job queue entries. Note: modelTargetId is required by the FK constraint but
+/// is not semantically used by COMPUTE_METRICS or EXPORT_RUN job types — callers
+/// pass any valid modelTargetId from the run to satisfy the constraint.
 model Job {
   id             String    @id @default(uuid())
   runId          String
@@ -255,6 +258,7 @@ model Job {
 
   @@index([runId, status])
   @@index([type, status])
+  @@index([runId, type, status])
 }
 
 model LlmResponse {

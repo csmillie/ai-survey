@@ -326,11 +326,11 @@ async function checkRunCompletion(runId: string): Promise<void> {
           modelTargetId: runModel.modelTargetId,
         });
       } catch (err) {
-        // Idempotency key collision means job already exists — safe to ignore
-        console.warn(
-          `[execute-question] Could not enqueue COMPUTE_METRICS for run ${runId}:`,
-          err instanceof Error ? err.message : err
-        );
+        // P2002 = unique constraint (idempotency key collision) — job already exists, safe to ignore
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          return;
+        }
+        throw err;
       }
     }
   }

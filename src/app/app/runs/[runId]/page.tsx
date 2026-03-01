@@ -2,9 +2,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
-import { rankedConfigSchema } from "@/lib/schemas";
+import {
+  rankedConfigSchema,
+  penaltyBreakdownSchema,
+  recommendationSchema,
+  outlierModelsSchema,
+} from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
-import type { PenaltyBreakdown, RecommendationData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,31 +147,34 @@ export default async function RunPage({ params }: RunPageProps) {
     orderBy: { agreementPercent: "asc" },
   });
 
-  const modelMetricsData = modelMetrics.map((m) => ({
-    modelTargetId: m.modelTargetId,
-    modelName: m.modelTarget.modelName,
-    provider: m.modelTarget.provider,
-    reliabilityScore: m.reliabilityScore,
-    jsonValidRate: m.jsonValidRate,
-    emptyAnswerRate: m.emptyAnswerRate,
-    shortAnswerRate: m.shortAnswerRate,
-    citationRate: m.citationRate,
-    latencyCv: m.latencyCv,
-    costCv: m.costCv,
-    penaltyBreakdown: m.penaltyBreakdownJson as unknown as PenaltyBreakdown,
-    totalResponses: m.totalResponses,
-  }));
+  const modelMetricsData = modelMetrics.map((m) => {
+    const breakdown = penaltyBreakdownSchema.parse(m.penaltyBreakdownJson);
+    return {
+      modelTargetId: m.modelTargetId,
+      modelName: m.modelTarget.modelName,
+      provider: m.modelTarget.provider,
+      reliabilityScore: m.reliabilityScore,
+      jsonValidRate: m.jsonValidRate,
+      emptyAnswerRate: m.emptyAnswerRate,
+      shortAnswerRate: m.shortAnswerRate,
+      citationRate: m.citationRate,
+      latencyCv: m.latencyCv,
+      costCv: m.costCv,
+      penaltyBreakdown: breakdown,
+      totalResponses: m.totalResponses,
+    };
+  });
 
   const questionAgreementsData = questionAgreements.map((a) => ({
     questionId: a.questionId,
     questionTitle: a.question.title,
     agreementPercent: a.agreementPercent,
-    outlierModels: a.outlierModelsJson as string[],
+    outlierModels: outlierModelsSchema.parse(a.outlierModelsJson),
     humanReviewFlag: a.humanReviewFlag,
   }));
 
   const recommendation = run.recommendationJson
-    ? (run.recommendationJson as unknown as RecommendationData)
+    ? recommendationSchema.parse(run.recommendationJson)
     : null;
 
   return (
