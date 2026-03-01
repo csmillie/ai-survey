@@ -2,6 +2,15 @@
 // Confidence calibration scoring and overconfidence detection
 // ---------------------------------------------------------------------------
 
+/** Confidence above this value flags a model as overconfident (0-100). */
+export const OVERCONFIDENCE_CONFIDENCE_THRESHOLD = 80;
+
+/** Agreement below this value enables overconfidence detection (0-1). */
+export const OVERCONFIDENCE_AGREEMENT_THRESHOLD = 0.6;
+
+/** Calibration score below this value triggers a UI warning (0-10). */
+export const POOR_CALIBRATION_SCORE_THRESHOLD = 5.0;
+
 export interface CalibrationInput {
   confidence: number; // 0-100
   agreementPercent: number; // 0-1
@@ -53,11 +62,11 @@ export function findOverconfidentModels(
   responses: OverconfidenceInput[],
   agreementPercent: number
 ): string[] {
-  if (agreementPercent >= 0.6) {
+  if (agreementPercent >= OVERCONFIDENCE_AGREEMENT_THRESHOLD) {
     return [];
   }
 
   return responses
-    .filter((r) => r.confidence !== null && r.confidence > 80)
+    .filter((r) => r.confidence !== null && r.confidence > OVERCONFIDENCE_CONFIDENCE_THRESHOLD)
     .map((r) => r.modelName);
 }

@@ -105,11 +105,7 @@ export async function handleExecuteQuestion(
 
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
-
-    // Extract confidence before stripping parsed fields
-    const confidence = typeof (parsed as Record<string, unknown> | null)?.confidence === "number"
-      ? Math.round(Math.min(100, Math.max(0, (parsed as Record<string, unknown>).confidence as number)))
-      : null;
+    let confidence: number | null = null;
 
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
@@ -121,12 +117,21 @@ export async function handleExecuteQuestion(
         );
         finalParsed = { score: clamped };
         reasoningText = rankedResult.data.reasoning ?? null;
+        confidence = rankedResult.data.confidence != null
+          ? Math.round(rankedResult.data.confidence)
+          : null;
       } else {
         console.warn(
           `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
         );
         finalParsed = null;
       }
+    } else if (parsed) {
+      // Open-ended: extract confidence from raw parsed object
+      const rawConf = (parsed as Record<string, unknown>).confidence;
+      confidence = typeof rawConf === "number"
+        ? Math.round(Math.min(100, Math.max(0, rawConf)))
+        : null;
     }
 
     // 5. Calculate cost

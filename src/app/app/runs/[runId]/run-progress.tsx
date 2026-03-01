@@ -34,6 +34,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
+import { POOR_CALIBRATION_SCORE_THRESHOLD } from "@/lib/analysis/calibration";
 import type { ModelMetricData, RecommendationData, QuestionAgreementData } from "./types";
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
@@ -366,26 +367,10 @@ export function RunProgressView({
               )}
             </div>
             <CardDescription>{recommendation.reason}</CardDescription>
-            {(() => {
-              const poorCalibration = modelMetrics.filter(
-                (m) => m.calibrationScore !== null && m.calibrationScore < 5.0
-              );
-              if (poorCalibration.length === 0) return null;
-              const overconfidentCounts = questionAgreements
-                .filter((q) => q.overconfidentModels.length > 0);
-              return (
-                <CardDescription className="mt-1 text-amber-600 dark:text-amber-400">
-                  {poorCalibration.map((m) => {
-                    const count = overconfidentCounts.filter((q) =>
-                      q.overconfidentModels.includes(m.modelName)
-                    ).length;
-                    return count > 0
-                      ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
-                      : `${m.modelName} poorly calibrated (${m.calibrationScore!.toFixed(1)}/10)`;
-                  }).join(". ")}
-                </CardDescription>
-              );
-            })()}
+            <CalibrationWarning
+              modelMetrics={modelMetrics}
+              questionAgreements={questionAgreements}
+            />
           </CardHeader>
         </Card>
       )}
@@ -575,6 +560,38 @@ export function RunProgressView({
 // ---------------------------------------------------------------------------
 // ModelTrust sub-components
 // ---------------------------------------------------------------------------
+
+function CalibrationWarning({
+  modelMetrics,
+  questionAgreements,
+}: {
+  modelMetrics: ModelMetricData[];
+  questionAgreements: QuestionAgreementData[];
+}) {
+  const poorCalibration = modelMetrics.filter(
+    (m): m is ModelMetricData & { calibrationScore: number } =>
+      m.calibrationScore !== null && m.calibrationScore < POOR_CALIBRATION_SCORE_THRESHOLD
+  );
+
+  if (poorCalibration.length === 0) return null;
+
+  const questionsWithOverconfidence = questionAgreements.filter(
+    (q) => q.overconfidentModels.length > 0
+  );
+
+  return (
+    <CardDescription className="mt-1 text-amber-600 dark:text-amber-400">
+      {poorCalibration.map((m) => {
+        const count = questionsWithOverconfidence.filter((q) =>
+          q.overconfidentModels.includes(m.modelName)
+        ).length;
+        return count > 0
+          ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
+          : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(1)}/10)`;
+      }).join(". ")}
+    </CardDescription>
+  );
+}
 
 function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
   const [expanded, setExpanded] = useState(false);

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeCalibrationScore,
   findOverconfidentModels,
+  OVERCONFIDENCE_CONFIDENCE_THRESHOLD,
+  OVERCONFIDENCE_AGREEMENT_THRESHOLD,
   type CalibrationInput,
   type OverconfidenceInput,
 } from "@/lib/analysis/calibration";
@@ -24,8 +26,8 @@ describe("computeCalibrationScore", () => {
       { confidence: 100, agreementPercent: 1.0 },
     ];
     const result = computeCalibrationScore(inputs);
-    expect(result.calibrationScore).toBe(10);
-    expect(result.avgDelta).toBe(0);
+    expect(result.calibrationScore).toBeCloseTo(10, 5);
+    expect(result.avgDelta).toBeCloseTo(0, 5);
   });
 
   it("returns low score for high confidence with low agreement", () => {
@@ -34,8 +36,8 @@ describe("computeCalibrationScore", () => {
     ];
     const result = computeCalibrationScore(inputs);
     // avgDelta = |90 - 10| = 80, score = 10 - 80/10 = 2
-    expect(result.avgDelta).toBe(80);
-    expect(result.calibrationScore).toBe(2);
+    expect(result.avgDelta).toBeCloseTo(80, 5);
+    expect(result.calibrationScore).toBeCloseTo(2, 5);
   });
 
   it("handles mixed inputs with varying deltas", () => {
@@ -45,8 +47,8 @@ describe("computeCalibrationScore", () => {
     ];
     const result = computeCalibrationScore(inputs);
     // avgDelta = (0 + 80) / 2 = 40, score = 10 - 40/10 = 6
-    expect(result.avgDelta).toBe(40);
-    expect(result.calibrationScore).toBe(6);
+    expect(result.avgDelta).toBeCloseTo(40, 5);
+    expect(result.calibrationScore).toBeCloseTo(6, 5);
   });
 
   it("clamps score to minimum 0", () => {
@@ -56,16 +58,15 @@ describe("computeCalibrationScore", () => {
     ];
     const result = computeCalibrationScore(inputs);
     // avgDelta = 100, score = 10 - 100/10 = 0
-    expect(result.calibrationScore).toBe(0);
+    expect(result.calibrationScore).toBeCloseTo(0, 5);
   });
 
   it("clamps score to maximum 10", () => {
-    // Even with slightly negative deltas (not possible with abs), score maxes at 10
     const inputs: CalibrationInput[] = [
       { confidence: 50, agreementPercent: 0.5 },
     ];
     const result = computeCalibrationScore(inputs);
-    expect(result.calibrationScore).toBe(10);
+    expect(result.calibrationScore).toBeCloseTo(10, 5);
     expect(result.calibrationScore).toBeLessThanOrEqual(10);
   });
 });
@@ -75,17 +76,17 @@ describe("computeCalibrationScore", () => {
 // ---------------------------------------------------------------------------
 
 describe("findOverconfidentModels", () => {
-  it("returns empty array when agreement >= 0.6 regardless of confidence", () => {
+  it("returns empty array when agreement >= threshold regardless of confidence", () => {
     const responses: OverconfidenceInput[] = [
       { modelName: "gpt-4", confidence: 95 },
       { modelName: "claude-3", confidence: 99 },
     ];
-    expect(findOverconfidentModels(responses, 0.6)).toEqual([]);
+    expect(findOverconfidentModels(responses, OVERCONFIDENCE_AGREEMENT_THRESHOLD)).toEqual([]);
     expect(findOverconfidentModels(responses, 0.8)).toEqual([]);
     expect(findOverconfidentModels(responses, 1.0)).toEqual([]);
   });
 
-  it("returns models with confidence > 80 when agreement < 0.6", () => {
+  it("returns models with confidence > threshold when agreement below threshold", () => {
     const responses: OverconfidenceInput[] = [
       { modelName: "gpt-4", confidence: 95 },
       { modelName: "claude-3", confidence: 60 },
@@ -98,7 +99,7 @@ describe("findOverconfidentModels", () => {
   it("returns empty array when no models exceed confidence threshold", () => {
     const responses: OverconfidenceInput[] = [
       { modelName: "gpt-4", confidence: 50 },
-      { modelName: "claude-3", confidence: 80 },
+      { modelName: "claude-3", confidence: OVERCONFIDENCE_CONFIDENCE_THRESHOLD },
     ];
     const result = findOverconfidentModels(responses, 0.3);
     expect(result).toEqual([]);

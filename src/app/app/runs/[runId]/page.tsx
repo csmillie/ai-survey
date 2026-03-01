@@ -7,6 +7,7 @@ import {
   penaltyBreakdownSchema,
   recommendationSchema,
   outlierModelsSchema,
+  overconfidentModelsSchema,
 } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
@@ -173,7 +174,7 @@ export default async function RunPage({ params }: RunPageProps) {
   const questionAgreementsData = questionAgreements.flatMap((a) => {
     const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
     if (!outliers.success) return [];
-    const overconfident = outlierModelsSchema.safeParse(a.overconfidentModelsJson);
+    const overconfident = overconfidentModelsSchema.safeParse(a.overconfidentModelsJson);
     return [
       {
         questionId: a.questionId,

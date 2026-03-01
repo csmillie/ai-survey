@@ -26,7 +26,7 @@ import {
   flagsJsonSchema,
   parsedRankedSchema,
   parsedOpenEndedSchema,
-  parsedConfidenceSchema,
+  confidenceFromJsonSchema,
 } from "@/lib/schemas";
 import type { AgreementResult } from "@/lib/analysis/agreement";
 
@@ -244,18 +244,28 @@ export async function handleComputeMetrics(
       });
     }
 
-    // 4b. Build agreement lookup for calibration computation
+    // 4b. Pre-compute resolved confidence per response (column value with
+    // fallback to parsedJson for legacy open-ended rows).
+    const confidenceByResponseId = new Map<string, number | null>();
+    for (const r of responses) {
+      const conf = r.confidence
+        ?? confidenceFromJsonSchema.parse(r.parsedJson)?.confidence
+        ?? null;
+      confidenceByResponseId.set(r.id, conf);
+    }
+
+    // 4c. Build agreement lookup for calibration computation
     const agreementByQuestion = new Map<string, number>();
     for (const { questionId, agreement } of questionUpserts) {
       agreementByQuestion.set(questionId, agreement.agreementPercent);
     }
 
-    // 4c. Compute per-model calibration scores
+    // 4d. Compute per-model calibration scores
     const calibrationByModel = new Map<string, number | null>();
     for (const [modelTargetId, data] of byModel) {
       const calibrationInputs: CalibrationInput[] = [];
       for (const r of data.responses) {
-        const conf = r.confidence ?? parsedConfidenceSchema.parse(r.parsedJson)?.confidence;
+        const conf = confidenceByResponseId.get(r.id);
         const agr = agreementByQuestion.get(r.questionId);
         if (conf != null && agr != null) {
           calibrationInputs.push({ confidence: conf, agreementPercent: agr });
@@ -269,7 +279,7 @@ export async function handleComputeMetrics(
       }
     }
 
-    // 4d. Compute per-question overconfident models
+    // 4e. Compute per-question overconfident models
     const overconfidentByQuestion = new Map<string, string[]>();
     for (const { questionId, agreement } of questionUpserts) {
       const qData = byQuestion.get(questionId);
@@ -277,7 +287,7 @@ export async function handleComputeMetrics(
       const overconfident = findOverconfidentModels(
         qData.responses.map((r) => ({
           modelName: r.modelTarget.modelName,
-          confidence: r.confidence ?? parsedConfidenceSchema.parse(r.parsedJson)?.confidence ?? null,
+          confidence: confidenceByResponseId.get(r.id) ?? null,
         })),
         agreement.agreementPercent
       );

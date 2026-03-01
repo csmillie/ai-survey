@@ -206,6 +206,7 @@ export const recommendationSchema = z.object({
 });
 
 export const outlierModelsSchema = z.array(z.string());
+export const overconfidentModelsSchema = z.array(z.string());
 
 // Schemas for JSON columns read in compute-metrics handler
 export const flagsJsonSchema = z.array(z.string()).nullable().catch([]);
@@ -220,7 +221,11 @@ export const parsedOpenEndedSchema = z
   .nullable()
   .catch(null);
 
-export const parsedConfidenceSchema = z
+// Extracts an optional confidence field from a parsedJson blob.
+// Used as a fallback in compute-metrics for open-ended responses that stored
+// confidence inside parsedJson before the dedicated column was added.
+// Ranked parsedJson only contains { score }, so this returns undefined for ranked.
+export const confidenceFromJsonSchema = z
   .object({ confidence: z.number().optional() })
   .nullable()
   .catch(null);
