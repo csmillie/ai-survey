@@ -222,10 +222,9 @@ export const parsedOpenEndedSchema = z
   .catch(null);
 
 // Extracts an optional confidence field from a parsedJson blob.
-// Used as a fallback in compute-metrics for open-ended responses that stored
-// confidence inside parsedJson before the dedicated column was added.
+// Open-ended parsedJson may contain { answerText, citations, confidence, ... }.
 // Ranked parsedJson only contains { score }, so this returns undefined for ranked.
 export const confidenceFromJsonSchema = z
-  .object({ confidence: z.number().optional() })
+  .object({ confidence: z.number().min(0).max(100).optional() })
   .nullable()
   .catch(null);

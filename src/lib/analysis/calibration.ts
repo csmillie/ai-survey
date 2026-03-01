@@ -32,6 +32,9 @@ export function computeCalibrationScore(
   inputs: CalibrationInput[]
 ): CalibrationResult {
   if (inputs.length === 0) {
+    // No confidence data → return 0 (worst). Call sites must guard on
+    // inputs.length > 0 and store null when no data is available rather
+    // than persisting this sentinel value.
     return { calibrationScore: 0, avgDelta: 0 };
   }
 

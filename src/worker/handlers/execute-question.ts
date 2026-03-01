@@ -12,7 +12,7 @@ import {
   buildRankedEnforcementBlock,
   clampScore,
 } from "@/lib/ranked-prompt";
-import { rankedResponseSchema } from "@/lib/schemas";
+import { rankedResponseSchema, llmResponseSchema } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,10 +127,10 @@ export async function handleExecuteQuestion(
         finalParsed = null;
       }
     } else if (parsed) {
-      // Open-ended: extract confidence from raw parsed object
-      const rawConf = (parsed as Record<string, unknown>).confidence;
-      confidence = typeof rawConf === "number"
-        ? Math.round(Math.min(100, Math.max(0, rawConf)))
+      // Open-ended: extract confidence via Zod (validates 0-100 range)
+      const openEndedResult = llmResponseSchema.safeParse(parsed);
+      confidence = openEndedResult.success && openEndedResult.data.confidence != null
+        ? Math.round(openEndedResult.data.confidence)
         : null;
     }
 

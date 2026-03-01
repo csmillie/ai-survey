@@ -26,7 +26,6 @@ import {
   flagsJsonSchema,
   parsedRankedSchema,
   parsedOpenEndedSchema,
-  confidenceFromJsonSchema,
 } from "@/lib/schemas";
 import type { AgreementResult } from "@/lib/analysis/agreement";
 
@@ -244,14 +243,11 @@ export async function handleComputeMetrics(
       });
     }
 
-    // 4b. Pre-compute resolved confidence per response (column value with
-    // fallback to parsedJson for legacy open-ended rows).
+    // 4b. Pre-compute resolved confidence per response.
+    // Confidence is always stored in the dedicated column by execute-question.
     const confidenceByResponseId = new Map<string, number | null>();
     for (const r of responses) {
-      const conf = r.confidence
-        ?? confidenceFromJsonSchema.parse(r.parsedJson)?.confidence
-        ?? null;
-      confidenceByResponseId.set(r.id, conf);
+      confidenceByResponseId.set(r.id, r.confidence ?? null);
     }
 
     // 4c. Build agreement lookup for calibration computation
