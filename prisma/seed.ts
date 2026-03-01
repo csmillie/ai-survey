@@ -60,6 +60,22 @@ async function main() {
       inputTokenCostUsd: 0.015,
       outputTokenCostUsd: 0.075,
     },
+    {
+      provider: "GEMINI" as const,
+      modelName: "gemini-2.0-flash",
+      isEnabled: true,
+      isDefaultCostEffective: true,
+      inputTokenCostUsd: 0.0001,
+      outputTokenCostUsd: 0.0004,
+    },
+    {
+      provider: "GEMINI" as const,
+      modelName: "gemini-2.5-pro",
+      isEnabled: true,
+      isDefaultCostEffective: false,
+      inputTokenCostUsd: 0.00125,
+      outputTokenCostUsd: 0.01,
+    },
   ];
 
   for (const mt of modelTargets) {
