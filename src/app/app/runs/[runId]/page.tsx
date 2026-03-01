@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
-import { rankedConfigSchema } from "@/lib/schemas";
+import {
+  rankedConfigSchema,
+  penaltyBreakdownSchema,
+  recommendationSchema,
+  outlierModelsSchema,
+} from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
 // ---------------------------------------------------------------------------
@@ -121,6 +126,70 @@ export default async function RunPage({ params }: RunPageProps) {
     return sum + (r.costUsd ? parseFloat(r.costUsd) : 0);
   }, 0);
 
+  // Load ModelTrust metrics (may be empty for older runs)
+  const [modelMetrics, questionAgreements] = await Promise.all([
+    prisma.runModelMetric.findMany({
+      where: { runId },
+      include: {
+        modelTarget: {
+          select: { modelName: true, provider: true },
+        },
+      },
+      orderBy: { reliabilityScore: "desc" },
+    }),
+    prisma.runQuestionAgreement.findMany({
+      where: { runId },
+      include: {
+        question: {
+          select: { title: true },
+        },
+      },
+      orderBy: { agreementPercent: "asc" },
+    }),
+  ]);
+
+  const modelMetricsData = modelMetrics.flatMap((m) => {
+    const breakdown = penaltyBreakdownSchema.safeParse(m.penaltyBreakdownJson);
+    if (!breakdown.success) return [];
+    return [
+      {
+        modelTargetId: m.modelTargetId,
+        modelName: m.modelTarget.modelName,
+        provider: m.modelTarget.provider,
+        reliabilityScore: m.reliabilityScore,
+        jsonValidRate: m.jsonValidRate,
+        emptyAnswerRate: m.emptyAnswerRate,
+        shortAnswerRate: m.shortAnswerRate,
+        citationRate: m.citationRate,
+        latencyCv: m.latencyCv,
+        costCv: m.costCv,
+        penaltyBreakdown: breakdown.data,
+        totalResponses: m.totalResponses,
+      },
+    ];
+  });
+
+  const questionAgreementsData = questionAgreements.flatMap((a) => {
+    const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
+    if (!outliers.success) return [];
+    return [
+      {
+        questionId: a.questionId,
+        questionTitle: a.question.title,
+        agreementPercent: a.agreementPercent,
+        outlierModels: outliers.data,
+        humanReviewFlag: a.humanReviewFlag,
+      },
+    ];
+  });
+
+  const recommendationResult = recommendationSchema.safeParse(
+    run.recommendationJson
+  );
+  const recommendation = recommendationResult.success
+    ? recommendationResult.data
+    : null;
+
   return (
     <RunProgressView
       runId={runId}
@@ -132,6 +201,9 @@ export default async function RunPage({ params }: RunPageProps) {
       failedJobs={failedJobs}
       responses={responses}
       totalCostUsd={totalCostUsd}
+      modelMetrics={modelMetricsData}
+      questionAgreements={questionAgreementsData}
+      recommendation={recommendation}
     />
   );
 }

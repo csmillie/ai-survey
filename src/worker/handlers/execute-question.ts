@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { ExecuteQuestionPayload } from "@/lib/queue";
-import { enqueueAnalyzeJob } from "@/lib/queue";
+import { enqueueAnalyzeJob, enqueueComputeMetricsJob } from "@/lib/queue";
 import { getProvider } from "@/providers/registry";
 import type { LlmMessage } from "@/providers/types";
 import { JSON_ENFORCEMENT_BLOCK } from "@/providers/types";
@@ -278,28 +278,54 @@ async function checkRunCompletion(runId: string): Promise<void> {
     },
   });
 
-  // Load run to get createdById for audit and to check current status
-  const run = await prisma.surveyRun.findUnique({
-    where: { id: runId },
-    select: { status: true, createdById: true },
-  });
-
-  if (!run) return;
-
-  // Only transition if still RUNNING or QUEUED
-  if (run.status !== "RUNNING" && run.status !== "QUEUED") return;
-
   const allFailed = failedJobs === totalJobs;
   const newStatus = allFailed ? "FAILED" : "COMPLETED";
   const now = new Date();
 
-  await prisma.surveyRun.update({
-    where: { id: runId },
+  // Atomic status transition — only one worker wins the race
+  const updated = await prisma.surveyRun.updateMany({
+    where: { id: runId, status: { in: ["RUNNING", "QUEUED"] } },
     data: {
       status: newStatus,
       completedAt: now,
     },
   });
+
+  // Another worker already transitioned this run
+  if (updated.count === 0) return;
+
+  const run = await prisma.surveyRun.findUnique({
+    where: { id: runId },
+    select: { createdById: true },
+  });
+
+  if (!run) return;
+
+  // Enqueue COMPUTE_METRICS before audit event so a createAuditEvent failure
+  // can't leave the run marked COMPLETED with no metrics job queued.
+  if (newStatus === "COMPLETED") {
+    const runModel = await prisma.runModel.findFirst({
+      where: { runId },
+      select: { modelTargetId: true },
+    });
+    if (!runModel) {
+      console.warn(`[checkRunCompletion] No RunModel found for run ${runId} — skipping COMPUTE_METRICS`);
+      return;
+    }
+    try {
+      await enqueueComputeMetricsJob({
+        runId,
+        modelTargetId: runModel.modelTargetId,
+      });
+    } catch (err) {
+      // P2002 = unique constraint (idempotency key collision) — job already exists, safe to ignore
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        // fall through to audit event
+      } else {
+        throw err;
+      }
+    }
+  }
 
   await createAuditEvent({
     actorUserId: run.createdById,

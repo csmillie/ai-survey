@@ -3,6 +3,7 @@ import type { Job } from "@prisma/client";
 import { handleExecuteQuestion } from "./handlers/execute-question";
 import { handleAnalyzeResponse } from "./handlers/analyze-response";
 import { handleExportRun } from "./handlers/export-run";
+import { handleComputeMetrics } from "./handlers/compute-metrics";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -14,6 +15,7 @@ const POLL_INTERVAL_MS = 2000;
 const EXECUTE_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY_OPENAI ?? "5", 10);
 const ANALYZE_CONCURRENCY = 10;
 const EXPORT_CONCURRENCY = 2;
+const METRICS_CONCURRENCY = 2;
 
 // ---------------------------------------------------------------------------
 // Worker state
@@ -28,7 +30,7 @@ const activeJobs = new Set<string>();
 // ---------------------------------------------------------------------------
 
 async function claimJob(
-  type: "EXECUTE_QUESTION" | "ANALYZE_RESPONSE" | "EXPORT_RUN",
+  type: "EXECUTE_QUESTION" | "ANALYZE_RESPONSE" | "EXPORT_RUN" | "COMPUTE_METRICS",
   maxActive: number
 ): Promise<Job | null> {
   // Count how many of this type we're currently processing
@@ -104,6 +106,13 @@ async function processJob(job: Job): Promise<void> {
           runId: job.runId,
         });
         break;
+
+      case "COMPUTE_METRICS":
+        await handleComputeMetrics({
+          runId: job.runId,
+          jobId: job.id,
+        });
+        break;
     }
   } catch (err) {
     console.error(`[worker] Job ${job.id} (${job.type}) failed:`, err);
@@ -155,6 +164,12 @@ async function pollLoop(): Promise<void> {
       void processJob(exportJob);
     }
 
+    const metricsJob = await claimJob("COMPUTE_METRICS", METRICS_CONCURRENCY);
+    if (metricsJob) {
+      claimed = true;
+      void processJob(metricsJob);
+    }
+
     // If we didn't claim anything, wait before polling again
     if (!claimed) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -169,7 +184,7 @@ async function pollLoop(): Promise<void> {
 async function main(): Promise<void> {
   console.log("[worker] MySQL-backed job worker starting...");
   console.log(`[worker] Poll interval: ${POLL_INTERVAL_MS}ms`);
-  console.log(`[worker] Concurrency - Execute: ${EXECUTE_CONCURRENCY}, Analyze: ${ANALYZE_CONCURRENCY}, Export: ${EXPORT_CONCURRENCY}`);
+  console.log(`[worker] Concurrency - Execute: ${EXECUTE_CONCURRENCY}, Analyze: ${ANALYZE_CONCURRENCY}, Export: ${EXPORT_CONCURRENCY}, Metrics: ${METRICS_CONCURRENCY}`);
 
   await pollLoop();
 }

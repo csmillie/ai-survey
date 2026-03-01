@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 import { enqueueExportJob } from "@/lib/queue";
 import { createAuditEvent, RUN_CANCELLED } from "@/lib/audit";
+import type { DriftPoint } from "./types";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -201,4 +203,87 @@ export async function exportRunAction(runId: string): Promise<ActionResult> {
   });
 
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// getDriftDataAction
+// ---------------------------------------------------------------------------
+
+interface DriftDataSuccess {
+  success: true;
+  data: DriftPoint[];
+}
+
+const runIdSchema = z.string().uuid();
+
+export async function getDriftDataAction(
+  runId: string
+): Promise<DriftDataSuccess | ActionError> {
+  const parsed = runIdSchema.safeParse(runId);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid run ID" };
+  }
+
+  const session = await requireSession();
+
+  // Load the current run to get its surveyId
+  const currentRun = await prisma.surveyRun.findUnique({
+    where: { id: runId },
+    select: { surveyId: true },
+  });
+
+  if (!currentRun) {
+    return { success: false, error: "Run not found" };
+  }
+
+  const hasAccess = await canAccessSurvey(
+    session.userId,
+    currentRun.surveyId,
+    "VIEW"
+  );
+  if (!hasAccess) {
+    return { success: false, error: "Access denied" };
+  }
+
+  // Load last 10 completed runs with metrics for this survey
+  const runs = await prisma.surveyRun.findMany({
+    where: {
+      surveyId: currentRun.surveyId,
+      status: "COMPLETED",
+      completedAt: { not: null },
+      modelMetrics: { some: {} },
+    },
+    select: {
+      id: true,
+      completedAt: true,
+      modelMetrics: {
+        select: {
+          reliabilityScore: true,
+          modelTarget: {
+            select: { modelName: true },
+          },
+        },
+      },
+    },
+    orderBy: { completedAt: "desc" },
+    take: 10,
+  });
+
+  // Transform into DriftPoint format (chronological order).
+  // We use desc + take(10) + reverse() because asc + take(10) would return the
+  // oldest 10 runs, not the most recent 10.
+  const data: DriftPoint[] = runs
+    .reverse()
+    .map((r) => {
+      const models: Record<string, number> = {};
+      for (const m of r.modelMetrics) {
+        models[m.modelTarget.modelName] = m.reliabilityScore;
+      }
+      return {
+        runDate: r.completedAt!.toISOString(),
+        models,
+      };
+    });
+
+  return { success: true, data };
 }

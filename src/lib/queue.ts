@@ -10,6 +10,7 @@ export const QUEUE_NAMES = {
   EXECUTE_QUESTION: "EXECUTE_QUESTION",
   ANALYZE_RESPONSE: "ANALYZE_RESPONSE",
   EXPORT_RUN: "EXPORT_RUN",
+  COMPUTE_METRICS: "COMPUTE_METRICS",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -35,6 +36,10 @@ export interface AnalyzeResponsePayload {
 }
 
 export interface ExportRunPayload {
+  runId: string;
+}
+
+export interface ComputeMetricsPayload {
   runId: string;
 }
 
@@ -96,6 +101,33 @@ export async function enqueueExportJob(params: {
       modelTargetId: params.modelTargetId,
       threadKey: `export-${params.runId}`,
       type: "EXPORT_RUN",
+      status: "PENDING",
+      idempotencyKey,
+      payloadJson: {
+        runId: params.runId,
+      },
+    },
+  });
+}
+
+/**
+ * Enqueue a COMPUTE_METRICS job by creating a Job row in the database.
+ *
+ * Note: `modelTargetId` is not used by the handler (it processes all models
+ * for the run), but is required to satisfy the Job table's foreign key
+ * constraint. Callers should pass any valid modelTargetId from the run.
+ */
+export async function enqueueComputeMetricsJob(params: {
+  runId: string;
+  modelTargetId: string;
+}): Promise<void> {
+  const idempotencyKey = `compute-metrics:${params.runId}`;
+  await prisma.job.create({
+    data: {
+      runId: params.runId,
+      modelTargetId: params.modelTargetId,
+      threadKey: `compute-metrics-${params.runId}`,
+      type: "COMPUTE_METRICS",
       status: "PENDING",
       idempotencyKey,
       payloadJson: {

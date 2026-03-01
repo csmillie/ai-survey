@@ -51,6 +51,7 @@ enum JobType {
   EXECUTE_QUESTION
   ANALYZE_RESPONSE
   EXPORT_RUN
+  COMPUTE_METRICS
 }
 
 enum JobStatus {
@@ -146,6 +147,7 @@ model Question {
   survey          Survey        @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   jobs            Job[]
   responses       LlmResponse[]
+  questionAgreements RunQuestionAgreement[]
 
   @@index([surveyId, order])
 }
@@ -165,6 +167,7 @@ model ModelTarget {
   threads                ConversationThread[]
   jobs                   Job[]
   responses              LlmResponse[]
+  modelMetrics           RunModelMetric[]
 
   @@unique([provider, modelName])
   @@index([isEnabled])
@@ -184,6 +187,8 @@ model SurveyRun {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  recommendationJson Json?
+
   survey       Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   createdBy    User      @relation("RunCreator", fields: [createdById], references: [id], onDelete: Restrict)
   models       RunModel[]
@@ -191,8 +196,11 @@ model SurveyRun {
   jobs         Job[]
   responses    LlmResponse[]
   auditEvents  AuditEvent[] @relation("AuditTargetRun")
+  modelMetrics       RunModelMetric[]
+  questionAgreements RunQuestionAgreement[]
 
   @@index([surveyId, createdAt])
+  @@index([surveyId, status, completedAt])
   @@index([status])
 }
 
@@ -225,6 +233,9 @@ model ConversationThread {
   @@index([runId])
 }
 
+/// Job queue entries. Note: modelTargetId is required by the FK constraint but
+/// is not semantically used by COMPUTE_METRICS or EXPORT_RUN job types — callers
+/// pass any valid modelTargetId from the run to satisfy the constraint.
 model Job {
   id             String    @id @default(uuid())
   runId          String
@@ -248,6 +259,7 @@ model Job {
 
   @@index([runId, status])
   @@index([type, status])
+  @@index([runId, type, status])
 }
 
 model LlmResponse {
@@ -308,4 +320,45 @@ model AuditEvent {
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId])
   @@index([action])
+}
+
+model RunModelMetric {
+  id                   String      @id @default(uuid())
+  runId                String
+  modelTargetId        String
+  reliabilityScore     Float
+  jsonValidRate        Float
+  emptyAnswerRate      Float
+  shortAnswerRate      Float
+  citationRate         Float
+  latencyCv            Float
+  costCv               Float
+  penaltyBreakdownJson Json
+  totalResponses       Int
+  createdAt            DateTime    @default(now())
+
+  run                  SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  modelTarget          ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, modelTargetId])
+  @@index([runId])
+  @@index([modelTargetId])
+}
+
+model RunQuestionAgreement {
+  id                 String    @id @default(uuid())
+  runId              String
+  questionId         String
+  agreementPercent   Float
+  outlierModelsJson  Json
+  humanReviewFlag    Boolean
+  clusterDetailsJson Json?
+  createdAt          DateTime  @default(now())
+
+  run                SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  question           Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useTransition } from "react";
+import { useEffect, useState, useRef, useCallback, useTransition, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -20,6 +21,12 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -27,6 +34,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
+import type { ModelMetricData, RecommendationData, QuestionAgreementData } from "./types";
+
+const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
+  ssr: false,
+  loading: () => (
+    <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
+      Loading chart...
+    </p>
+  ),
+});
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,6 +96,9 @@ interface RunProgressViewProps {
   failedJobs: number;
   responses: ResponseData[];
   totalCostUsd: number;
+  modelMetrics?: ModelMetricData[];
+  questionAgreements?: QuestionAgreementData[];
+  recommendation?: RecommendationData | null;
 }
 
 interface SseEvent {
@@ -105,6 +125,9 @@ export function RunProgressView({
   failedJobs: initialFailed,
   responses,
   totalCostUsd,
+  modelMetrics = [],
+  questionAgreements = [],
+  recommendation = null,
 }: RunProgressViewProps) {
   const [status, setStatus] = useState(initialStatus);
   const [total, setTotal] = useState(initialTotal);
@@ -203,6 +226,17 @@ export function RunProgressView({
     }
     group.responses.push(resp);
   }
+
+  // Build agreement lookup for per-question badges
+  const agreementMap = useMemo(() => {
+    const map = new Map<string, QuestionAgreementData>();
+    for (const a of questionAgreements) {
+      map.set(a.questionId, a);
+    }
+    return map;
+  }, [questionAgreements]);
+
+  const hasMetrics = modelMetrics.length > 0;
 
   const progress = total > 0 ? ((completed + failed) / total) * 100 : 0;
   const isTerminal = status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
@@ -306,9 +340,130 @@ export function RunProgressView({
         </Card>
       )}
 
+      {/* Recommendation Banner */}
+      {isTerminal && hasMetrics && recommendation && (
+        <Card
+          className={
+            recommendation.humanReviewRequired
+              ? "border-amber-500/50 bg-amber-500/5"
+              : "border-green-500/50 bg-green-500/5"
+          }
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">
+                {recommendation.humanReviewRequired ? "!" : "✓"}
+              </span>
+              <CardTitle className="text-base">
+                {recommendation.humanReviewRequired
+                  ? "Human Review Required"
+                  : `Recommended: ${recommendation.recommendedModelName}`}
+              </CardTitle>
+              {recommendation.reliabilityScore !== null && (
+                <Badge variant="secondary" className="ml-auto">
+                  {recommendation.reliabilityScore.toFixed(1)}/10
+                </Badge>
+              )}
+            </div>
+            <CardDescription>{recommendation.reason}</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {/* ModelTrust Panel */}
+      {isTerminal && hasMetrics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ModelTrust</CardTitle>
+            <CardDescription>
+              Model reliability, cross-model agreement, and performance trends
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="reliability">
+              <TabsList>
+                <TabsTrigger value="reliability">Reliability</TabsTrigger>
+                <TabsTrigger value="agreement">Agreement</TabsTrigger>
+                <TabsTrigger value="drift">Drift</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="reliability">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Model</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead className="text-center">JSON Valid</TableHead>
+                      <TableHead className="text-center">Empty</TableHead>
+                      <TableHead className="text-center">Short</TableHead>
+                      <TableHead className="text-center">Citations</TableHead>
+                      <TableHead className="text-right">Responses</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {modelMetrics.map((m) => (
+                      <ReliabilityRow key={m.modelTargetId} metric={m} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+
+              <TabsContent value="agreement">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Question</TableHead>
+                      <TableHead>Agreement</TableHead>
+                      <TableHead>Outliers</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {questionAgreements.map((a) => (
+                      <TableRow key={a.questionId}>
+                        <TableCell className="max-w-xs truncate font-medium">
+                          {a.questionTitle}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <AgreementBadge percent={a.agreementPercent} />
+                            <span className="text-sm">
+                              {Math.round(a.agreementPercent * 100)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-[hsl(var(--muted-foreground))]">
+                          {a.outlierModels.length > 0
+                            ? a.outlierModels.join(", ")
+                            : "None"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {a.humanReviewFlag ? (
+                            <Badge variant="destructive">Needs Review</Badge>
+                          ) : (
+                            <Badge variant="secondary">OK</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TabsContent>
+
+              <TabsContent value="drift">
+                <DriftChart runId={runId} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Results by Question */}
       {isTerminal &&
-        questionGroups.map((group) => (
+        questionGroups.map((group) => {
+          const agreement = agreementMap.get(group.questionId);
+          return (
           <Card key={group.questionId}>
             <CardHeader>
               <CardTitle className="text-lg">{group.questionTitle}</CardTitle>
@@ -328,6 +483,16 @@ export function RunProgressView({
                     </span>
                   ) : null;
                 })()}
+                {agreement && (
+                  <>
+                    <AgreementBadge percent={agreement.agreementPercent} className="ml-2" />
+                    {agreement.humanReviewFlag && (
+                      <Badge variant="destructive" className="ml-1">
+                        Needs Review
+                      </Badge>
+                    )}
+                  </>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -359,7 +524,8 @@ export function RunProgressView({
               </Table>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
 
       {/* No responses message */}
       {isTerminal && responses.length === 0 && (
@@ -372,6 +538,119 @@ export function RunProgressView({
         </Card>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ModelTrust sub-components
+// ---------------------------------------------------------------------------
+
+function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <TableRow className="cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <TableCell>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium">{metric.modelName}</span>
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">
+              {metric.provider}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell>
+          <ScoreBar score={metric.reliabilityScore} min={0} max={10} />
+        </TableCell>
+        <TableCell className="text-center text-sm">
+          {Math.round(metric.jsonValidRate * 100)}%
+        </TableCell>
+        <TableCell className="text-center text-sm">
+          {Math.round(metric.emptyAnswerRate * 100)}%
+        </TableCell>
+        <TableCell className="text-center text-sm">
+          {Math.round(metric.shortAnswerRate * 100)}%
+        </TableCell>
+        <TableCell className="text-center text-sm">
+          {Math.round(metric.citationRate * 100)}%
+        </TableCell>
+        <TableCell className="text-right text-sm">
+          {metric.totalResponses}
+        </TableCell>
+        <TableCell className="text-right text-xs text-[hsl(var(--muted-foreground))]">
+          {expanded ? "Hide" : "Details"}
+        </TableCell>
+      </TableRow>
+      {expanded && (
+        <TableRow>
+          <TableCell colSpan={8} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Penalty Breakdown</h4>
+              <div className="grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">
+                <PenaltyItem label="Invalid JSON" value={metric.penaltyBreakdown.jsonInvalid} max={6} />
+                <PenaltyItem label="Empty Answer" value={metric.penaltyBreakdown.emptyAnswer} max={3} />
+                <PenaltyItem label="Short Answer" value={metric.penaltyBreakdown.shortAnswer} max={2} />
+                <PenaltyItem label="No Citations" value={metric.penaltyBreakdown.missingCitations} max={2} />
+                <PenaltyItem label="Latency Var." value={metric.penaltyBreakdown.latencyVariance} max={1} />
+                <PenaltyItem label="Cost Var." value={metric.penaltyBreakdown.costVariance} max={1} />
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+}
+
+function PenaltyItem({
+  label,
+  value,
+  max,
+}: {
+  label: string;
+  value: number;
+  max: number;
+}) {
+  const severity = value / max;
+  const color =
+    severity < 0.1
+      ? "text-green-600 dark:text-green-400"
+      : severity < 0.5
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-red-600 dark:text-red-400";
+
+  return (
+    <div className="rounded border border-[hsl(var(--border))] p-2">
+      <p className="text-xs text-[hsl(var(--muted-foreground))]">{label}</p>
+      <p className={`font-semibold ${color}`}>
+        -{value.toFixed(2)}
+      </p>
+    </div>
+  );
+}
+
+function AgreementBadge({
+  percent,
+  className = "",
+}: {
+  percent: number;
+  className?: string;
+}) {
+  const pct = Math.round(percent * 100);
+  let variant: "default" | "secondary" | "destructive" | "outline";
+
+  if (pct >= 80) {
+    variant = "default";
+  } else if (pct >= 60) {
+    variant = "secondary";
+  } else {
+    variant = "destructive";
+  }
+
+  return (
+    <Badge variant={variant} className={className}>
+      {pct}%
+    </Badge>
   );
 }
 

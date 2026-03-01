@@ -181,3 +181,39 @@ export const estimateRunSchema = z.object({
 });
 
 export type EstimateRunInput = z.infer<typeof estimateRunSchema>;
+
+// ---------------------------------------------------------------------------
+// ModelTrust JSON fields (persisted as JSON columns, parsed at read boundaries)
+// ---------------------------------------------------------------------------
+
+export const penaltyBreakdownSchema = z.object({
+  jsonInvalid: z.number(),
+  emptyAnswer: z.number(),
+  shortAnswer: z.number(),
+  missingCitations: z.number(),
+  latencyVariance: z.number(),
+  costVariance: z.number(),
+});
+
+export const recommendationSchema = z.object({
+  recommendedModelId: z.string().nullable(),
+  recommendedModelName: z.string().nullable(),
+  reliabilityScore: z.number().nullable(),
+  reason: z.string(),
+  humanReviewRequired: z.boolean(),
+});
+
+export const outlierModelsSchema = z.array(z.string());
+
+// Schemas for JSON columns read in compute-metrics handler
+export const flagsJsonSchema = z.array(z.string()).nullable().catch([]);
+
+export const parsedRankedSchema = z
+  .object({ score: z.number() })
+  .nullable()
+  .catch(null);
+
+export const parsedOpenEndedSchema = z
+  .object({ answerText: z.string().optional() })
+  .nullable()
+  .catch(null);
