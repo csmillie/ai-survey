@@ -105,18 +105,16 @@ export async function handleExecuteQuestion(
 
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
-    let rankedParseSucceeded = false;
 
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
       if (rankedResult.success) {
-        rankedParseSucceeded = true;
         const clamped = clampScore(
           rankedResult.data.score,
           rankedConfig.scaleMin,
           rankedConfig.scaleMax,
         );
-        finalParsed = { ...parsed as Record<string, unknown>, score: clamped };
+        finalParsed = { score: clamped };
         reasoningText = rankedResult.data.reasoning ?? null;
       } else {
         console.warn(
@@ -206,7 +204,7 @@ export async function handleExecuteQuestion(
     });
 
     // 9. Enqueue ANALYZE_RESPONSE job (skip for ranked without reasoning)
-    const shouldAnalyze = !isRanked || (rankedParseSucceeded && rankedConfig?.includeReasoning === true);
+    const shouldAnalyze = !isRanked || rankedConfig?.includeReasoning === true;
     if (shouldAnalyze) {
       await enqueueAnalyzeJob({
         runId,

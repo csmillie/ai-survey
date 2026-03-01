@@ -91,7 +91,7 @@ export type ScalePreset = keyof typeof SCALE_PRESETS;
 export const rankedConfigSchema = z.object({
   scalePreset: z.enum(["1-5", "1-10", "1-100", "percentage"]),
   scaleMin: z.number().int().min(0),
-  scaleMax: z.number().int().min(1),
+  scaleMax: z.number().int().min(1).max(1000),
   includeReasoning: z.boolean(),
 }).refine((data) => data.scaleMin < data.scaleMax, {
   message: "scaleMin must be less than scaleMax",
