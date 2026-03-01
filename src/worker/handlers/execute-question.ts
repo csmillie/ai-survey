@@ -120,6 +120,9 @@ export async function handleExecuteQuestion(
         console.warn(
           `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
         );
+        // Strip score from finalParsed to prevent invalid data reaching ScoreBar
+        const { score: _, ...rest } = parsed as Record<string, unknown>;
+        finalParsed = rest;
       }
     }
 
