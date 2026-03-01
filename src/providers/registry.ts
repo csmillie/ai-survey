@@ -7,7 +7,7 @@ import {
   PerplexityProvider,
   CopilotProvider,
 } from "./stubs";
-import { getOpenaiApiKey, getAnthropicApiKey, getGeminiApiKey, getGrokApiKey } from "@/lib/env";
+import { getOpenaiApiKey, getAnthropicApiKey, getGeminiApiKey, getXaiApiKey } from "@/lib/env";
 
 export type ProviderName =
   | "OPENAI"
@@ -26,7 +26,7 @@ export function getProvider(provider: ProviderName | string): LlmProvider {
     case "GEMINI":
       return new GeminiProvider(getGeminiApiKey());
     case "XAI":
-      return new GrokProvider(getGrokApiKey());
+      return new GrokProvider(getXaiApiKey());
     case "PERPLEXITY":
       return new PerplexityProvider();
     case "COPILOT":

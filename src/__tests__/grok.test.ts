@@ -130,6 +130,17 @@ describe("GrokProvider", () => {
     ).rejects.toThrow("Grok returned an empty response");
   });
 
+  it("throws when response content is an empty string", async () => {
+    mockCreate.mockResolvedValue(makeResponse({ content: "" }));
+
+    await expect(
+      provider.sendRequest({
+        model: "grok-3-mini",
+        messages: [{ role: "user", content: "Hello" }],
+      })
+    ).rejects.toThrow("Grok returned an empty response");
+  });
+
   it("throws when choices array is empty", async () => {
     mockCreate.mockResolvedValue({ choices: [], usage: undefined });
 

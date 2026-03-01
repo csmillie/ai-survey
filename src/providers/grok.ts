@@ -8,7 +8,7 @@ import type {
 const XAI_BASE_URL = "https://api.x.ai/v1";
 
 export class GrokProvider implements LlmProvider {
-  public readonly name = "grok";
+  public readonly name = "xai";
   private readonly client: OpenAI;
 
   constructor(apiKey: string) {
@@ -31,7 +31,7 @@ export class GrokProvider implements LlmProvider {
     const latencyMs = Date.now() - start;
 
     const choice = response.choices[0];
-    if (choice?.message?.content == null) {
+    if (!choice?.message?.content) {
       throw new Error("Grok returned an empty response");
     }
 

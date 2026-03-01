@@ -77,7 +77,7 @@ export function getGeminiApiKey(): string {
   return requiredEnv("GEMINI_API_KEY");
 }
 
-export function getGrokApiKey(): string {
+export function getXaiApiKey(): string {
   return requiredEnv("XAI_API_KEY");
 }
 
