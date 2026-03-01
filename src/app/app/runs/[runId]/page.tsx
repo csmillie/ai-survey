@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
+import { rankedConfigSchema } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
 // ---------------------------------------------------------------------------
@@ -13,8 +14,10 @@ interface RunPageProps {
 }
 
 interface ParsedLlmResponse {
-  answerText: string;
-  citations: Array<{ url: string; title?: string; snippet?: string }>;
+  answerText?: string;
+  citations?: Array<{ url: string; title?: string; snippet?: string }>;
+  score?: number;
+  reasoning?: string;
 }
 
 interface AnalysisEntities {
@@ -45,7 +48,7 @@ export default async function RunPage({ params }: RunPageProps) {
       responses: {
         include: {
           question: {
-            select: { id: true, title: true },
+            select: { id: true, title: true, type: true, configJson: true },
           },
           modelTarget: {
             select: { modelName: true, provider: true },
@@ -87,9 +90,18 @@ export default async function RunPage({ params }: RunPageProps) {
       id: resp.id,
       questionId: resp.question.id,
       questionTitle: resp.question.title,
+      questionType: resp.question.type,
+      questionConfig: (() => {
+        const result = rankedConfigSchema.safeParse(resp.question.configJson);
+        return result.success
+          ? { scaleMin: result.data.scaleMin, scaleMax: result.data.scaleMax }
+          : null;
+      })(),
       modelName: resp.modelTarget.modelName,
       provider: resp.modelTarget.provider,
-      answerText: parsed?.answerText ?? resp.rawText,
+      answerText: parsed?.answerText ?? (parsed?.score != null ? "" : resp.rawText),
+      score: parsed?.score ?? null,
+      reasoningText: resp.reasoningText ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
       costUsd: resp.costUsd?.toString() ?? null,

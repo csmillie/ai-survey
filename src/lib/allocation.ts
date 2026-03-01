@@ -94,6 +94,8 @@ export async function allocateJobs(params: {
           questionMode: question.mode,
           threadKey,
           variableValues: variableMap,
+          questionType: question.type ?? "OPEN_ENDED",
+          ...(question.configJson ? { questionConfig: question.configJson } : {}),
         },
       });
     }
