@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
@@ -213,9 +214,16 @@ interface DriftDataSuccess {
   data: DriftPoint[];
 }
 
+const runIdSchema = z.string().uuid();
+
 export async function getDriftDataAction(
   runId: string
 ): Promise<DriftDataSuccess | ActionError> {
+  const parsed = runIdSchema.safeParse(runId);
+  if (!parsed.success) {
+    return { success: false, error: "Invalid run ID" };
+  }
+
   const session = await requireSession();
 
   // Load the current run to get its surveyId

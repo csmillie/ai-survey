@@ -34,7 +34,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
-import type { ModelMetricData, RecommendationData } from "./types";
+import type { ModelMetricData, RecommendationData, QuestionAgreementData } from "./types";
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
   ssr: false,
@@ -78,14 +78,6 @@ interface DebugData {
   rawText: string;
   requestMessages: Array<{ role: string; content: string }> | null;
   usageJson: { inputTokens: number; outputTokens: number } | null;
-}
-
-interface QuestionAgreementData {
-  questionId: string;
-  questionTitle: string;
-  agreementPercent: number;
-  outlierModels: string[];
-  humanReviewFlag: boolean;
 }
 
 interface QuestionGroup {

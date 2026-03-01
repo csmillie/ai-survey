@@ -77,10 +77,7 @@ export function DriftChart({ runId }: DriftChartProps) {
 
     const rows = data.map((point) => {
       const row: Record<string, string | number | undefined> = {
-        date: new Date(point.runDate).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
+        date: point.runDate,
       };
       for (const name of names) {
         row[name] = point.models[name];
@@ -120,7 +117,13 @@ export function DriftChart({ runId }: DriftChartProps) {
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-          <XAxis dataKey="date" fontSize={12} />
+          <XAxis
+            dataKey="date"
+            fontSize={12}
+            tickFormatter={(v: string) =>
+              new Date(v).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            }
+          />
           <YAxis domain={[0, 10]} fontSize={12} />
           <Tooltip />
           <Legend />

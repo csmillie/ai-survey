@@ -38,3 +38,11 @@ export interface DriftPoint {
   runDate: string;
   models: Record<string, number | undefined>;
 }
+
+export interface QuestionAgreementData {
+  questionId: string;
+  questionTitle: string;
+  agreementPercent: number;
+  outlierModels: string[];
+  humanReviewFlag: boolean;
+}

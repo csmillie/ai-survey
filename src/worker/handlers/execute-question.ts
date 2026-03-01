@@ -319,19 +319,21 @@ async function checkRunCompletion(runId: string): Promise<void> {
       where: { runId },
       select: { modelTargetId: true },
     });
-    if (runModel) {
-      try {
-        await enqueueComputeMetricsJob({
-          runId,
-          modelTargetId: runModel.modelTargetId,
-        });
-      } catch (err) {
-        // P2002 = unique constraint (idempotency key collision) — job already exists, safe to ignore
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-          return;
-        }
-        throw err;
+    if (!runModel) {
+      console.warn(`[checkRunCompletion] No RunModel found for run ${runId} — skipping COMPUTE_METRICS`);
+      return;
+    }
+    try {
+      await enqueueComputeMetricsJob({
+        runId,
+        modelTargetId: runModel.modelTargetId,
+      });
+    } catch (err) {
+      // P2002 = unique constraint (idempotency key collision) — job already exists, safe to ignore
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return;
       }
+      throw err;
     }
   }
 }

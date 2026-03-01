@@ -69,9 +69,10 @@ export async function handleComputeMetrics(
       }
 
       // Set back to PENDING so it retries on next poll cycle
+      // (worker increments `attempt` on each claim, so no need to increment here)
       await prisma.job.update({
         where: { id: jobId },
-        data: { status: "PENDING", startedAt: null, attempt: attempt + 1 },
+        data: { status: "PENDING", startedAt: null },
       });
       return;
     }
@@ -239,77 +240,77 @@ export async function handleComputeMetrics(
     // 5. Compute recommendation
     const recommendation = computeRecommendation(modelScores, questionReviews);
 
-    // 6. Persist all metrics atomically
+    // 6. Persist all metrics atomically (concurrent upserts within tx)
     await prisma.$transaction(async (tx) => {
-      for (const { modelTargetId, result } of modelUpserts) {
-        await tx.runModelMetric.upsert({
-          where: {
-            runId_modelTargetId: { runId, modelTargetId },
+      await Promise.all([
+        ...modelUpserts.map(({ modelTargetId, result }) =>
+          tx.runModelMetric.upsert({
+            where: {
+              runId_modelTargetId: { runId, modelTargetId },
+            },
+            create: {
+              runId,
+              modelTargetId,
+              reliabilityScore: result.score,
+              jsonValidRate: result.jsonValidRate,
+              emptyAnswerRate: result.emptyAnswerRate,
+              shortAnswerRate: result.shortAnswerRate,
+              citationRate: result.citationRate,
+              latencyCv: result.latencyCv,
+              costCv: result.costCv,
+              penaltyBreakdownJson:
+                result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
+              totalResponses: result.totalResponses,
+            },
+            update: {
+              reliabilityScore: result.score,
+              jsonValidRate: result.jsonValidRate,
+              emptyAnswerRate: result.emptyAnswerRate,
+              shortAnswerRate: result.shortAnswerRate,
+              citationRate: result.citationRate,
+              latencyCv: result.latencyCv,
+              costCv: result.costCv,
+              penaltyBreakdownJson:
+                result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
+              totalResponses: result.totalResponses,
+            },
+          })
+        ),
+        ...questionUpserts.map(({ questionId, agreement }) =>
+          tx.runQuestionAgreement.upsert({
+            where: {
+              runId_questionId: { runId, questionId },
+            },
+            create: {
+              runId,
+              questionId,
+              agreementPercent: agreement.agreementPercent,
+              outlierModelsJson:
+                agreement.outlierModels as unknown as Prisma.InputJsonValue,
+              humanReviewFlag: agreement.humanReviewFlag,
+              clusterDetailsJson: agreement.clusterDetails
+                ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+                : Prisma.JsonNull,
+            },
+            update: {
+              agreementPercent: agreement.agreementPercent,
+              outlierModelsJson:
+                agreement.outlierModels as unknown as Prisma.InputJsonValue,
+              humanReviewFlag: agreement.humanReviewFlag,
+              clusterDetailsJson: agreement.clusterDetails
+                ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+                : Prisma.JsonNull,
+            },
+          })
+        ),
+        tx.surveyRun.update({
+          where: { id: runId },
+          data: {
+            recommendationJson:
+              recommendation as unknown as Prisma.InputJsonValue,
           },
-          create: {
-            runId,
-            modelTargetId,
-            reliabilityScore: result.score,
-            jsonValidRate: result.jsonValidRate,
-            emptyAnswerRate: result.emptyAnswerRate,
-            shortAnswerRate: result.shortAnswerRate,
-            citationRate: result.citationRate,
-            latencyCv: result.latencyCv,
-            costCv: result.costCv,
-            penaltyBreakdownJson:
-              result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
-            totalResponses: result.totalResponses,
-          },
-          update: {
-            reliabilityScore: result.score,
-            jsonValidRate: result.jsonValidRate,
-            emptyAnswerRate: result.emptyAnswerRate,
-            shortAnswerRate: result.shortAnswerRate,
-            citationRate: result.citationRate,
-            latencyCv: result.latencyCv,
-            costCv: result.costCv,
-            penaltyBreakdownJson:
-              result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
-            totalResponses: result.totalResponses,
-          },
-        });
-      }
-
-      for (const { questionId, agreement } of questionUpserts) {
-        await tx.runQuestionAgreement.upsert({
-          where: {
-            runId_questionId: { runId, questionId },
-          },
-          create: {
-            runId,
-            questionId,
-            agreementPercent: agreement.agreementPercent,
-            outlierModelsJson:
-              agreement.outlierModels as unknown as Prisma.InputJsonValue,
-            humanReviewFlag: agreement.humanReviewFlag,
-            clusterDetailsJson: agreement.clusterDetails
-              ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          },
-          update: {
-            agreementPercent: agreement.agreementPercent,
-            outlierModelsJson:
-              agreement.outlierModels as unknown as Prisma.InputJsonValue,
-            humanReviewFlag: agreement.humanReviewFlag,
-            clusterDetailsJson: agreement.clusterDetails
-              ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          },
-        });
-      }
-
-      await tx.surveyRun.update({
-        where: { id: runId },
-        data: {
-          recommendationJson:
-            recommendation as unknown as Prisma.InputJsonValue,
-        },
-      });
+        }),
+      ]);
     });
 
     // 7. Mark job as SUCCEEDED

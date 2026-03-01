@@ -90,7 +90,9 @@ export function computeReliabilityScore(
 
   const jsonValidRate = responses.filter((r) => r.hasValidJson).length / n;
   const emptyAnswerRate = responses.filter((r) => r.isEmpty).length / n;
-  const shortAnswerRate = responses.filter((r) => r.isShort).length / n;
+  // Only count short answers that aren't already empty (avoid double-penalty)
+  const shortAnswerRate =
+    responses.filter((r) => r.isShort && !r.isEmpty).length / n;
   const citationRate = responses.filter((r) => r.hasCitations).length / n;
 
   const latencyCv = computeCoefficientOfVariation(

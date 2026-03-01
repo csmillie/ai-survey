@@ -200,6 +200,7 @@ model SurveyRun {
   questionAgreements RunQuestionAgreement[]
 
   @@index([surveyId, createdAt])
+  @@index([surveyId, status, completedAt])
   @@index([status])
 }
 
