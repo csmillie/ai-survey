@@ -27,6 +27,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
+import { formatUsd } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -287,13 +288,13 @@ export function RunProgressView({
               />
               <SummaryCard
                 label="Total Cost"
-                value={`$${totalCostUsd.toFixed(4)}`}
+                value={formatUsd(totalCostUsd)}
               />
               <SummaryCard
                 label="Avg Cost"
                 value={
                   responses.length > 0
-                    ? `$${(totalCostUsd / responses.length).toFixed(6)}`
+                    ? formatUsd(totalCostUsd / responses.length)
                     : "$0"
                 }
               />
@@ -465,7 +466,7 @@ function ResponseRow({
           <span className="text-sm">{response.citations.length}</span>
         </TableCell>
         <TableCell className="text-right text-sm">
-          {response.costUsd ? `$${parseFloat(response.costUsd).toFixed(6)}` : "-"}
+          {response.costUsd ? formatUsd(parseFloat(response.costUsd)) : "-"}
         </TableCell>
         <TableCell className="text-right text-sm">
           {response.latencyMs ? `${response.latencyMs}ms` : "-"}
