@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -12,15 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { getDriftDataAction } from "./actions";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DriftPoint {
-  runDate: string;
-  models: Record<string, number | undefined>;
-}
+import type { DriftPoint } from "./types";
 
 interface DriftChartProps {
   runId: string;
@@ -48,15 +40,28 @@ export function DriftChart({ runId }: DriftChartProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchId = useRef(0);
   useEffect(() => {
-    getDriftDataAction(runId).then((result) => {
-      if (result.success) {
-        setData(result.data);
-      } else {
-        setError(result.error);
-      }
-      setLoading(false);
-    });
+    const id = ++fetchId.current;
+    let cancelled = false;
+    getDriftDataAction(runId)
+      .then((result) => {
+        if (cancelled || id !== fetchId.current) return;
+        if (result.success) {
+          setData(result.data);
+          setError(null);
+        } else {
+          setError(result.error ?? "Unknown error");
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled || id !== fetchId.current) return;
+        setError(err instanceof Error ? err.message : "Failed to fetch drift data");
+      })
+      .finally(() => {
+        if (!cancelled && id === fetchId.current) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [runId]);
 
   // Transform data for recharts: each row = { date, model1: score, model2: score, ... }

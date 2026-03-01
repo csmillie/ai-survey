@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 import { enqueueExportJob } from "@/lib/queue";
 import { createAuditEvent, RUN_CANCELLED } from "@/lib/audit";
+import type { DriftPoint } from "./types";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -207,11 +208,6 @@ export async function exportRunAction(runId: string): Promise<ActionResult> {
 // getDriftDataAction
 // ---------------------------------------------------------------------------
 
-interface DriftPoint {
-  runDate: string;
-  models: Record<string, number>;
-}
-
 interface DriftDataSuccess {
   success: true;
   data: DriftPoint[];
@@ -241,11 +237,13 @@ export async function getDriftDataAction(
     return { success: false, error: "Access denied" };
   }
 
-  // Load last 10 completed runs for this survey with their metrics
+  // Load last 10 completed runs with metrics for this survey
   const runs = await prisma.surveyRun.findMany({
     where: {
       surveyId: currentRun.surveyId,
       status: "COMPLETED",
+      completedAt: { not: null },
+      modelMetrics: { some: {} },
     },
     select: {
       id: true,
@@ -266,7 +264,6 @@ export async function getDriftDataAction(
   // Transform into DriftPoint format (chronological order)
   const data: DriftPoint[] = runs
     .reverse()
-    .filter((r) => r.completedAt !== null && r.modelMetrics.length > 0)
     .map((r) => {
       const models: Record<string, number> = {};
       for (const m of r.modelMetrics) {

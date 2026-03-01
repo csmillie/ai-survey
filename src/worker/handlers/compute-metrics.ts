@@ -16,22 +16,16 @@ import {
   type ModelScore,
   type QuestionReview,
 } from "@/lib/analysis/recommendation";
-import { rankedConfigSchema } from "@/lib/schemas";
+import {
+  rankedConfigSchema,
+  flagsJsonSchema,
+  parsedRankedSchema,
+  parsedOpenEndedSchema,
+} from "@/lib/schemas";
+import type { AgreementResult } from "@/lib/analysis/agreement";
 
 interface ComputeMetricsHandlerPayload extends ComputeMetricsPayload {
   jobId: string;
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ParsedOpenEnded {
-  answerText?: string;
-}
-
-interface ParsedRanked {
-  score?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +131,7 @@ export async function handleComputeMetrics(
 
     for (const [modelTargetId, data] of byModel) {
       const metrics: ResponseMetrics[] = data.responses.map((r) => {
-        const flags = (r.analysis?.flagsJson as string[] | null) ?? [];
+        const flags = flagsJsonSchema.parse(r.analysis?.flagsJson) ?? [];
         const parsed = r.parsedJson as Record<string, unknown> | null;
         const citations = r.citationsJson as unknown[] | null;
         const isRanked = r.question.type === "RANKED";
@@ -203,13 +197,13 @@ export async function handleComputeMetrics(
     }> = [];
 
     for (const [questionId, data] of byQuestion) {
-      let agreement;
+      let agreement: AgreementResult;
 
       if (data.questionType === "RANKED") {
         const config = rankedConfigSchema.safeParse(data.configJson);
         const rankedResponses: RankedResponse[] = data.responses
           .map((r) => {
-            const parsed = r.parsedJson as unknown as ParsedRanked | null;
+            const parsed = parsedRankedSchema.parse(r.parsedJson);
             return parsed?.score != null
               ? { modelName: r.modelTarget.modelName, score: parsed.score }
               : null;
@@ -224,7 +218,7 @@ export async function handleComputeMetrics(
       } else {
         const openEndedResponses: OpenEndedResponse[] = data.responses.map(
           (r) => {
-            const parsed = r.parsedJson as unknown as ParsedOpenEnded | null;
+            const parsed = parsedOpenEndedSchema.parse(r.parsedJson);
             return {
               modelName: r.modelTarget.modelName,
               text: parsed?.answerText ?? r.rawText,

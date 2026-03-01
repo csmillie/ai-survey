@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useTransition } from "react";
+import { useEffect, useState, useRef, useCallback, useTransition, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -236,10 +236,13 @@ export function RunProgressView({
   }
 
   // Build agreement lookup for per-question badges
-  const agreementMap = new Map<string, QuestionAgreementData>();
-  for (const a of questionAgreements) {
-    agreementMap.set(a.questionId, a);
-  }
+  const agreementMap = useMemo(() => {
+    const map = new Map<string, QuestionAgreementData>();
+    for (const a of questionAgreements) {
+      map.set(a.questionId, a);
+    }
+    return map;
+  }, [questionAgreements]);
 
   const hasMetrics = modelMetrics.length > 0;
 

@@ -147,34 +147,46 @@ export default async function RunPage({ params }: RunPageProps) {
     orderBy: { agreementPercent: "asc" },
   });
 
-  const modelMetricsData = modelMetrics.map((m) => {
-    const breakdown = penaltyBreakdownSchema.parse(m.penaltyBreakdownJson);
-    return {
-      modelTargetId: m.modelTargetId,
-      modelName: m.modelTarget.modelName,
-      provider: m.modelTarget.provider,
-      reliabilityScore: m.reliabilityScore,
-      jsonValidRate: m.jsonValidRate,
-      emptyAnswerRate: m.emptyAnswerRate,
-      shortAnswerRate: m.shortAnswerRate,
-      citationRate: m.citationRate,
-      latencyCv: m.latencyCv,
-      costCv: m.costCv,
-      penaltyBreakdown: breakdown,
-      totalResponses: m.totalResponses,
-    };
+  const modelMetricsData = modelMetrics.flatMap((m) => {
+    const breakdown = penaltyBreakdownSchema.safeParse(m.penaltyBreakdownJson);
+    if (!breakdown.success) return [];
+    return [
+      {
+        modelTargetId: m.modelTargetId,
+        modelName: m.modelTarget.modelName,
+        provider: m.modelTarget.provider,
+        reliabilityScore: m.reliabilityScore,
+        jsonValidRate: m.jsonValidRate,
+        emptyAnswerRate: m.emptyAnswerRate,
+        shortAnswerRate: m.shortAnswerRate,
+        citationRate: m.citationRate,
+        latencyCv: m.latencyCv,
+        costCv: m.costCv,
+        penaltyBreakdown: breakdown.data,
+        totalResponses: m.totalResponses,
+      },
+    ];
   });
 
-  const questionAgreementsData = questionAgreements.map((a) => ({
-    questionId: a.questionId,
-    questionTitle: a.question.title,
-    agreementPercent: a.agreementPercent,
-    outlierModels: outlierModelsSchema.parse(a.outlierModelsJson),
-    humanReviewFlag: a.humanReviewFlag,
-  }));
+  const questionAgreementsData = questionAgreements.flatMap((a) => {
+    const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
+    if (!outliers.success) return [];
+    return [
+      {
+        questionId: a.questionId,
+        questionTitle: a.question.title,
+        agreementPercent: a.agreementPercent,
+        outlierModels: outliers.data,
+        humanReviewFlag: a.humanReviewFlag,
+      },
+    ];
+  });
 
-  const recommendation = run.recommendationJson
-    ? recommendationSchema.parse(run.recommendationJson)
+  const recommendationResult = recommendationSchema.safeParse(
+    run.recommendationJson
+  );
+  const recommendation = recommendationResult.success
+    ? recommendationResult.data
     : null;
 
   return (

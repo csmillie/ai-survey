@@ -204,3 +204,16 @@ export const recommendationSchema = z.object({
 });
 
 export const outlierModelsSchema = z.array(z.string());
+
+// Schemas for JSON columns read in compute-metrics handler
+export const flagsJsonSchema = z.array(z.string()).nullable().catch([]);
+
+export const parsedRankedSchema = z
+  .object({ score: z.number() })
+  .nullable()
+  .catch(null);
+
+export const parsedOpenEndedSchema = z
+  .object({ answerText: z.string().optional() })
+  .nullable()
+  .catch(null);

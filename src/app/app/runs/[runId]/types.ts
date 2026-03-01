@@ -33,3 +33,8 @@ export interface RecommendationData {
   reason: string;
   humanReviewRequired: boolean;
 }
+
+export interface DriftPoint {
+  runDate: string;
+  models: Record<string, number | undefined>;
+}

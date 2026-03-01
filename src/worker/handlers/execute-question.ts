@@ -278,28 +278,28 @@ async function checkRunCompletion(runId: string): Promise<void> {
     },
   });
 
-  // Load run to get createdById for audit and to check current status
-  const run = await prisma.surveyRun.findUnique({
-    where: { id: runId },
-    select: { status: true, createdById: true },
-  });
-
-  if (!run) return;
-
-  // Only transition if still RUNNING or QUEUED
-  if (run.status !== "RUNNING" && run.status !== "QUEUED") return;
-
   const allFailed = failedJobs === totalJobs;
   const newStatus = allFailed ? "FAILED" : "COMPLETED";
   const now = new Date();
 
-  await prisma.surveyRun.update({
-    where: { id: runId },
+  // Atomic status transition — only one worker wins the race
+  const updated = await prisma.surveyRun.updateMany({
+    where: { id: runId, status: { in: ["RUNNING", "QUEUED"] } },
     data: {
       status: newStatus,
       completedAt: now,
     },
   });
+
+  // Another worker already transitioned this run
+  if (updated.count === 0) return;
+
+  const run = await prisma.surveyRun.findUnique({
+    where: { id: runId },
+    select: { createdById: true },
+  });
+
+  if (!run) return;
 
   await createAuditEvent({
     actorUserId: run.createdById,

@@ -36,13 +36,18 @@ export function computeRecommendation(
     };
   }
 
-  // Sort by reliability DESC, then cost ASC
-  const sorted = [...modelScores].sort((a, b) => {
-    if (Math.abs(a.reliabilityScore - b.reliabilityScore) > 0.5) {
-      return b.reliabilityScore - a.reliabilityScore;
-    }
-    return a.avgCostUsd - b.avgCostUsd;
-  });
+  // Sort by reliability DESC, then cost ASC for models within 0.5 points of the leader
+  const byReliability = [...modelScores].sort(
+    (a, b) => b.reliabilityScore - a.reliabilityScore
+  );
+  const bestScore = byReliability[0].reliabilityScore;
+  const topTier = byReliability.filter(
+    (m) => bestScore - m.reliabilityScore <= 0.5
+  );
+  const sorted = [
+    ...topTier.sort((a, b) => a.avgCostUsd - b.avgCostUsd),
+    ...byReliability.filter((m) => bestScore - m.reliabilityScore > 0.5),
+  ];
 
   const top = sorted[0];
 
