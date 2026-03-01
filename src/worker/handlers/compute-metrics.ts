@@ -17,6 +17,11 @@ import {
   type QuestionReview,
 } from "@/lib/analysis/recommendation";
 import {
+  computeCalibrationScore,
+  findOverconfidentModels,
+  type CalibrationInput,
+} from "@/lib/analysis/calibration";
+import {
   rankedConfigSchema,
   flagsJsonSchema,
   parsedRankedSchema,
@@ -88,6 +93,7 @@ export async function handleComputeMetrics(
         parsedJson: true,
         reasoningText: true,
         citationsJson: true,
+        confidence: true,
         costUsd: true,
         latencyMs: true,
         modelTarget: {
@@ -237,6 +243,53 @@ export async function handleComputeMetrics(
       });
     }
 
+    // 4b. Pre-compute resolved confidence per response.
+    // Confidence is always stored in the dedicated column by execute-question.
+    const confidenceByResponseId = new Map<string, number | null>();
+    for (const r of responses) {
+      confidenceByResponseId.set(r.id, r.confidence ?? null);
+    }
+
+    // 4c. Build agreement lookup for calibration computation
+    const agreementByQuestion = new Map<string, number>();
+    for (const { questionId, agreement } of questionUpserts) {
+      agreementByQuestion.set(questionId, agreement.agreementPercent);
+    }
+
+    // 4d. Compute per-model calibration scores
+    const calibrationByModel = new Map<string, number | null>();
+    for (const [modelTargetId, data] of byModel) {
+      const calibrationInputs: CalibrationInput[] = [];
+      for (const r of data.responses) {
+        const conf = confidenceByResponseId.get(r.id);
+        const agr = agreementByQuestion.get(r.questionId);
+        if (conf != null && agr != null) {
+          calibrationInputs.push({ confidence: conf, agreementPercent: agr });
+        }
+      }
+      if (calibrationInputs.length > 0) {
+        const { calibrationScore } = computeCalibrationScore(calibrationInputs);
+        calibrationByModel.set(modelTargetId, calibrationScore);
+      } else {
+        calibrationByModel.set(modelTargetId, null);
+      }
+    }
+
+    // 4e. Compute per-question overconfident models
+    const overconfidentByQuestion = new Map<string, string[]>();
+    for (const { questionId, agreement } of questionUpserts) {
+      const qData = byQuestion.get(questionId);
+      if (!qData) continue;
+      const overconfident = findOverconfidentModels(
+        qData.responses.map((r) => ({
+          modelName: r.modelTarget.modelName,
+          confidence: confidenceByResponseId.get(r.id) ?? null,
+        })),
+        agreement.agreementPercent
+      );
+      overconfidentByQuestion.set(questionId, overconfident);
+    }
+
     // 5. Compute recommendation
     const recommendation = computeRecommendation(modelScores, questionReviews);
 
@@ -258,6 +311,7 @@ export async function handleComputeMetrics(
               citationRate: result.citationRate,
               latencyCv: result.latencyCv,
               costCv: result.costCv,
+              calibrationScore: calibrationByModel.get(modelTargetId) ?? null,
               penaltyBreakdownJson:
                 result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
               totalResponses: result.totalResponses,
@@ -270,14 +324,16 @@ export async function handleComputeMetrics(
               citationRate: result.citationRate,
               latencyCv: result.latencyCv,
               costCv: result.costCv,
+              calibrationScore: calibrationByModel.get(modelTargetId) ?? null,
               penaltyBreakdownJson:
                 result.penaltyBreakdown as unknown as Prisma.InputJsonValue,
               totalResponses: result.totalResponses,
             },
           })
         ),
-        ...questionUpserts.map(({ questionId, agreement }) =>
-          tx.runQuestionAgreement.upsert({
+        ...questionUpserts.map(({ questionId, agreement }) => {
+          const overconfident = overconfidentByQuestion.get(questionId) ?? [];
+          return tx.runQuestionAgreement.upsert({
             where: {
               runId_questionId: { runId, questionId },
             },
@@ -288,6 +344,8 @@ export async function handleComputeMetrics(
               outlierModelsJson:
                 agreement.outlierModels as unknown as Prisma.InputJsonValue,
               humanReviewFlag: agreement.humanReviewFlag,
+              overconfidentModelsJson:
+                overconfident as unknown as Prisma.InputJsonValue,
               clusterDetailsJson: agreement.clusterDetails
                 ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
@@ -297,12 +355,14 @@ export async function handleComputeMetrics(
               outlierModelsJson:
                 agreement.outlierModels as unknown as Prisma.InputJsonValue,
               humanReviewFlag: agreement.humanReviewFlag,
+              overconfidentModelsJson:
+                overconfident as unknown as Prisma.InputJsonValue,
               clusterDetailsJson: agreement.clusterDetails
                 ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
             },
-          })
-        ),
+          });
+        }),
         tx.surveyRun.update({
           where: { id: runId },
           data: {

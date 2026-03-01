@@ -22,6 +22,7 @@ export interface ModelMetricData {
   citationRate: number;
   latencyCv: number;
   costCv: number;
+  calibrationScore: number | null;
   penaltyBreakdown: PenaltyBreakdown;
   totalResponses: number;
 }
@@ -45,4 +46,5 @@ export interface QuestionAgreementData {
   agreementPercent: number;
   outlierModels: string[];
   humanReviewFlag: boolean;
+  overconfidentModels: string[];
 }

@@ -34,6 +34,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
+import { POOR_CALIBRATION_SCORE_THRESHOLD } from "@/lib/analysis/calibration";
 import type { ModelMetricData, RecommendationData, QuestionAgreementData } from "./types";
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
@@ -366,6 +367,10 @@ export function RunProgressView({
               )}
             </div>
             <CardDescription>{recommendation.reason}</CardDescription>
+            <CalibrationWarning
+              modelMetrics={modelMetrics}
+              questionAgreements={questionAgreements}
+            />
           </CardHeader>
         </Card>
       )}
@@ -397,6 +402,7 @@ export function RunProgressView({
                       <TableHead className="text-center">Empty</TableHead>
                       <TableHead className="text-center">Short</TableHead>
                       <TableHead className="text-center">Citations</TableHead>
+                      <TableHead className="text-center">Calibration</TableHead>
                       <TableHead className="text-right">Responses</TableHead>
                       <TableHead />
                     </TableRow>
@@ -416,6 +422,7 @@ export function RunProgressView({
                       <TableHead>Question</TableHead>
                       <TableHead>Agreement</TableHead>
                       <TableHead>Outliers</TableHead>
+                      <TableHead className="text-center">Overconfidence</TableHead>
                       <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -437,6 +444,15 @@ export function RunProgressView({
                           {a.outlierModels.length > 0
                             ? a.outlierModels.join(", ")
                             : "None"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {a.overconfidentModels.length > 0 ? (
+                            <Badge variant="destructive">
+                              {a.overconfidentModels.length} overconfident
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">OK</Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           {a.humanReviewFlag ? (
@@ -545,6 +561,38 @@ export function RunProgressView({
 // ModelTrust sub-components
 // ---------------------------------------------------------------------------
 
+function CalibrationWarning({
+  modelMetrics,
+  questionAgreements,
+}: {
+  modelMetrics: ModelMetricData[];
+  questionAgreements: QuestionAgreementData[];
+}) {
+  const poorCalibration = modelMetrics.filter(
+    (m): m is ModelMetricData & { calibrationScore: number } =>
+      m.calibrationScore !== null && m.calibrationScore < POOR_CALIBRATION_SCORE_THRESHOLD
+  );
+
+  if (poorCalibration.length === 0) return null;
+
+  const questionsWithOverconfidence = questionAgreements.filter(
+    (q) => q.overconfidentModels.length > 0
+  );
+
+  return (
+    <CardDescription className="mt-1 text-amber-600 dark:text-amber-400">
+      {poorCalibration.map((m) => {
+        const count = questionsWithOverconfidence.filter((q) =>
+          q.overconfidentModels.includes(m.modelName)
+        ).length;
+        return count > 0
+          ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
+          : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(1)}/10)`;
+      }).join(". ")}
+    </CardDescription>
+  );
+}
+
 function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -574,6 +622,13 @@ function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
         <TableCell className="text-center text-sm">
           {Math.round(metric.citationRate * 100)}%
         </TableCell>
+        <TableCell className="text-center">
+          {metric.calibrationScore !== null ? (
+            <ScoreBar score={parseFloat(metric.calibrationScore.toFixed(1))} min={0} max={10} />
+          ) : (
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+          )}
+        </TableCell>
         <TableCell className="text-right text-sm">
           {metric.totalResponses}
         </TableCell>
@@ -583,7 +638,7 @@ function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
       </TableRow>
       {expanded && (
         <TableRow>
-          <TableCell colSpan={8} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
+          <TableCell colSpan={9} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Penalty Breakdown</h4>
               <div className="grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">

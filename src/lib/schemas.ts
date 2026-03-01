@@ -13,6 +13,7 @@ export const citationSchema = z.object({
 export const llmResponseSchema = z.object({
   answerText: z.string(),
   citations: z.array(citationSchema),
+  confidence: z.number().min(0).max(100).optional(),
   notes: z.string().optional(),
 });
 
@@ -102,6 +103,7 @@ export type RankedConfig = z.infer<typeof rankedConfigSchema>;
 export const rankedResponseSchema = z.object({
   score: z.number(),
   reasoning: z.string().optional(),
+  confidence: z.number().min(0).max(100).optional(),
 });
 
 export type RankedResponsePayload = z.infer<typeof rankedResponseSchema>;
@@ -204,6 +206,7 @@ export const recommendationSchema = z.object({
 });
 
 export const outlierModelsSchema = z.array(z.string());
+export const overconfidentModelsSchema = z.array(z.string());
 
 // Schemas for JSON columns read in compute-metrics handler
 export const flagsJsonSchema = z.array(z.string()).nullable().catch([]);
@@ -215,5 +218,13 @@ export const parsedRankedSchema = z
 
 export const parsedOpenEndedSchema = z
   .object({ answerText: z.string().optional() })
+  .nullable()
+  .catch(null);
+
+// Extracts an optional confidence field from a parsedJson blob.
+// Open-ended parsedJson may contain { answerText, citations, confidence, ... }.
+// Ranked parsedJson only contains { score }, so this returns undefined for ranked.
+export const confidenceFromJsonSchema = z
+  .object({ confidence: z.number().min(0).max(100).optional() })
   .nullable()
   .catch(null);

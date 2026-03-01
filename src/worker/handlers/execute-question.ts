@@ -12,7 +12,7 @@ import {
   buildRankedEnforcementBlock,
   clampScore,
 } from "@/lib/ranked-prompt";
-import { rankedResponseSchema } from "@/lib/schemas";
+import { rankedResponseSchema, llmResponseSchema } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,6 +105,7 @@ export async function handleExecuteQuestion(
 
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
+    let confidence: number | null = null;
 
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
@@ -116,12 +117,21 @@ export async function handleExecuteQuestion(
         );
         finalParsed = { score: clamped };
         reasoningText = rankedResult.data.reasoning ?? null;
+        confidence = rankedResult.data.confidence != null
+          ? Math.round(rankedResult.data.confidence)
+          : null;
       } else {
         console.warn(
           `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
         );
         finalParsed = null;
       }
+    } else if (parsed) {
+      // Open-ended: extract confidence via Zod (validates 0-100 range)
+      const openEndedResult = llmResponseSchema.safeParse(parsed);
+      confidence = openEndedResult.success && openEndedResult.data.confidence != null
+        ? Math.round(openEndedResult.data.confidence)
+        : null;
     }
 
     // 5. Calculate cost
@@ -149,6 +159,7 @@ export async function handleExecuteQuestion(
           ? ((finalParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         reasoningText,
+        confidence,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
         costUsd,
         latencyMs: response.latencyMs,
