@@ -4,14 +4,6 @@ import type {
   LlmRawResponse,
 } from "./types";
 
-export class GeminiProvider implements LlmProvider {
-  public readonly name = "gemini";
-
-  async sendRequest(_options: LlmRequestOptions): Promise<LlmRawResponse> {
-    throw new Error("Provider not implemented: gemini");
-  }
-}
-
 export class PerplexityProvider implements LlmProvider {
   public readonly name = "perplexity";
 

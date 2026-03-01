@@ -1,12 +1,12 @@
 import type { LlmProvider } from "./types";
 import { OpenAIProvider } from "./openai";
 import { AnthropicProvider } from "./anthropic";
+import { GeminiProvider } from "./gemini";
 import {
-  GeminiProvider,
   PerplexityProvider,
   CopilotProvider,
 } from "./stubs";
-import { getOpenaiApiKey, getAnthropicApiKey } from "@/lib/env";
+import { getOpenaiApiKey, getAnthropicApiKey, getGeminiApiKey } from "@/lib/env";
 
 export type ProviderName =
   | "OPENAI"
@@ -22,7 +22,7 @@ export function getProvider(provider: ProviderName | string): LlmProvider {
     case "ANTHROPIC":
       return new AnthropicProvider(getAnthropicApiKey());
     case "GEMINI":
-      return new GeminiProvider();
+      return new GeminiProvider(getGeminiApiKey());
     case "PERPLEXITY":
       return new PerplexityProvider();
     case "COPILOT":
