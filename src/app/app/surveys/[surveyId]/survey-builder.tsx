@@ -325,12 +325,33 @@ function QuestionsTab({
   const addFormRef = useRef<HTMLFormElement>(null);
 
   const [questionType, setQuestionType] = useState<"OPEN_ENDED" | "RANKED">("OPEN_ENDED");
-  const [scalePreset, setScalePreset] = useState<string>("1-5");
-  const [scaleMin, setScaleMin] = useState(1);
+  const [scalePreset, setScalePreset] = useState<string>("0-5");
+  const [scaleMin, setScaleMin] = useState(0);
   const [scaleMax, setScaleMax] = useState(5);
   const [includeReasoning, setIncludeReasoning] = useState(true);
+  const [questionMode, setQuestionMode] = useState<"STATELESS" | "THREADED">("STATELESS");
+  const [creatingNewThread, setCreatingNewThread] = useState(false);
+  const [threadKeySelection, setThreadKeySelection] = useState<string>("");
+  const [newThreadKey, setNewThreadKey] = useState("");
+
+  // Collect existing thread keys from all threaded questions
+  const existingThreadKeys = Array.from(
+    new Set(
+      questions
+        .filter((q) => q.mode === "THREADED" && q.threadKey)
+        .map((q) => q.threadKey!)
+    )
+  );
 
   const boundAddQuestion = addQuestionAction.bind(null, surveyId);
+
+  // Generate a default thread key name
+  function generateThreadKey(): string {
+    for (let i = 1; ; i++) {
+      const candidate = `thread-${i}`;
+      if (!existingThreadKeys.includes(candidate)) return candidate;
+    }
+  }
 
   async function handleAddQuestion(formData: FormData) {
     const result = await boundAddQuestion(formData);
@@ -340,10 +361,14 @@ function QuestionsTab({
     }
     addFormRef.current?.reset();
     setQuestionType("OPEN_ENDED");
-    setScalePreset("1-5");
-    setScaleMin(1);
+    setScalePreset("0-5");
+    setScaleMin(0);
     setScaleMax(5);
     setIncludeReasoning(true);
+    setQuestionMode("STATELESS");
+    setCreatingNewThread(false);
+    setThreadKeySelection("");
+    setNewThreadKey("");
     setAddDialogOpen(false);
   }
 
@@ -427,10 +452,9 @@ function QuestionsTab({
                         }
                       }}
                     >
-                      <SelectOption value="1-5">1 to 5</SelectOption>
-                      <SelectOption value="1-10">1 to 10</SelectOption>
-                      <SelectOption value="1-100">1 to 100</SelectOption>
-                      <SelectOption value="percentage">Percentage</SelectOption>
+                      <SelectOption value="0-5">0 to 5</SelectOption>
+                      <SelectOption value="0-10">0 to 10</SelectOption>
+                      <SelectOption value="0-100">0 to 100</SelectOption>
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -476,21 +500,86 @@ function QuestionsTab({
               {/* Mode */}
               <div className="space-y-2">
                 <Label htmlFor="q-mode">Mode</Label>
-                <Select id="q-mode" name="mode" defaultValue="STATELESS">
+                <Select
+                  id="q-mode"
+                  name="mode"
+                  value={questionMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as "STATELESS" | "THREADED";
+                    setQuestionMode(mode);
+                    if (mode === "THREADED") {
+                      if (existingThreadKeys.length > 0) {
+                        setThreadKeySelection(existingThreadKeys[existingThreadKeys.length - 1]);
+                        setCreatingNewThread(false);
+                      } else {
+                        setCreatingNewThread(true);
+                        setNewThreadKey(generateThreadKey());
+                      }
+                    }
+                  }}
+                >
                   <SelectOption value="STATELESS">Stateless</SelectOption>
                   <SelectOption value="THREADED">Threaded</SelectOption>
                 </Select>
               </div>
 
-              {/* Thread Key */}
-              <div className="space-y-2">
-                <Label htmlFor="q-threadKey">Thread Key (optional)</Label>
-                <Input
-                  id="q-threadKey"
-                  name="threadKey"
-                  placeholder="e.g., main-thread"
-                />
-              </div>
+              {/* Thread Key (only shown when THREADED) */}
+              {questionMode === "THREADED" && (
+                <div className="space-y-2">
+                  <Label>Thread</Label>
+                  {creatingNewThread ? (
+                    <>
+                      <Input
+                        value={newThreadKey}
+                        onChange={(e) => setNewThreadKey(e.target.value)}
+                        placeholder="e.g., main-thread"
+                        autoFocus
+                      />
+                      {existingThreadKeys.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-xs text-[hsl(var(--primary))] hover:underline"
+                          onClick={() => {
+                            setCreatingNewThread(false);
+                            setThreadKeySelection(existingThreadKeys[existingThreadKeys.length - 1]);
+                          }}
+                        >
+                          Use existing thread
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Select
+                        value={threadKeySelection}
+                        onChange={(e) => setThreadKeySelection(e.target.value)}
+                      >
+                        {existingThreadKeys.map((key) => (
+                          <SelectOption key={key} value={key}>{key}</SelectOption>
+                        ))}
+                      </Select>
+                      <button
+                        type="button"
+                        className="text-xs text-[hsl(var(--primary))] hover:underline"
+                        onClick={() => {
+                          setCreatingNewThread(true);
+                          if (!newThreadKey) setNewThreadKey(generateThreadKey());
+                        }}
+                      >
+                        + New thread
+                      </button>
+                    </>
+                  )}
+                  <input
+                    type="hidden"
+                    name="threadKey"
+                    value={creatingNewThread ? newThreadKey : threadKeySelection}
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    Questions with the same thread share conversation history.
+                  </p>
+                </div>
+              )}
               <DialogFooter>
                 <Button
                   type="button"
@@ -529,6 +618,7 @@ function QuestionsTab({
                     key={q.id}
                     surveyId={surveyId}
                     question={q}
+                    questions={questions}
                     onDone={() => setEditingId(null)}
                   />
                 ) : (
@@ -555,7 +645,9 @@ function QuestionsTab({
                           q.mode === "THREADED" ? "default" : "secondary"
                         }
                       >
-                        {q.mode}
+                        {q.mode === "THREADED" && q.threadKey
+                          ? `THREADED · ${q.threadKey}`
+                          : q.mode}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -587,10 +679,12 @@ function QuestionsTab({
 function QuestionEditRow({
   surveyId,
   question,
+  questions,
   onDone,
 }: {
   surveyId: string;
   question: QuestionData;
+  questions: QuestionData[];
   onDone: () => void;
 }) {
   const boundUpdate = updateQuestionAction.bind(null, surveyId, question.id);
@@ -599,16 +693,43 @@ function QuestionEditRow({
     question.type === "RANKED" ? "RANKED" : "OPEN_ENDED"
   );
   const [editScalePreset, setEditScalePreset] = useState<string>(
-    question.configJson?.scalePreset ?? "1-5"
+    question.configJson?.scalePreset ?? "0-5"
   );
   const [editScaleMin, setEditScaleMin] = useState(
-    question.configJson?.scaleMin ?? 1
+    question.configJson?.scaleMin ?? 0
   );
   const [editScaleMax, setEditScaleMax] = useState(
     question.configJson?.scaleMax ?? 5
   );
   const [editIncludeReasoning, setEditIncludeReasoning] = useState(
     question.configJson?.includeReasoning ?? true
+  );
+  const [editMode, setEditMode] = useState<"STATELESS" | "THREADED">(
+    question.mode === "THREADED" ? "THREADED" : "STATELESS"
+  );
+
+  // Collect existing thread keys from other threaded questions
+  const existingThreadKeys = Array.from(
+    new Set(
+      questions
+        .filter((q) => q.mode === "THREADED" && q.threadKey && q.id !== question.id)
+        .map((q) => q.threadKey!)
+    )
+  );
+
+  // Determine if the question's current thread key is one of the shared keys or a unique one
+  const currentKeyIsShared = question.threadKey != null && existingThreadKeys.includes(question.threadKey);
+  const currentKeyIsOwn = question.threadKey != null && !currentKeyIsShared;
+
+  const [editCreatingNewThread, setEditCreatingNewThread] = useState(
+    // Creating new if: no thread key, or it's a unique key not shared with others
+    question.mode !== "THREADED" || !question.threadKey || currentKeyIsOwn
+  );
+  const [editThreadKeySelection, setEditThreadKeySelection] = useState<string>(
+    currentKeyIsShared ? question.threadKey! : (existingThreadKeys[existingThreadKeys.length - 1] ?? "")
+  );
+  const [editNewThreadKey, setEditNewThreadKey] = useState(
+    currentKeyIsOwn ? question.threadKey! : ""
   );
 
   async function handleSubmit(formData: FormData) {
@@ -663,7 +784,8 @@ function QuestionEditRow({
               <Select
                 id={`edit-q-mode-${question.id}`}
                 name="mode"
-                defaultValue={question.mode}
+                value={editMode}
+                onChange={(e) => setEditMode(e.target.value as "STATELESS" | "THREADED")}
               >
                 <SelectOption value="STATELESS">Stateless</SelectOption>
                 <SelectOption value="THREADED">Threaded</SelectOption>
@@ -702,10 +824,9 @@ function QuestionEditRow({
                     }
                   }}
                 >
-                  <SelectOption value="1-5">1 to 5</SelectOption>
-                  <SelectOption value="1-10">1 to 10</SelectOption>
-                  <SelectOption value="1-100">1 to 100</SelectOption>
-                  <SelectOption value="percentage">Percentage</SelectOption>
+                  <SelectOption value="0-5">0 to 5</SelectOption>
+                  <SelectOption value="0-10">0 to 10</SelectOption>
+                  <SelectOption value="0-100">0 to 100</SelectOption>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -753,16 +874,73 @@ function QuestionEditRow({
             </div>
           )}
 
-          <div className="space-y-1">
-            <Label htmlFor={`edit-q-threadKey-${question.id}`}>
-              Thread Key
-            </Label>
-            <Input
-              id={`edit-q-threadKey-${question.id}`}
-              name="threadKey"
-              defaultValue={question.threadKey ?? ""}
-            />
-          </div>
+          {/* Thread Key (only shown when THREADED) */}
+          {editMode === "THREADED" && (
+            <div className="space-y-1">
+              <Label>Thread</Label>
+              {editCreatingNewThread ? (
+                <>
+                  <Input
+                    value={editNewThreadKey}
+                    onChange={(e) => setEditNewThreadKey(e.target.value)}
+                    placeholder="e.g., main-thread"
+                  />
+                  {existingThreadKeys.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs text-[hsl(var(--primary))] hover:underline"
+                      onClick={() => {
+                        setEditCreatingNewThread(false);
+                        if (!editThreadKeySelection) {
+                          setEditThreadKeySelection(existingThreadKeys[existingThreadKeys.length - 1]);
+                        }
+                      }}
+                    >
+                      Use existing thread
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Select
+                    value={editThreadKeySelection}
+                    onChange={(e) => setEditThreadKeySelection(e.target.value)}
+                  >
+                    {existingThreadKeys.map((key) => (
+                      <SelectOption key={key} value={key}>{key}</SelectOption>
+                    ))}
+                  </Select>
+                  <button
+                    type="button"
+                    className="text-xs text-[hsl(var(--primary))] hover:underline"
+                    onClick={() => {
+                      setEditCreatingNewThread(true);
+                      if (!editNewThreadKey) {
+                        // Generate a unique thread key
+                        for (let i = 1; ; i++) {
+                          const candidate = `thread-${i}`;
+                          if (!existingThreadKeys.includes(candidate)) {
+                            setEditNewThreadKey(candidate);
+                            break;
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    + New thread
+                  </button>
+                </>
+              )}
+              <input
+                type="hidden"
+                name="threadKey"
+                value={editCreatingNewThread ? editNewThreadKey : editThreadKeySelection}
+              />
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Questions with the same thread share conversation history.
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={onDone}>
               Cancel
