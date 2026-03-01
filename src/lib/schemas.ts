@@ -128,7 +128,10 @@ export const createQuestionSchema = questionSchemaBase.refine(
 
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 
-export const updateQuestionSchema = questionSchemaBase.partial();
+export const updateQuestionSchema = questionSchemaBase.partial().refine(
+  (data) => data.type !== "RANKED" || data.configJson !== undefined,
+  { message: "configJson is required for RANKED questions", path: ["configJson"] },
+);
 
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
 

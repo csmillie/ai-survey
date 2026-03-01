@@ -3,6 +3,7 @@ import {
   rankedConfigSchema,
   rankedResponseSchema,
   createQuestionSchema,
+  updateQuestionSchema,
 } from "@/lib/schemas";
 
 describe("rankedConfigSchema", () => {
@@ -118,6 +119,35 @@ describe("createQuestionSchema with type", () => {
     const result = createQuestionSchema.safeParse({
       title: "Test",
       promptTemplate: "What do you think?",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("updateQuestionSchema with type", () => {
+  it("rejects RANKED type without configJson", () => {
+    const result = updateQuestionSchema.safeParse({
+      type: "RANKED",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts RANKED type with configJson", () => {
+    const result = updateQuestionSchema.safeParse({
+      type: "RANKED",
+      configJson: {
+        scalePreset: "1-10",
+        scaleMin: 1,
+        scaleMax: 10,
+        includeReasoning: true,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts partial update without type field", () => {
+    const result = updateQuestionSchema.safeParse({
+      title: "Updated title",
     });
     expect(result.success).toBe(true);
   });

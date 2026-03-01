@@ -105,10 +105,12 @@ export async function handleExecuteQuestion(
 
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
+    let rankedParseSucceeded = false;
 
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
       if (rankedResult.success) {
+        rankedParseSucceeded = true;
         const clamped = clampScore(
           rankedResult.data.score,
           rankedConfig.scaleMin,
@@ -120,9 +122,7 @@ export async function handleExecuteQuestion(
         console.warn(
           `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
         );
-        // Strip score from finalParsed to prevent invalid data reaching ScoreBar
-        const { score: _, ...rest } = parsed as Record<string, unknown>;
-        finalParsed = rest;
+        finalParsed = null;
       }
     }
 
@@ -206,7 +206,7 @@ export async function handleExecuteQuestion(
     });
 
     // 9. Enqueue ANALYZE_RESPONSE job (skip for ranked without reasoning)
-    const shouldAnalyze = !isRanked || (isRanked && rankedConfig?.includeReasoning);
+    const shouldAnalyze = !isRanked || (rankedParseSucceeded && rankedConfig?.includeReasoning === true);
     if (shouldAnalyze) {
       await enqueueAnalyzeJob({
         runId,

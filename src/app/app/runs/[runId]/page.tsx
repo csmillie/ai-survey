@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
+import { rankedConfigSchema } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
 // ---------------------------------------------------------------------------
@@ -90,10 +91,12 @@ export default async function RunPage({ params }: RunPageProps) {
       questionId: resp.question.id,
       questionTitle: resp.question.title,
       questionType: resp.question.type,
-      questionConfig: resp.question.configJson as {
-        scaleMin: number;
-        scaleMax: number;
-      } | null,
+      questionConfig: (() => {
+        const result = rankedConfigSchema.safeParse(resp.question.configJson);
+        return result.success
+          ? { scaleMin: result.data.scaleMin, scaleMax: result.data.scaleMax }
+          : null;
+      })(),
       modelName: resp.modelTarget.modelName,
       provider: resp.modelTarget.provider,
       answerText: parsed?.answerText ?? (parsed?.score != null ? "" : resp.rawText),

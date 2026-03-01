@@ -759,7 +759,7 @@ function ScoreBar({
   min: number;
   max: number;
 }) {
-  const percentage = ((score - min) / (max - min)) * 100;
+  const percentage = max > min ? ((score - min) / (max - min)) * 100 : 0;
 
   let colorClass: string;
   if (percentage >= 70) {

@@ -459,7 +459,7 @@ function QuestionsTab({
                       type="checkbox"
                       checked={includeReasoning}
                       onChange={(e) => setIncludeReasoning(e.target.checked)}
-                      className="h-4 w-4 rounded border-[hsl(var(--input))]"
+                      className="h-4 w-4 rounded border-[hsl(var(--border))]"
                     />
                     <Label htmlFor="q-includeReasoning" className="text-sm font-normal">
                       Include reasoning in response
@@ -734,7 +734,7 @@ function QuestionEditRow({
                   type="checkbox"
                   checked={editIncludeReasoning}
                   onChange={(e) => setEditIncludeReasoning(e.target.checked)}
-                  className="h-4 w-4 rounded border-[hsl(var(--input))]"
+                  className="h-4 w-4 rounded border-[hsl(var(--border))]"
                 />
                 <Label htmlFor={`edit-q-includeReasoning-${question.id}`} className="text-sm font-normal">
                   Include reasoning in response
