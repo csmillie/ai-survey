@@ -30,6 +30,9 @@ export class GeminiProvider implements LlmProvider {
 
     const systemText = systemMessages.map((m) => m.content).join("\n\n");
 
+    // Note: Gemini requires strictly alternating user/model turns starting with
+    // user. Current call sites always send a single user message, but multi-turn
+    // callers must ensure proper alternation.
     const response = await this.client.models.generateContent({
       model: options.model,
       contents: conversationMessages.map((m) => ({
@@ -46,7 +49,7 @@ export class GeminiProvider implements LlmProvider {
     const latencyMs = Date.now() - start;
 
     const text = response.text;
-    if (!text) {
+    if (text == null) {
       const finishReason = response.candidates?.[0]?.finishReason;
       throw new Error(
         `Gemini returned no text content${finishReason ? ` (finishReason: ${finishReason})` : ""}`

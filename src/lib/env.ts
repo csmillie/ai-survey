@@ -77,18 +77,6 @@ export function getGeminiApiKey(): string {
   return requiredEnv("GEMINI_API_KEY");
 }
 
-export function getWorkerConcurrencyOpenai(): number {
-  return optionalEnvInt("WORKER_CONCURRENCY_OPENAI", 5);
-}
-
-export function getWorkerConcurrencyAnthropic(): number {
-  return optionalEnvInt("WORKER_CONCURRENCY_ANTHROPIC", 3);
-}
-
-export function getWorkerConcurrencyGemini(): number {
-  return optionalEnvInt("WORKER_CONCURRENCY_GEMINI", 5);
-}
-
 export function getMaxTokensPerRun(): number {
   return optionalEnvInt("MAX_TOKENS_PER_RUN", 1_000_000);
 }
