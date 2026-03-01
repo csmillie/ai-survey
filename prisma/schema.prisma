@@ -34,6 +34,7 @@ enum Provider {
   OPENAI
   ANTHROPIC
   GEMINI
+  XAI
   PERPLEXITY
   COPILOT
 }

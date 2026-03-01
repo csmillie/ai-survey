@@ -77,6 +77,10 @@ export function getGeminiApiKey(): string {
   return requiredEnv("GEMINI_API_KEY");
 }
 
+export function getXaiApiKey(): string {
+  return requiredEnv("XAI_API_KEY");
+}
+
 export function getMaxTokensPerRun(): number {
   return optionalEnvInt("MAX_TOKENS_PER_RUN", 1_000_000);
 }

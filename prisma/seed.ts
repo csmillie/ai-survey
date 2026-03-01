@@ -76,6 +76,22 @@ async function main() {
       inputTokenCostUsd: 0.00125,
       outputTokenCostUsd: 0.01,
     },
+    {
+      provider: "XAI" as const,
+      modelName: "grok-3-mini",
+      isEnabled: true,
+      isDefaultCostEffective: true,
+      inputTokenCostUsd: 0.0003,
+      outputTokenCostUsd: 0.0005,
+    },
+    {
+      provider: "XAI" as const,
+      modelName: "grok-3",
+      isEnabled: true,
+      isDefaultCostEffective: false,
+      inputTokenCostUsd: 0.003,
+      outputTokenCostUsd: 0.015,
+    },
   ];
 
   for (const mt of modelTargets) {
