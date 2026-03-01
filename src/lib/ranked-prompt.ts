@@ -18,10 +18,12 @@ export function buildRankedEnforcementBlock(config: {
   const schemaFields = includeReasoning
     ? `{
   "score": <integer from ${scaleMin} to ${scaleMax}>,
-  "reasoning": "<brief explanation for your score>"
+  "reasoning": "<brief explanation for your score>",
+  "confidence": <integer 0-100>
 }`
     : `{
-  "score": <integer from ${scaleMin} to ${scaleMax}>
+  "score": <integer from ${scaleMin} to ${scaleMax}>,
+  "confidence": <integer 0-100>
 }`;
 
   return `\n\n---\nRate your response on a scale from ${scaleMin} to ${scaleMax}.\n\nRespond with ONLY valid JSON matching this schema:\n${schemaFields}\n\nDo not wrap the JSON in markdown code fences.\n---`;

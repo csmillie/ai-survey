@@ -13,6 +13,7 @@ export const citationSchema = z.object({
 export const llmResponseSchema = z.object({
   answerText: z.string(),
   citations: z.array(citationSchema),
+  confidence: z.number().min(0).max(100).optional(),
   notes: z.string().optional(),
 });
 
@@ -102,6 +103,7 @@ export type RankedConfig = z.infer<typeof rankedConfigSchema>;
 export const rankedResponseSchema = z.object({
   score: z.number(),
   reasoning: z.string().optional(),
+  confidence: z.number().min(0).max(100).optional(),
 });
 
 export type RankedResponsePayload = z.infer<typeof rankedResponseSchema>;
@@ -215,5 +217,10 @@ export const parsedRankedSchema = z
 
 export const parsedOpenEndedSchema = z
   .object({ answerText: z.string().optional() })
+  .nullable()
+  .catch(null);
+
+export const parsedConfidenceSchema = z
+  .object({ confidence: z.number().optional() })
   .nullable()
   .catch(null);

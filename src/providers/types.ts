@@ -26,4 +26,4 @@ export interface LlmProvider {
   sendRequest(options: LlmRequestOptions): Promise<LlmRawResponse>;
 }
 
-export const JSON_ENFORCEMENT_BLOCK = `\n\n---\nYou MUST respond with ONLY valid JSON and no other text.\n\nJSON schema:\n- answerText: string (your long-form answer)\n- citations: array of objects with:\n  - url: string\n  - title: string (optional)\n  - snippet: string (optional)\n- notes: string (optional)\n\nIf you have no citations, set citations to an empty array.\n\nDo not wrap the JSON in markdown code fences.\n---`;
+export const JSON_ENFORCEMENT_BLOCK = `\n\n---\nYou MUST respond with ONLY valid JSON and no other text.\n\nJSON schema:\n- answerText: string (your long-form answer)\n- citations: array of objects with:\n  - url: string\n  - title: string (optional)\n  - snippet: string (optional)\n- confidence: integer (0-100, how confident you are in this answer)\n- notes: string (optional)\n\nIf you have no citations, set citations to an empty array.\n\nDo not wrap the JSON in markdown code fences.\n---`;

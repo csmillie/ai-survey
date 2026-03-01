@@ -275,6 +275,7 @@ model LlmResponse {
   citationsJson Json?
   usageJson           Json?
   requestMessagesJson Json?
+  confidence          Float?
   costUsd             Decimal? @db.Decimal(12, 6)
   latencyMs     Int?
   createdAt     DateTime @default(now())
@@ -334,6 +335,7 @@ model RunModelMetric {
   citationRate         Float
   latencyCv            Float
   costCv               Float
+  calibrationScore     Float?
   penaltyBreakdownJson Json
   totalResponses       Int
   createdAt            DateTime    @default(now())
@@ -353,6 +355,7 @@ model RunQuestionAgreement {
   agreementPercent   Float
   outlierModelsJson  Json
   humanReviewFlag    Boolean
+  overconfidentModelsJson Json?
   clusterDetailsJson Json?
   createdAt          DateTime  @default(now())
 

@@ -106,6 +106,11 @@ export async function handleExecuteQuestion(
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
 
+    // Extract confidence before stripping parsed fields
+    const confidence = typeof (parsed as Record<string, unknown> | null)?.confidence === "number"
+      ? Math.round(Math.min(100, Math.max(0, (parsed as Record<string, unknown>).confidence as number)))
+      : null;
+
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
       if (rankedResult.success) {
@@ -149,6 +154,7 @@ export async function handleExecuteQuestion(
           ? ((finalParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         reasoningText,
+        confidence,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
         costUsd,
         latencyMs: response.latencyMs,
