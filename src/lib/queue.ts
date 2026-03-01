@@ -112,6 +112,10 @@ export async function enqueueExportJob(params: {
 
 /**
  * Enqueue a COMPUTE_METRICS job by creating a Job row in the database.
+ *
+ * Note: `modelTargetId` is not used by the handler (it processes all models
+ * for the run), but is required to satisfy the Job table's foreign key
+ * constraint. Callers should pass any valid modelTargetId from the run.
  */
 export async function enqueueComputeMetricsJob(params: {
   runId: string;

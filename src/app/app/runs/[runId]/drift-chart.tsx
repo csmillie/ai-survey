@@ -19,7 +19,7 @@ import { getDriftDataAction } from "./actions";
 
 interface DriftPoint {
   runDate: string;
-  models: Record<string, number>;
+  models: Record<string, number | undefined>;
 }
 
 interface DriftChartProps {
@@ -68,14 +68,14 @@ export function DriftChart({ runId }: DriftChartProps) {
     }
 
     const rows = data.map((point) => {
-      const row: Record<string, string | number> = {
+      const row: Record<string, string | number | undefined> = {
         date: new Date(point.runDate).toLocaleDateString("en-US", {
           month: "short",
           day: "numeric",
         }),
       };
       for (const name of names) {
-        row[name] = point.models[name] ?? 0;
+        row[name] = point.models[name];
       }
       return row;
     });
@@ -117,6 +117,7 @@ export function DriftChart({ runId }: DriftChartProps) {
               strokeWidth={2}
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
+              connectNulls={false}
             />
           ))}
         </LineChart>

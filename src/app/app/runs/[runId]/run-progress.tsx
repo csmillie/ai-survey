@@ -34,6 +34,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cancelRunAction, exportRunAction, getResponseDebugData } from "./actions";
+import type { PenaltyBreakdown, ModelMetricData, RecommendationData } from "./types";
+
+export type { PenaltyBreakdown, ModelMetricData, RecommendationData };
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
   ssr: false,
@@ -79,44 +82,12 @@ interface DebugData {
   usageJson: { inputTokens: number; outputTokens: number } | null;
 }
 
-interface PenaltyBreakdown {
-  jsonInvalid: number;
-  emptyAnswer: number;
-  shortAnswer: number;
-  missingCitations: number;
-  latencyVariance: number;
-  costVariance: number;
-}
-
-interface ModelMetricData {
-  modelTargetId: string;
-  modelName: string;
-  provider: string;
-  reliabilityScore: number;
-  jsonValidRate: number;
-  emptyAnswerRate: number;
-  shortAnswerRate: number;
-  citationRate: number;
-  latencyCv: number;
-  costCv: number;
-  penaltyBreakdown: PenaltyBreakdown;
-  totalResponses: number;
-}
-
 interface QuestionAgreementData {
   questionId: string;
   questionTitle: string;
   agreementPercent: number;
   outlierModels: string[];
   humanReviewFlag: boolean;
-}
-
-interface RecommendationData {
-  recommendedModelId: string | null;
-  recommendedModelName: string | null;
-  reliabilityScore: number | null;
-  reason: string;
-  humanReviewRequired: boolean;
 }
 
 interface QuestionGroup {
@@ -613,13 +584,8 @@ function ReliabilityRow({ metric }: { metric: ModelMetricData }) {
         <TableCell className="text-right text-sm">
           {metric.totalResponses}
         </TableCell>
-        <TableCell className="text-right">
-          <button
-            type="button"
-            className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-          >
-            {expanded ? "Hide" : "Details"}
-          </button>
+        <TableCell className="text-right text-xs text-[hsl(var(--muted-foreground))]">
+          {expanded ? "Hide" : "Details"}
         </TableCell>
       </TableRow>
       {expanded && (

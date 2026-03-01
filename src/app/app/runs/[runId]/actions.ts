@@ -266,14 +266,14 @@ export async function getDriftDataAction(
   // Transform into DriftPoint format (chronological order)
   const data: DriftPoint[] = runs
     .reverse()
-    .filter((r) => r.modelMetrics.length > 0)
+    .filter((r) => r.completedAt !== null && r.modelMetrics.length > 0)
     .map((r) => {
       const models: Record<string, number> = {};
       for (const m of r.modelMetrics) {
         models[m.modelTarget.modelName] = m.reliabilityScore;
       }
       return {
-        runDate: r.completedAt?.toISOString() ?? r.id,
+        runDate: r.completedAt!.toISOString(),
         models,
       };
     });

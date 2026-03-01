@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 import { rankedConfigSchema } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
+import type { PenaltyBreakdown, RecommendationData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,23 +25,6 @@ interface AnalysisEntities {
   people: string[];
   places: string[];
   organizations: string[];
-}
-
-interface PenaltyBreakdown {
-  jsonInvalid: number;
-  emptyAnswer: number;
-  shortAnswer: number;
-  missingCitations: number;
-  latencyVariance: number;
-  costVariance: number;
-}
-
-interface Recommendation {
-  recommendedModelId: string | null;
-  recommendedModelName: string | null;
-  reliabilityScore: number | null;
-  reason: string;
-  humanReviewRequired: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +167,7 @@ export default async function RunPage({ params }: RunPageProps) {
   }));
 
   const recommendation = run.recommendationJson
-    ? (run.recommendationJson as unknown as Recommendation)
+    ? (run.recommendationJson as unknown as RecommendationData)
     : null;
 
   return (

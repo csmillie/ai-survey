@@ -129,14 +129,6 @@ Worker claims COMPUTE_METRICS
 
 The system flags uncertainty (scores < 7.0, low agreement, high disagreement) but never makes autonomous production decisions. Humans always have the final call.
 
-### If I Joined Wealthsimple
-
-- **Automated model evaluation pipelines** — Apply ModelTrust scoring to evaluate LLM providers before deploying customer-facing AI features, catching quality regressions before they reach production
-- **Cross-model consensus for high-stakes decisions** — Use agreement detection to validate AI-generated financial advice by requiring multiple model agreement before surfacing recommendations
-- **Cost-quality optimization** — Leverage reliability + cost data to route queries to the cheapest model that meets quality thresholds, reducing AI spend without sacrificing accuracy
-- **Continuous drift monitoring** — Track model reliability over time to detect provider degradation early, enabling proactive vendor switching rather than reactive incident response
-- **Human-in-the-loop guardrails** — Apply the human review flagging pattern to any AI system where confidence is low, ensuring sensitive financial decisions always have human oversight
-
 ## Project Structure
 
 ```

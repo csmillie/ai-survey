@@ -230,7 +230,7 @@ export function computeOpenEndedAgreement(
 
   const clusterMap = uf.getClusters(responses.length);
 
-  // Find largest cluster
+  // Find largest cluster size
   let largestSize = 0;
   for (const members of clusterMap.values()) {
     if (members.length > largestSize) {
@@ -240,7 +240,8 @@ export function computeOpenEndedAgreement(
 
   const agreementPercent = largestSize / responses.length;
 
-  // Outliers = models not in the largest cluster
+  // Outliers = models in clusters strictly smaller than the largest.
+  // Clusters that tie for the largest size are all treated as non-outliers.
   const outlierModels: string[] = [];
   const clusterDetails: ClusterDetail[] = [];
   let clusterId = 0;

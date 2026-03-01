@@ -1,10 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { ComputeMetricsPayload } from "@/lib/queue";
-
-interface ComputeMetricsHandlerPayload extends ComputeMetricsPayload {
-  jobId: string;
-}
 import {
   computeReliabilityScore,
   type ResponseMetrics,
@@ -21,6 +17,10 @@ import {
   type QuestionReview,
 } from "@/lib/analysis/recommendation";
 import { rankedConfigSchema } from "@/lib/schemas";
+
+interface ComputeMetricsHandlerPayload extends ComputeMetricsPayload {
+  jobId: string;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,10 +54,30 @@ export async function handleComputeMetrics(
     });
 
     if (pendingAnalyzeJobs > 0) {
+      // Check how many times we've retried — fail after 60 cycles to avoid infinite loops
+      // (e.g. if analysis jobs are stuck in RUNNING due to worker crash)
+      const metricsJob = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { attempt: true },
+      });
+      const attempt = metricsJob?.attempt ?? 0;
+
+      if (attempt >= 60) {
+        await prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: "FAILED",
+            finishedAt: new Date(),
+            lastError: `Timed out waiting for ${pendingAnalyzeJobs} ANALYZE_RESPONSE jobs after ${attempt} attempts`,
+          },
+        });
+        return;
+      }
+
       // Set back to PENDING so it retries on next poll cycle
       await prisma.job.update({
         where: { id: jobId },
-        data: { status: "PENDING", startedAt: null },
+        data: { status: "PENDING", startedAt: null, attempt: attempt + 1 },
       });
       return;
     }
