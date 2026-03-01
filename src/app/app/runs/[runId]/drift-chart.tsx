@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -40,13 +40,11 @@ export function DriftChart({ runId }: DriftChartProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchId = useRef(0);
   useEffect(() => {
-    const id = ++fetchId.current;
     let cancelled = false;
     getDriftDataAction(runId)
       .then((result) => {
-        if (cancelled || id !== fetchId.current) return;
+        if (cancelled) return;
         if (result.success) {
           setData(result.data);
           setError(null);
@@ -55,11 +53,11 @@ export function DriftChart({ runId }: DriftChartProps) {
         }
       })
       .catch((err: unknown) => {
-        if (cancelled || id !== fetchId.current) return;
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to fetch drift data");
       })
       .finally(() => {
-        if (!cancelled && id === fetchId.current) setLoading(false);
+        if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
   }, [runId]);

@@ -127,25 +127,26 @@ export default async function RunPage({ params }: RunPageProps) {
   }, 0);
 
   // Load ModelTrust metrics (may be empty for older runs)
-  const modelMetrics = await prisma.runModelMetric.findMany({
-    where: { runId },
-    include: {
-      modelTarget: {
-        select: { modelName: true, provider: true },
+  const [modelMetrics, questionAgreements] = await Promise.all([
+    prisma.runModelMetric.findMany({
+      where: { runId },
+      include: {
+        modelTarget: {
+          select: { modelName: true, provider: true },
+        },
       },
-    },
-    orderBy: { reliabilityScore: "desc" },
-  });
-
-  const questionAgreements = await prisma.runQuestionAgreement.findMany({
-    where: { runId },
-    include: {
-      question: {
-        select: { title: true },
+      orderBy: { reliabilityScore: "desc" },
+    }),
+    prisma.runQuestionAgreement.findMany({
+      where: { runId },
+      include: {
+        question: {
+          select: { title: true },
+        },
       },
-    },
-    orderBy: { agreementPercent: "asc" },
-  });
+      orderBy: { agreementPercent: "asc" },
+    }),
+  ]);
 
   const modelMetricsData = modelMetrics.flatMap((m) => {
     const breakdown = penaltyBreakdownSchema.safeParse(m.penaltyBreakdownJson);

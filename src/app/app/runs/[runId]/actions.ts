@@ -269,7 +269,9 @@ export async function getDriftDataAction(
     take: 10,
   });
 
-  // Transform into DriftPoint format (chronological order)
+  // Transform into DriftPoint format (chronological order).
+  // We use desc + take(10) + reverse() because asc + take(10) would return the
+  // oldest 10 runs, not the most recent 10.
   const data: DriftPoint[] = runs
     .reverse()
     .map((r) => {

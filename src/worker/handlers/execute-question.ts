@@ -301,19 +301,8 @@ async function checkRunCompletion(runId: string): Promise<void> {
 
   if (!run) return;
 
-  await createAuditEvent({
-    actorUserId: run.createdById,
-    action: newStatus === "COMPLETED" ? RUN_COMPLETED : RUN_FAILED,
-    targetType: "SurveyRun",
-    targetId: runId,
-    runTargetId: runId,
-    meta: {
-      totalJobs,
-      failedJobs,
-    },
-  });
-
-  // Enqueue COMPUTE_METRICS job for completed runs
+  // Enqueue COMPUTE_METRICS before audit event so a createAuditEvent failure
+  // can't leave the run marked COMPLETED with no metrics job queued.
   if (newStatus === "COMPLETED") {
     const runModel = await prisma.runModel.findFirst({
       where: { runId },
@@ -331,9 +320,22 @@ async function checkRunCompletion(runId: string): Promise<void> {
     } catch (err) {
       // P2002 = unique constraint (idempotency key collision) — job already exists, safe to ignore
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        return;
+        // fall through to audit event
+      } else {
+        throw err;
       }
-      throw err;
     }
   }
+
+  await createAuditEvent({
+    actorUserId: run.createdById,
+    action: newStatus === "COMPLETED" ? RUN_COMPLETED : RUN_FAILED,
+    targetType: "SurveyRun",
+    targetId: runId,
+    runTargetId: runId,
+    meta: {
+      totalJobs,
+      failedJobs,
+    },
+  });
 }
