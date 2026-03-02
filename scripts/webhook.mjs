@@ -3,9 +3,10 @@
  * webhook.mjs — Lightweight GitHub webhook listener for auto-deploy.
  *
  * Zero external dependencies — uses only Node.js built-ins (http, crypto,
- * child_process). Designed to run under PM2 alongside the web app and worker.
+ * child_process, fs). Designed to run under PM2 alongside the web app and
+ * worker.
  *
- * Environment variables:
+ * Environment variables (loaded from ../.env automatically):
  *   WEBHOOK_SECRET   GitHub webhook secret (required)
  *   WEBHOOK_PORT     Port to listen on (default: 9000)
  *   DEPLOY_BRANCH    Branch to deploy on push (default: main)
@@ -24,22 +25,57 @@
 import { createServer } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+
+// ── Load .env ─────────────────────────────────────────────────────────────
+// PM2 does not load .env files automatically. Parse it ourselves to avoid
+// adding a dotenv dependency.
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = join(__dirname, "..");
+
+try {
+  const envPath = join(PROJECT_ROOT, ".env");
+  const envFile = readFileSync(envPath, "utf-8");
+  for (const line of envFile.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    let value = trimmed.slice(eqIndex + 1).trim();
+    // Strip surrounding quotes
+    if ((value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    // Only set if not already defined (real env vars take precedence)
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+} catch {
+  // .env file is optional — environment variables may be set directly
+}
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 if (!WEBHOOK_SECRET) {
   console.error("FATAL: WEBHOOK_SECRET environment variable is required.");
+  console.error("Set it in .env or pass it directly via the environment.");
   process.exit(1);
 }
 
 const PORT = parseInt(process.env.WEBHOOK_PORT || "9000", 10);
 const DEPLOY_BRANCH = process.env.DEPLOY_BRANCH || "main";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEPLOY_SCRIPT = join(__dirname, "deploy.sh");
+
+// Max request body size (1 MB) — reject oversized payloads before signature
+// verification to prevent memory exhaustion from unauthenticated requests.
+const MAX_BODY_BYTES = 1024 * 1024;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -55,16 +91,28 @@ function verifySignature(payload, signature) {
     .update(payload)
     .digest("hex")}`;
 
+  // Length mismatch means the signature is invalid
   if (expected.length !== signature.length) return false;
 
   return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
 }
 
-/** Read the full request body as a string. */
+/** Read the request body with a size limit. */
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let totalBytes = 0;
+
+    req.on("data", (chunk) => {
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_BODY_BYTES) {
+        req.destroy();
+        reject(new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
     req.on("error", reject);
   });
@@ -75,7 +123,7 @@ function runDeploy() {
   log("Spawning deploy script...");
 
   execFile("/usr/bin/env", ["bash", DEPLOY_SCRIPT], {
-    cwd: join(__dirname, ".."),
+    cwd: PROJECT_ROOT,
     env: { ...process.env, DEPLOY_BRANCH },
     timeout: 5 * 60 * 1000, // 5 minute timeout
   }, (error, stdout, stderr) => {
@@ -137,7 +185,9 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    log(`Push to ${DEPLOY_BRANCH} by ${payload.pusher?.name || "unknown"}: ${payload.head_commit?.message || "no message"}`);
+    const pusher = payload.pusher?.name || "unknown";
+    const message = (payload.head_commit?.message || "no message").split("\n")[0];
+    log(`Push to ${DEPLOY_BRANCH} by ${pusher}: ${message}`);
 
     // Respond immediately, deploy asynchronously
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -146,8 +196,10 @@ const server = createServer(async (req, res) => {
     runDeploy();
   } catch (err) {
     log(`Error processing webhook: ${err.message}`);
-    res.writeHead(500);
-    res.end("Internal error");
+    if (!res.headersSent) {
+      res.writeHead(err.message.includes("exceeds") ? 413 : 500);
+      res.end(err.message.includes("exceeds") ? "Payload too large" : "Internal error");
+    }
   }
 });
 

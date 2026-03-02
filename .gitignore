@@ -48,4 +48,4 @@ next-env.d.ts
 
 # deploy
 /logs/
-deploy.lock
+/deploy.lock/
