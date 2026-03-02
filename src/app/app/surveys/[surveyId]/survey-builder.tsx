@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -962,10 +963,12 @@ function DeleteQuestionButton({
   surveyId: string;
   questionId: string;
 }) {
+  const router = useRouter();
   const boundDelete = deleteQuestionAction.bind(null, surveyId, questionId);
 
   async function handleDelete() {
     await boundDelete();
+    router.refresh();
   }
 
   return (
