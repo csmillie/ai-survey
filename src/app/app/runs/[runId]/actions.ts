@@ -111,6 +111,87 @@ export async function cancelRunAction(runId: string): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------------------
+// reRunAnalysisAction
+// ---------------------------------------------------------------------------
+
+export async function reRunAnalysisAction(runId: string): Promise<ActionResult> {
+  const session = await requireSession();
+
+  const result = await loadRunWithAccessCheck(session.userId, runId);
+  if ("error" in result) {
+    return { success: false, error: result.error };
+  }
+
+  const { run } = result;
+
+  if (run.status !== "COMPLETED") {
+    return {
+      success: false,
+      error: `Can only re-run analysis on completed runs (current status: ${run.status})`,
+    };
+  }
+
+  // Load responses to re-enqueue analysis jobs
+  const responses = await prisma.llmResponse.findMany({
+    where: { runId },
+    select: { id: true, modelTargetId: true },
+  });
+
+  if (responses.length === 0) {
+    return { success: false, error: "No responses found for this run" };
+  }
+
+  // Delete old analysis data and jobs, then insert new jobs — all in one
+  // transaction so a mid-flight failure never leaves the run in a state where
+  // data has been wiped but only a subset of jobs were queued.
+  await prisma.$transaction([
+    prisma.analysisResult.deleteMany({
+      where: { response: { runId } },
+    }),
+    prisma.runModelMetric.deleteMany({ where: { runId } }),
+    prisma.runQuestionAgreement.deleteMany({ where: { runId } }),
+    prisma.runQuestionTruth.deleteMany({ where: { runId } }),
+    prisma.runQuestionReferee.deleteMany({ where: { runId } }),
+    prisma.job.deleteMany({
+      where: {
+        runId,
+        type: { in: ["ANALYZE_RESPONSE", "COMPUTE_METRICS"] },
+      },
+    }),
+    // Re-create ANALYZE_RESPONSE jobs (one per response)
+    ...responses.map((resp) =>
+      prisma.job.create({
+        data: {
+          runId,
+          modelTargetId: resp.modelTargetId,
+          threadKey: `analyze-${resp.id}`,
+          type: "ANALYZE_RESPONSE",
+          status: "PENDING",
+          idempotencyKey: `analyze:${resp.id}`,
+          payloadJson: { responseId: resp.id, runId },
+        },
+      })
+    ),
+    // Re-create COMPUTE_METRICS job (modelTargetId FK — any valid id works)
+    prisma.job.create({
+      data: {
+        runId,
+        modelTargetId: responses[0].modelTargetId,
+        threadKey: `compute-metrics-${runId}`,
+        type: "COMPUTE_METRICS",
+        status: "PENDING",
+        idempotencyKey: `compute-metrics:${runId}`,
+        payloadJson: { runId },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/app/runs/${runId}`);
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // exportRunAction
 // ---------------------------------------------------------------------------
 

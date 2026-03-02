@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import type { QuestionAgreementData, ClaimCategory } from "./types";
+import type { QuestionAgreementData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,24 +85,6 @@ function signalColor(signal: string): string {
   return "text-[hsl(var(--muted-foreground))]";
 }
 
-function categoryHeading(category: ClaimCategory | undefined): string {
-  switch (category) {
-    case "percentage":
-      return "Percentage";
-    case "currency":
-      return "Dollar Value";
-    case "year":
-    case "month":
-    case "day_of_week":
-    case "full_date":
-      return "Dates";
-    case "rating":
-      return "Rating / Score";
-    default:
-      return "Comparison";
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -152,50 +134,7 @@ export function FactConfidenceCard({
         </ul>
       )}
 
-      {factComparison && factComparison.numericDisagreements.length > 0 && (
-        <div className="mt-2 border-t border-[hsl(var(--border))]/50 pt-2">
-          {/* Group disagreements by category */}
-          {(() => {
-            const byCategory = new Map<
-              string,
-              typeof factComparison.numericDisagreements
-            >();
-            for (const d of factComparison.numericDisagreements) {
-              const key = d.category ?? "numeric";
-              const list = byCategory.get(key);
-              if (list) {
-                list.push(d);
-              } else {
-                byCategory.set(key, [d]);
-              }
-            }
-            return [...byCategory.entries()].map(([cat, items]) => (
-              <div key={cat} className="mb-1">
-                <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                  {categoryHeading(cat === "numeric" ? undefined : (cat as ClaimCategory))} Disagreements:
-                </p>
-                {items.map((d, dIdx) => (
-                  <div key={`${d.claim}-${dIdx}`} className="mt-1 text-xs">
-                    {d.values.map((v, vIdx) => (
-                      <span
-                        key={`${d.claim}-${v.modelName}-${vIdx}`}
-                        className="mr-2 inline-block"
-                      >
-                        <span className="font-medium">{v.modelName}:</span>{" "}
-                        <span className="text-[hsl(var(--muted-foreground))]">
-                          {v.raw}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ));
-          })()}
-        </div>
-      )}
-
-      {factComparison &&
+{factComparison &&
         factComparison.sharedDomains.length > 0 && (
           <div className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
             Shared sources:{" "}

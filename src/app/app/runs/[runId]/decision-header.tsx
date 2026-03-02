@@ -1,8 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./shared-components";
-import type { RecommendationData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -12,7 +10,6 @@ interface DecisionHeaderProps {
   surveyTitle: string;
   completedAt: string | null;
   modelCount: number;
-  recommendation: RecommendationData | null;
   totalResponses: number;
   avgLatencyMs: number | null;
   status: string;
@@ -41,7 +38,6 @@ export function DecisionHeader({
   surveyTitle,
   completedAt,
   modelCount,
-  recommendation,
   totalResponses,
   avgLatencyMs,
   status,
@@ -64,32 +60,6 @@ export function DecisionHeader({
           </p>
         </div>
 
-        {/* Center: Recommendation pill */}
-        {recommendation && (
-          <div className="flex-shrink-0">
-            {recommendation.humanReviewRequired ? (
-              <Badge
-                variant="secondary"
-                className="border-amber-500/50 bg-amber-500/10 px-4 py-1.5 text-sm font-semibold text-amber-700 dark:text-amber-400"
-              >
-                Human Review Required
-              </Badge>
-            ) : recommendation.recommendedModelName ? (
-              <Badge
-                variant="secondary"
-                className="border-green-500/50 bg-green-500/10 px-4 py-1.5 text-sm font-semibold text-green-700 dark:text-green-400"
-              >
-                Recommended: {recommendation.recommendedModelName}
-                {recommendation.reliabilityScore !== null && (
-                  <span className="ml-1.5 opacity-75">
-                    ({recommendation.reliabilityScore.toFixed(1)}/10)
-                  </span>
-                )}
-              </Badge>
-            ) : null}
-          </div>
-        )}
-
         {/* Right: Stats */}
         <div className="flex flex-shrink-0 items-center gap-4">
           <div className="flex gap-4 text-sm">
@@ -107,12 +77,6 @@ export function DecisionHeader({
         </div>
       </div>
 
-      {/* Recommendation reason */}
-      {recommendation?.reason && (
-        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
-          {recommendation.reason}
-        </p>
-      )}
     </div>
   );
 }

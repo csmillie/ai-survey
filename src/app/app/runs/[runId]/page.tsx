@@ -98,6 +98,26 @@ export default async function RunPage({ params }: RunPageProps) {
   const completedJobs = run.jobs.filter((j) => j.status === "SUCCEEDED").length;
   const failedJobs = run.jobs.filter((j) => j.status === "FAILED").length;
 
+  // Determine if background analysis (COMPUTE_METRICS) has finished so the
+  // client can show a "calculating…" banner while it's still running.
+  const initialAnalysisComplete = await (async () => {
+    if (run.status !== "COMPLETED") return true; // not relevant until run finishes
+    const metricsJob = await prisma.job.findFirst({
+      where: { runId, type: "COMPUTE_METRICS" },
+      select: { status: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return !metricsJob || metricsJob.status === "SUCCEEDED" || metricsJob.status === "FAILED";
+  })();
+
+  // Build a 0-indexed rank map so question numbers always display as 1, 2, 3…
+  // regardless of stale stored order values (e.g. after pre-fix deletions).
+  const questionRankMap = new Map(
+    [...new Map(run.responses.map((r) => [r.question.id, r.question.order])).entries()]
+      .sort(([, oa], [, ob]) => oa - ob)
+      .map(([id], idx) => [id, idx])
+  );
+
   // Transform responses for the client component
   const responses = run.responses.map((resp) => {
     const parsed = resp.parsedJson as unknown as ParsedLlmResponse | null;
@@ -108,7 +128,7 @@ export default async function RunPage({ params }: RunPageProps) {
       questionTitle: resp.question.title,
       questionPrompt: resp.question.promptTemplate,
       questionType: resp.question.type,
-      questionOrder: resp.question.order,
+      questionOrder: questionRankMap.get(resp.question.id) ?? resp.question.order,
       questionConfig: (() => {
         const result = rankedConfigSchema.safeParse(resp.question.configJson);
         return result.success
@@ -198,7 +218,7 @@ export default async function RunPage({ params }: RunPageProps) {
         questionId: a.questionId,
         questionTitle: a.question.title,
         questionPrompt: a.question.promptTemplate,
-        questionOrder: a.question.order,
+        questionOrder: questionRankMap.get(a.questionId) ?? a.question.order,
         agreementPercent: a.agreementPercent,
         outlierModels: outliers.data,
         humanReviewFlag: a.humanReviewFlag,
@@ -274,6 +294,7 @@ export default async function RunPage({ params }: RunPageProps) {
     <RunProgressView
       runId={runId}
       initialStatus={run.status}
+      initialAnalysisComplete={initialAnalysisComplete}
       surveyTitle={run.survey.title}
       totalJobs={totalJobs}
       completedJobs={completedJobs}

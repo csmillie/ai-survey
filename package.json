@@ -13,6 +13,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "seed": "tsx prisma/seed.ts",
+    "export-data": "tsx scripts/export-data.ts",
+    "import-data": "tsx scripts/import-data.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

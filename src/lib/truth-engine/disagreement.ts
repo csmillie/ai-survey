@@ -2,11 +2,10 @@
 // Disagreement Detection — detects numeric and assertion-level disagreements
 // ---------------------------------------------------------------------------
 
-import type { ExtractedClaim, NumericDisagreement, ClaimCluster } from "./types";
+import type { ExtractedClaim, NumericDisagreement, ClaimCluster, ModelAnswer } from "./types";
 import {
   tokenize,
-  computeTfIdf,
-  cosineSimilarity,
+  extractPredictionDirection,
 } from "@/lib/analysis/agreement";
 
 // ---------------------------------------------------------------------------
@@ -125,29 +124,45 @@ export function detectNumericDisagreements(
 // Assertion clustering
 // ---------------------------------------------------------------------------
 
-const ASSERTION_SIMILARITY_THRESHOLD = 0.72;
+// Jaccard similarity on unique token sets.
+// Unlike TF-IDF cosine, this rewards shared vocabulary rather than penalising
+// it, so models that respond to the same question with similar content cluster
+// correctly even when all topic words are shared across every response.
+const JACCARD_THRESHOLD = 0.2;
+
+function jaccardSimilarity(a: string[], b: string[]): number {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  let intersection = 0;
+  for (const t of setA) {
+    if (setB.has(t)) intersection++;
+  }
+  const union = setA.size + setB.size - intersection;
+  return union > 0 ? intersection / union : 0;
+}
 
 /**
- * Cluster assertion claims by TF-IDF cosine similarity.
- * Returns clusters and the consensusPercent (largest cluster / total models).
+ * Cluster model answers by Jaccard similarity of their token sets.
+ * Returns clusters and the consensusPercent (largest cluster / non-empty models).
+ * Empty answers are excluded from both clustering and the denominator so that
+ * failed/empty responses do not artificially deflate consensus.
  */
 export function clusterAssertions(
-  claims: ExtractedClaim[],
-  totalModels: number
+  answers: ModelAnswer[]
 ): { clusters: ClaimCluster[]; consensusPercent: number } {
-  const assertions = claims.filter((c) => c.kind === "assertion");
+  const nonEmpty = answers.filter((a) => !a.isEmpty);
 
-  if (assertions.length === 0) {
-    return { clusters: [], consensusPercent: totalModels > 0 ? 1 : 0 };
+  if (nonEmpty.length === 0) {
+    return { clusters: [], consensusPercent: 0 };
   }
 
-  // Tokenize and compute TF-IDF
-  const tokenized = assertions.map((c) => tokenize(c.text));
-  const vectors = computeTfIdf(tokenized);
+  // Tokenize full response text
+  const tokenized = nonEmpty.map((a) => tokenize(a.text));
+  const predictions = nonEmpty.map((a) => extractPredictionDirection(a.text));
 
   // Union-Find for clustering
-  const parent = Array.from({ length: assertions.length }, (_, i) => i);
-  const rank = new Array(assertions.length).fill(0);
+  const parent = Array.from({ length: nonEmpty.length }, (_, i) => i);
+  const rank = new Array(nonEmpty.length).fill(0);
 
   function find(x: number): number {
     if (parent[x] !== x) parent[x] = find(parent[x]);
@@ -168,11 +183,20 @@ export function clusterAssertions(
     }
   }
 
-  // Cluster by similarity
-  for (let i = 0; i < assertions.length; i++) {
-    for (let j = i + 1; j < assertions.length; j++) {
-      const sim = cosineSimilarity(vectors[i], vectors[j]);
-      if (sim >= ASSERTION_SIMILARITY_THRESHOLD) {
+  // Cluster by two signals:
+  // 1. Shared prediction direction (bullish/bearish/neutral etc.) — if both
+  //    models agree on direction, that constitutes consensus regardless of
+  //    how differently they phrase their reasoning.
+  // 2. Jaccard token similarity — catches same-topic factual answers that
+  //    don't express a directional prediction (e.g. "The rate is 5.25%").
+  for (let i = 0; i < nonEmpty.length; i++) {
+    for (let j = i + 1; j < nonEmpty.length; j++) {
+      if (predictions[i] !== null && predictions[i] === predictions[j]) {
+        union(i, j);
+        continue;
+      }
+      const sim = jaccardSimilarity(tokenized[i], tokenized[j]);
+      if (sim >= JACCARD_THRESHOLD) {
         union(i, j);
       }
     }
@@ -180,7 +204,7 @@ export function clusterAssertions(
 
   // Build clusters
   const clusterMap = new Map<number, number[]>();
-  for (let i = 0; i < assertions.length; i++) {
+  for (let i = 0; i < nonEmpty.length; i++) {
     const root = find(i);
     const list = clusterMap.get(root);
     if (list) {
@@ -195,12 +219,15 @@ export function clusterAssertions(
   let largestClusterModelCount = 0;
 
   for (const members of clusterMap.values()) {
-    const clusterClaims = members.map((i) => assertions[i]);
-    const models = [...new Set(clusterClaims.map((c) => c.modelKey))];
+    const models = members.map((i) => nonEmpty[i].modelKey);
     clusters.push({
       clusterId,
       kind: "assertion",
-      claims: clusterClaims,
+      claims: members.map((i) => ({
+        kind: "assertion" as const,
+        text: nonEmpty[i].text,
+        modelKey: nonEmpty[i].modelKey,
+      })),
       models,
     });
     if (models.length > largestClusterModelCount) {
@@ -209,8 +236,7 @@ export function clusterAssertions(
     clusterId++;
   }
 
-  const consensusPercent =
-    totalModels > 0 ? largestClusterModelCount / totalModels : 0;
+  const consensusPercent = largestClusterModelCount / nonEmpty.length;
 
   return { clusters, consensusPercent };
 }

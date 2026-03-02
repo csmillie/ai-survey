@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { requireSurveyAccess } from "@/lib/survey-auth";
 import { Button } from "@/components/ui/button";
-import { deleteSurveyAction } from "@/app/app/surveys/actions";
 import { SurveyBuilder } from "./survey-builder";
 
 interface SurveyDetailPageProps {
@@ -75,17 +74,18 @@ export default async function SurveyDetailPage({
           &larr; Evaluations
         </Link>
         <div className="flex items-center gap-2">
-          <Link href={`/app/surveys/${surveyId}/run`}>
-            <Button>Run Evaluation</Button>
-          </Link>
-          {isOwner && (
-            <form action={deleteSurveyAction as unknown as (formData: FormData) => void}>
-              <input type="hidden" name="surveyId" value={surveyId} />
-              <Button type="submit" variant="destructive" size="sm">
-                Delete
+          {runs.find((r) => r.status === "COMPLETED") && (
+            <Link href={`/app/runs/${runs.find((r) => r.status === "COMPLETED")!.id}`}>
+              <Button className="bg-black text-white hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/80">
+                Latest Analysis
               </Button>
-            </form>
+            </Link>
           )}
+          <Link href={`/app/surveys/${surveyId}/run`}>
+            <Button variant="outline">
+              {runs.some((r) => r.status === "COMPLETED") ? "Re-run Evaluation" : "Run Evaluation"}
+            </Button>
+          </Link>
         </div>
       </div>
 

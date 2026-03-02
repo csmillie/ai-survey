@@ -109,7 +109,7 @@ export function ScoreBar({
   return (
     <div className="flex items-center gap-2">
       <span className="text-sm font-semibold whitespace-nowrap">
-        {score} / {max}
+        {score.toFixed(2)} / {max}
       </span>
       <div className="h-2 flex-1 rounded-full bg-[hsl(var(--muted))]">
         <div

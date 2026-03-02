@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/tabs";
 import { ScoreBar, AgreementBadge, PenaltyItem, ModelLabel } from "./shared-components";
 import { POOR_CALIBRATION_SCORE_THRESHOLD } from "@/lib/analysis/calibration";
-import type { ModelMetricData, QuestionAgreementData } from "./types";
+import type { ModelMetricData, QuestionAgreementData, RecommendationData } from "./types";
 
 const DriftChart = dynamic(() => import("./drift-chart").then((m) => m.DriftChart), {
   ssr: false,
@@ -47,6 +47,7 @@ interface ModelTrustPanelProps {
   runId: string;
   modelStats?: Map<string, { avgLatencyMs: number; avgCostUsd: number }>;
   onScrollToQuestion?: (questionId: string) => void;
+  recommendation?: RecommendationData | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +80,7 @@ function CalibrationWarning({
         ).length;
         return count > 0
           ? `${m.modelName} overconfident on ${count} prompt${count === 1 ? "" : "s"}`
-          : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(1)}/10)`;
+          : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(2)}/10)`;
       }).join(". ")}
     </CardDescription>
   );
@@ -121,21 +122,8 @@ function ReliabilityRow({
         <TableCell className="text-center text-sm">
           {Math.round(metric.citationRate * 100)}%
         </TableCell>
-        <TableCell className="text-center">
-          {metric.calibrationScore !== null ? (
-            <ScoreBar score={parseFloat(metric.calibrationScore.toFixed(1))} min={0} max={10} />
-          ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
-          )}
-        </TableCell>
         <TableCell className="text-right text-sm">
-          {stats ? `${Math.round(stats.avgLatencyMs)}ms` : "-"}
-        </TableCell>
-        <TableCell className="text-right text-sm">
-          {stats ? `$${stats.avgCostUsd.toFixed(6)}` : "-"}
-        </TableCell>
-        <TableCell className="text-right text-sm">
-          {metric.totalResponses}
+          {stats ? `$${(stats.avgCostUsd * 1_000_000).toFixed(2)}` : "-"}
         </TableCell>
         <TableCell className="text-right">
           <button
@@ -150,7 +138,7 @@ function ReliabilityRow({
       </TableRow>
       {expanded && (
         <TableRow>
-          <TableCell colSpan={10} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
+          <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Penalty Breakdown</h4>
               <div className="grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">
@@ -179,6 +167,7 @@ export function ModelTrustPanel({
   runId,
   modelStats,
   onScrollToQuestion,
+  recommendation = null,
 }: ModelTrustPanelProps): React.JSX.Element {
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
 
@@ -197,14 +186,29 @@ export function ModelTrustPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ModelTrust</CardTitle>
-        <CardDescription>
-          Model reliability, cross-model agreement, and performance trends
-        </CardDescription>
-        <CalibrationWarning
-          modelMetrics={modelMetrics}
-          questionAgreements={questionAgreements}
-        />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle>Analysis</CardTitle>
+            <CardDescription>
+              Model reliability, cross-model agreement, and performance trends
+            </CardDescription>
+            <CalibrationWarning
+              modelMetrics={modelMetrics}
+              questionAgreements={questionAgreements}
+            />
+          </div>
+          {recommendation?.recommendedModelName && recommendation.reliabilityScore !== null && (
+            <p className="shrink-0 text-sm text-[hsl(var(--muted-foreground))]">
+              <span className="font-medium text-[hsl(var(--foreground))]">
+                {recommendation.recommendedModelName}
+              </span>{" "}
+              is the most reliable model with a score of{" "}
+              <span className="font-medium text-[hsl(var(--foreground))]">
+                {recommendation.reliabilityScore.toFixed(2)}/10
+              </span>
+            </p>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="reliability">
@@ -219,15 +223,12 @@ export function ModelTrustPanel({
               <TableHeader>
                 <TableRow>
                   <TableHead>Model</TableHead>
-                  <TableHead>Score</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
                   <TableHead className="text-center">JSON Valid</TableHead>
                   <TableHead className="text-center">Empty / Short</TableHead>
                   <TableHead className="text-center">Citations</TableHead>
-                  <TableHead className="text-center">Calibration</TableHead>
-                  <TableHead className="text-right">Avg Latency</TableHead>
-                  <TableHead className="text-right">Avg Cost</TableHead>
-                  <TableHead className="text-right">Outputs</TableHead>
-                  <TableHead />
+                  <TableHead className="text-right">Avg Cost / 1M</TableHead>
+                  <TableHead className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -247,11 +248,11 @@ export function ModelTrustPanel({
               <TableHeader>
                 <TableRow>
                   <TableHead>Prompt</TableHead>
-                  <TableHead>Agreement</TableHead>
+                  <TableHead className="text-center">Agreement</TableHead>
                   <TableHead>Models</TableHead>
                   <TableHead className="text-center">Overconfidence</TableHead>
                   <TableHead className="text-center">Status</TableHead>
-                  {onScrollToQuestion && <TableHead />}
+                  {onScrollToQuestion && <TableHead className="text-right" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -282,13 +283,8 @@ export function ModelTrustPanel({
                           a.questionPrompt
                         )}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <AgreementBadge percent={a.agreementPercent} />
-                          <span className="text-sm">
-                            {Math.round(a.agreementPercent * 100)}%
-                          </span>
-                        </div>
+                      <TableCell className="text-center">
+                        <AgreementBadge percent={a.agreementPercent} />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">

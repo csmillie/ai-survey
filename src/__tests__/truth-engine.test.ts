@@ -226,31 +226,53 @@ describe("detectNumericDisagreements", () => {
 // ---------------------------------------------------------------------------
 
 describe("clusterAssertions", () => {
-  it("clusters similar assertions together", () => {
-    const claims: ExtractedClaim[] = [
-      { kind: "assertion", text: "The economy is growing rapidly and strongly", modelKey: "model-a" },
-      { kind: "assertion", text: "The economy is growing rapidly and strongly", modelKey: "model-b" },
-      { kind: "assertion", text: "Cats and dogs are popular household pets", modelKey: "model-c" },
+  function makeAnswer(modelKey: string, text: string, isEmpty = false): ModelAnswer {
+    return { modelKey, text, citations: [], isEmpty, isShort: false };
+  }
+
+  it("clusters similar responses together using Jaccard similarity", () => {
+    const answers = [
+      makeAnswer("model-a", "The economy is growing rapidly with strong consumer demand and robust employment figures"),
+      makeAnswer("model-b", "The economy is growing rapidly with strong consumer demand and robust employment figures"),
+      makeAnswer("model-c", "Cats and dogs are popular household pets kept by millions of families worldwide"),
     ];
-    const { clusters, consensusPercent } = clusterAssertions(claims, 3);
-    expect(clusters.length).toBeGreaterThanOrEqual(1);
-    expect(consensusPercent).toBeGreaterThan(0);
+    const { clusters, consensusPercent } = clusterAssertions(answers);
+    // model-a and model-b should cluster; model-c should not
+    expect(clusters.some((c) => c.models.length >= 2)).toBe(true);
+    expect(consensusPercent).toBeGreaterThanOrEqual(2 / 3);
   });
 
-  it("returns high consensus when models have very similar assertions", () => {
-    const claims: ExtractedClaim[] = [
-      { kind: "assertion", text: "Machine learning and artificial intelligence are transforming modern healthcare delivery systems", modelKey: "model-a" },
-      { kind: "assertion", text: "Artificial intelligence and machine learning are transforming modern healthcare delivery practices", modelKey: "model-b" },
+  it("clusters similar but not identical responses", () => {
+    const answers = [
+      makeAnswer("model-a", "Machine learning and artificial intelligence are transforming modern healthcare delivery systems and patient outcomes"),
+      makeAnswer("model-b", "Artificial intelligence and machine learning are transforming modern healthcare delivery practices and patient outcomes"),
     ];
-    const { consensusPercent } = clusterAssertions(claims, 2);
-    // Both assertions share most terms, so they should cluster together
+    const { consensusPercent } = clusterAssertions(answers);
     expect(consensusPercent).toBeGreaterThanOrEqual(0.5);
   });
 
-  it("handles empty claims", () => {
-    const { clusters, consensusPercent } = clusterAssertions([], 3);
+  it("does not cluster responses on completely different topics", () => {
+    const answers = [
+      makeAnswer("model-a", "The stock market rose sharply driven by technology sector gains and investor optimism"),
+      makeAnswer("model-b", "Rainfall patterns shifted dramatically across tropical regions due to ocean temperature changes"),
+    ];
+    const { consensusPercent } = clusterAssertions(answers);
+    expect(consensusPercent).toBeLessThan(1);
+  });
+
+  it("handles empty answers array", () => {
+    const { clusters, consensusPercent } = clusterAssertions([]);
     expect(clusters.length).toBe(0);
-    expect(consensusPercent).toBe(1);
+    expect(consensusPercent).toBe(0);
+  });
+
+  it("excludes isEmpty answers from clustering", () => {
+    const answers = [
+      makeAnswer("model-a", "The economy is growing", false),
+      makeAnswer("model-b", "", true),
+    ];
+    const { clusters } = clusterAssertions(answers);
+    expect(clusters.every((c) => !c.models.includes("model-b"))).toBe(true);
   });
 });
 
@@ -305,10 +327,10 @@ describe("computeTruthScore", () => {
     expect(result.citationRate).toBe(1);
   });
 
-  it("penalizes when no citations exist", () => {
+  it("penalizes when no citations exist and consensus is low", () => {
     const answers: ModelAnswer[] = [
-      makeAnswer({ modelKey: "model-a", citations: [] }),
-      makeAnswer({ modelKey: "model-b", citations: [] }),
+      makeAnswer({ modelKey: "model-a", citations: [], text: "The stock market rallied strongly on positive earnings data from technology firms" }),
+      makeAnswer({ modelKey: "model-b", citations: [], text: "Rainfall across tropical coastal regions declined sharply due to shifting ocean currents" }),
     ];
     const result = computeTruthScore(answers);
     expect(result.breakdown.citationPenalty).toBe(-10);
@@ -368,21 +390,27 @@ describe("computeTruthScore", () => {
     const highResult = computeTruthScore(highAnswers);
     expect(["HIGH", "MEDIUM"]).toContain(highResult.truthLabel);
 
-    // Numeric disagreement + no citations + empty answer → LOW
-    // Score: 50 (base) - 20 (numeric disagree) - 10 (no citations) - 10 (empty) = 10
+    // 4 models all on different topics + no citations + 1 empty → LOW
+    // nonEmpty=3, all singleton clusters → consensusPercent≈0.33
+    // Score: 50 + 13 (consensus) - 10 (no citations, low consensus) - 10 (empty) ≈ 43 → LOW
     const lowAnswers: ModelAnswer[] = [
       makeAnswer({
         modelKey: "a",
-        text: "The unemployment rate is 3% across all sectors.",
+        text: "The stock market crashed sharply today causing widespread investor panic across exchanges.",
         citations: [],
       }),
       makeAnswer({
         modelKey: "b",
-        text: "The unemployment rate is 25% across all sectors.",
+        text: "Scientists discovered evidence of ancient microbial fossils buried deep inside Antarctic glaciers.",
         citations: [],
       }),
       makeAnswer({
         modelKey: "c",
+        text: "Local authorities announced new restrictions on overnight parking near residential areas.",
+        citations: [],
+      }),
+      makeAnswer({
+        modelKey: "d",
         text: "",
         citations: [],
         isEmpty: true,
