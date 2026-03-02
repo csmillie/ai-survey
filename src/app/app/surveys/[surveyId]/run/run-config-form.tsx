@@ -147,18 +147,16 @@ export function RunConfigForm({
   }, []);
 
   function toggleModel(id: string) {
-    setSelectedModelIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      // Re-estimate with new selection
-      runEstimate(next, overrides);
-      return next;
-    });
+    const next = new Set(selectedModelIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedModelIds(next);
     setError(null);
+    // Re-estimate with new selection (must be called outside state updater)
+    runEstimate(next, overrides);
   }
 
   function handleOverrideChange(key: string, value: string) {
