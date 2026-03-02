@@ -309,6 +309,9 @@ model AnalysisResult {
   brandMentionsJson       Json?
   institutionMentionsJson Json?
   flagsJson               Json?
+  claimsJson              Json?
+  citationAnalysisJson    Json?
+  keySentencesJson        Json?
   createdAt               DateTime @default(now())
 
   response                LlmResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
@@ -361,15 +364,19 @@ model RunModelMetric {
 }
 
 model RunQuestionAgreement {
-  id                 String    @id @default(uuid())
-  runId              String
-  questionId         String
-  agreementPercent   Float
-  outlierModelsJson  Json
-  humanReviewFlag    Boolean
+  id                      String    @id @default(uuid())
+  runId                   String
+  questionId              String
+  agreementPercent        Float
+  outlierModelsJson       Json
+  humanReviewFlag         Boolean
   overconfidentModelsJson Json?
-  clusterDetailsJson Json?
-  createdAt          DateTime  @default(now())
+  clusterDetailsJson      Json?
+  factConfidenceLevel     String?
+  factConfidenceScore     Float?
+  factConfidenceSignals   Json?
+  factComparisonJson      Json?
+  createdAt               DateTime  @default(now())
 
   run                SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   question           Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)

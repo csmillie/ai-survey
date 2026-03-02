@@ -26,8 +26,17 @@ import {
   flagsJsonSchema,
   parsedRankedSchema,
   parsedOpenEndedSchema,
+  claimsJsonSchema,
+  citationAnalysisJsonSchema,
+  keySentencesJsonSchema,
 } from "@/lib/schemas";
 import type { AgreementResult } from "@/lib/analysis/agreement";
+import {
+  compareAcrossModels,
+  type ModelFactData,
+  type FactCheckResult,
+} from "@/lib/analysis/fact-check";
+import { computeFactConfidence } from "@/lib/analysis/fact-confidence";
 
 interface ComputeMetricsHandlerPayload extends ComputeMetricsPayload {
   jobId: string;
@@ -103,7 +112,12 @@ export async function handleComputeMetrics(
           select: { id: true, title: true, type: true, configJson: true },
         },
         analysis: {
-          select: { flagsJson: true },
+          select: {
+            flagsJson: true,
+            claimsJson: true,
+            citationAnalysisJson: true,
+            keySentencesJson: true,
+          },
         },
       },
     });
@@ -296,6 +310,52 @@ export async function handleComputeMetrics(
       overconfidentByQuestion.set(questionId, overconfident);
     }
 
+    // 4f. Compute per-question fact confidence
+    const factConfidenceByQuestion = new Map<
+      string,
+      { level: string; score: number; signals: string[]; comparison: ReturnType<typeof compareAcrossModels> }
+    >();
+    for (const { questionId, agreement } of questionUpserts) {
+      const qData = byQuestion.get(questionId);
+      if (!qData) continue;
+
+      // Build per-model fact-check data for comparison
+      const modelFactData: ModelFactData[] = qData.responses
+        .map((r) => {
+          const claims = claimsJsonSchema.parse(r.analysis?.claimsJson) ?? [];
+          const citationAnalysis = citationAnalysisJsonSchema.parse(
+            r.analysis?.citationAnalysisJson
+          ) ?? { totalCitations: 0, hasValidUrls: false, domains: [] };
+          const keySentences =
+            keySentencesJsonSchema.parse(r.analysis?.keySentencesJson) ?? [];
+
+          const factCheck: FactCheckResult = {
+            claims,
+            citationAnalysis,
+            keySentences,
+          };
+
+          return {
+            modelName: r.modelTarget.modelName,
+            factCheck,
+          };
+        });
+
+      const comparison = compareAcrossModels(modelFactData);
+      const factConfidence = computeFactConfidence({
+        agreementPercent: agreement.agreementPercent,
+        comparison,
+        totalModels: modelFactData.length,
+      });
+
+      factConfidenceByQuestion.set(questionId, {
+        level: factConfidence.level,
+        score: factConfidence.score,
+        signals: factConfidence.signals,
+        comparison,
+      });
+    }
+
     // 5. Compute recommendation
     const recommendation = computeRecommendation(modelScores, questionReviews);
 
@@ -339,6 +399,17 @@ export async function handleComputeMetrics(
         ),
         ...questionUpserts.map(({ questionId, agreement }) => {
           const overconfident = overconfidentByQuestion.get(questionId) ?? [];
+          const factConf = factConfidenceByQuestion.get(questionId);
+          const factConfData = {
+            factConfidenceLevel: factConf?.level ?? null,
+            factConfidenceScore: factConf?.score ?? null,
+            factConfidenceSignals: factConf
+              ? (factConf.signals as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+            factComparisonJson: factConf
+              ? (factConf.comparison as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          };
           return tx.runQuestionAgreement.upsert({
             where: {
               runId_questionId: { runId, questionId },
@@ -355,6 +426,7 @@ export async function handleComputeMetrics(
               clusterDetailsJson: agreement.clusterDetails
                 ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
+              ...factConfData,
             },
             update: {
               agreementPercent: agreement.agreementPercent,
@@ -366,6 +438,7 @@ export async function handleComputeMetrics(
               clusterDetailsJson: agreement.clusterDetails
                 ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
+              ...factConfData,
             },
           });
         }),

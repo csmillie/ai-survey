@@ -33,6 +33,7 @@ import {
 import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { SideBySideView } from "./side-by-side-view";
+import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
 import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } from "./types";
 
@@ -186,10 +187,12 @@ function ResponseRow({
   response,
   isExpanded,
   onToggle,
+  factConfidenceLevel,
 }: {
   response: ResponseData;
   isExpanded: boolean;
   onToggle: () => void;
+  factConfidenceLevel: string | null;
 }): React.JSX.Element {
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
@@ -272,14 +275,14 @@ function ResponseRow({
           {response.confidence !== null ? (
             <span
               className={`text-sm font-medium ${
-                response.confidence >= 0.8
+                response.confidence >= 80
                   ? "text-green-600 dark:text-green-400"
-                  : response.confidence >= 0.5
+                  : response.confidence >= 50
                     ? "text-amber-600 dark:text-amber-400"
                     : "text-red-600 dark:text-red-400"
               }`}
             >
-              {Math.round(response.confidence * 100)}%
+              {Math.round(response.confidence)}%
             </span>
           ) : (
             <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
@@ -290,6 +293,23 @@ function ResponseRow({
         </TableCell>
         <TableCell className="text-center">
           <span className="text-sm">{response.citations.length}</span>
+        </TableCell>
+        <TableCell className="text-center">
+          {factConfidenceLevel ? (
+            <span
+              className={`text-sm font-medium ${
+                factConfidenceLevel === "high"
+                  ? "text-green-600 dark:text-green-400"
+                  : factConfidenceLevel === "medium"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {factConfidenceLevel.charAt(0).toUpperCase() + factConfidenceLevel.slice(1)}
+            </span>
+          ) : (
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+          )}
         </TableCell>
         <TableCell className="text-right">
           <button
@@ -305,7 +325,7 @@ function ResponseRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={6} className="bg-[hsl(var(--muted))]/30 p-6">
+          <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
               {/* Full answer or reasoning */}
               <div>
@@ -615,6 +635,11 @@ export const QuestionResults = memo(function QuestionResults({
                   </span>
                 )}
               </CardDescription>
+              {agreement && agreement.factConfidenceLevel && (
+                <div className="mt-2">
+                  <FactConfidenceCard agreement={agreement} />
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="responses">
@@ -633,6 +658,7 @@ export const QuestionResults = memo(function QuestionResults({
                         <TableHead className="text-center">AI Confidence</TableHead>
                         <TableHead className="text-center">Sentiment</TableHead>
                         <TableHead className="text-center">Citations</TableHead>
+                        <TableHead className="text-center">FCA</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
@@ -645,6 +671,7 @@ export const QuestionResults = memo(function QuestionResults({
                             response={resp}
                             isExpanded={isExpanded}
                             onToggle={() => onToggleRow(resp.id)}
+                            factConfidenceLevel={agreement?.factConfidenceLevel ?? null}
                           />
                         );
                       })}

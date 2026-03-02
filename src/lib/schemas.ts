@@ -208,6 +208,50 @@ export const recommendationSchema = z.object({
 export const outlierModelsSchema = z.array(z.string());
 export const overconfidentModelsSchema = z.array(z.string());
 
+// ---------------------------------------------------------------------------
+// Fact-check JSON column schemas
+// ---------------------------------------------------------------------------
+
+export const extractedClaimSchema = z.object({
+  type: z.enum(["number", "percentage", "date", "assertion"]),
+  raw: z.string(),
+  normalized: z.string(),
+  value: z.number().optional(),
+});
+
+export const citationAnalysisSchema = z.object({
+  totalCitations: z.number(),
+  hasValidUrls: z.boolean(),
+  domains: z.array(z.string()),
+});
+
+export const claimsJsonSchema = z.array(extractedClaimSchema).nullable().catch(null);
+export const citationAnalysisJsonSchema = citationAnalysisSchema.nullable().catch(null);
+export const keySentencesJsonSchema = z.array(z.string()).nullable().catch(null);
+
+export const factConfidenceSignalsSchema = z.array(z.string()).nullable().catch(null);
+
+export const numericDisagreementSchema = z.object({
+  claim: z.string(),
+  values: z.array(z.object({
+    modelName: z.string(),
+    value: z.number(),
+    raw: z.string(),
+  })),
+  maxDelta: z.number(),
+  meanValue: z.number(),
+});
+
+export const factComparisonSchema = z.object({
+  numericDisagreements: z.array(numericDisagreementSchema),
+  citationOverlap: z.number(),
+  modelsWithCitations: z.number(),
+  totalModels: z.number(),
+  sharedDomains: z.array(z.string()),
+  agreementSignals: z.array(z.string()),
+  disagreementSignals: z.array(z.string()),
+}).nullable().catch(null);
+
 // Schemas for JSON columns read in compute-metrics handler
 export const flagsJsonSchema = z.array(z.string()).nullable().catch([]);
 
