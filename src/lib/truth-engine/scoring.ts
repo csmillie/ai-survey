@@ -31,7 +31,7 @@ export function computeTruthScore(answers: ModelAnswer[]): TruthResult {
         baseScore: 50,
         consensusBonus: 0,
         citationBonus: 0,
-        citationPenalty: -10,
+        citationPenalty: 0,
         numericDisagreementPenalty: 0,
         assertionDisagreementPenalty: 0,
         emptyShortPenalty: 0,

@@ -59,7 +59,7 @@ const sseEventSchema = z.object({
   failed: z.number(),
   running: z.number(),
   progress: z.number(),
-  analysisComplete: z.boolean().optional(),
+  analysisComplete: z.boolean(),
 });
 
 // ---------------------------------------------------------------------------
@@ -100,12 +100,15 @@ export function RunProgressView({
   const router = useRouter();
   const eventSourceRef = useRef<EventSource | null>(null);
   const questionRefsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
   const isLive =
     status === "QUEUED" ||
     status === "RUNNING" ||
     (status === "COMPLETED" && !analysisComplete);
 
-  // SSE connection
+  // SSE connection with exponential backoff reconnect (max 3 retries)
   useEffect(() => {
     if (!isLive) return;
 
@@ -113,6 +116,7 @@ export function RunProgressView({
     eventSourceRef.current = es;
 
     es.onmessage = (event: MessageEvent) => {
+      retryCountRef.current = 0; // reset backoff on successful message
       try {
         const raw: unknown = JSON.parse(event.data as string);
         const result = sseEventSchema.safeParse(raw);
@@ -124,12 +128,10 @@ export function RunProgressView({
         setCompleted(data.completed);
         setFailed(data.failed);
         setRunning(data.running);
-        if (data.analysisComplete !== undefined) {
-          setAnalysisComplete(data.analysisComplete);
-        }
+        setAnalysisComplete(data.analysisComplete);
 
         const runTerminal = data.status === "COMPLETED" || data.status === "FAILED" || data.status === "CANCELLED";
-        const fullyDone = runTerminal && ((data.analysisComplete ?? true) || data.status !== "COMPLETED");
+        const fullyDone = runTerminal && (data.analysisComplete || data.status !== "COMPLETED");
         if (fullyDone) {
           es.close();
           eventSourceRef.current = null;
@@ -144,13 +146,25 @@ export function RunProgressView({
     es.onerror = () => {
       es.close();
       eventSourceRef.current = null;
+      if (retryCountRef.current < 3) {
+        // Exponential backoff: 3 s, 6 s, 12 s
+        const delay = 3000 * Math.pow(2, retryCountRef.current);
+        retryCountRef.current++;
+        retryTimeoutRef.current = setTimeout(() => {
+          setReconnectTrigger((n) => n + 1);
+        }, delay);
+      }
     };
 
     return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       es.close();
       eventSourceRef.current = null;
     };
-  }, [runId, isLive, router]);
+  }, [runId, isLive, router, reconnectTrigger]);
 
   // Handlers
   const handleCancel = useCallback(() => {
@@ -268,8 +282,11 @@ export function RunProgressView({
         entry.latencyCount++;
       }
       if (resp.costUsd !== null) {
-        entry.totalCost += parseFloat(resp.costUsd);
-        entry.costCount++;
+        const cost = parseFloat(resp.costUsd);
+        if (!isNaN(cost)) {
+          entry.totalCost += cost;
+          entry.costCount++;
+        }
       }
     }
 

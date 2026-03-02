@@ -108,6 +108,10 @@ export async function GET(
 
             // After run completes, track COMPUTE_METRICS job so the client
             // knows when trust scores and agreement analysis are ready.
+            // For non-COMPLETED statuses (FAILED/CANCELLED/RUNNING) we set
+            // analysisComplete=true to signal "no analysis pending" — the
+            // name is slightly counterintuitive but the client treats true
+            // as "nothing more to wait for".
             let analysisComplete = currentRun.status !== "COMPLETED";
             if (currentRun.status === "COMPLETED") {
               const metricsJob = await prisma.job.findFirst({

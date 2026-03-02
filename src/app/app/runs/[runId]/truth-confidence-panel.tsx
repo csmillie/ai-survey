@@ -162,7 +162,9 @@ export function TruthConfidencePanel({
                         {cluster.models.join(", ")}
                       </span>
                       {cluster.claims[0] && (
-                        <> — {cluster.claims[0].text}</>
+                        <> — {cluster.claims[0].text.length > 120
+                          ? cluster.claims[0].text.slice(0, 120) + "…"
+                          : cluster.claims[0].text}</>
                       )}
                     </p>
                   ))}

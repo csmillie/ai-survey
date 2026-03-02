@@ -142,7 +142,7 @@ function jaccardSimilarity(a: string[], b: string[]): number {
 }
 
 /**
- * Cluster model answers by TF-IDF cosine similarity of their full response text.
+ * Cluster model answers by Jaccard similarity of their token sets.
  * Returns clusters and the consensusPercent (largest cluster / total models).
  */
 export function clusterAssertions(
@@ -182,7 +182,12 @@ export function clusterAssertions(
     }
   }
 
-  // Cluster: same prediction direction → Jaccard token similarity
+  // Cluster by two signals:
+  // 1. Shared prediction direction (bullish/bearish/neutral etc.) — if both
+  //    models agree on direction, that constitutes consensus regardless of
+  //    how differently they phrase their reasoning.
+  // 2. Jaccard token similarity — catches same-topic factual answers that
+  //    don't express a directional prediction (e.g. "The rate is 5.25%").
   for (let i = 0; i < nonEmpty.length; i++) {
     for (let j = i + 1; j < nonEmpty.length; j++) {
       if (predictions[i] !== null && predictions[i] === predictions[j]) {

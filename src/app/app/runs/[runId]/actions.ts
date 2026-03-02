@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
-import { enqueueAnalyzeJob, enqueueComputeMetricsJob, enqueueExportJob } from "@/lib/queue";
+import { enqueueExportJob } from "@/lib/queue";
 import { createAuditEvent, RUN_CANCELLED, RESPONSE_VERIFIED } from "@/lib/audit";
 import { setVerificationSchema } from "@/lib/schemas";
 import type { DriftPoint } from "./types";
@@ -141,7 +141,9 @@ export async function reRunAnalysisAction(runId: string): Promise<ActionResult> 
     return { success: false, error: "No responses found for this run" };
   }
 
-  // 1. Delete old analysis data and jobs so they can be re-created
+  // Delete old analysis data and jobs, then insert new jobs — all in one
+  // transaction so a mid-flight failure never leaves the run in a state where
+  // data has been wiped but only a subset of jobs were queued.
   await prisma.$transaction([
     prisma.analysisResult.deleteMany({
       where: { response: { runId } },
@@ -156,22 +158,33 @@ export async function reRunAnalysisAction(runId: string): Promise<ActionResult> 
         type: { in: ["ANALYZE_RESPONSE", "COMPUTE_METRICS"] },
       },
     }),
+    // Re-create ANALYZE_RESPONSE jobs (one per response)
+    ...responses.map((resp) =>
+      prisma.job.create({
+        data: {
+          runId,
+          modelTargetId: resp.modelTargetId,
+          threadKey: `analyze-${resp.id}`,
+          type: "ANALYZE_RESPONSE",
+          status: "PENDING",
+          idempotencyKey: `analyze:${resp.id}`,
+          payloadJson: { responseId: resp.id, runId },
+        },
+      })
+    ),
+    // Re-create COMPUTE_METRICS job (modelTargetId FK — any valid id works)
+    prisma.job.create({
+      data: {
+        runId,
+        modelTargetId: responses[0].modelTargetId,
+        threadKey: `compute-metrics-${runId}`,
+        type: "COMPUTE_METRICS",
+        status: "PENDING",
+        idempotencyKey: `compute-metrics:${runId}`,
+        payloadJson: { runId },
+      },
+    }),
   ]);
-
-  // 2. Re-enqueue ANALYZE_RESPONSE jobs for each response
-  for (const resp of responses) {
-    await enqueueAnalyzeJob({
-      runId,
-      responseId: resp.id,
-      modelTargetId: resp.modelTargetId,
-    });
-  }
-
-  // 3. Re-enqueue COMPUTE_METRICS job (modelTargetId required by FK — any is fine)
-  await enqueueComputeMetricsJob({
-    runId,
-    modelTargetId: responses[0].modelTargetId,
-  });
 
   revalidatePath(`/app/runs/${runId}`);
 
