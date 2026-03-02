@@ -76,7 +76,8 @@ Do NOT commit if any of these fail. Fix issues first.
 ### Prisma & Database
 
 - Database: MySQL. Schema at `prisma/schema.prisma`.
-- Use Prisma migrations for schema changes: `pnpm prisma:migrate`
+- **Any change to `prisma/schema.prisma` requires a migration.** Run `pnpm prisma:migrate` to generate the migration file before committing. Never commit schema changes without a corresponding migration in `prisma/migrations/`.
+- Migration files in `prisma/migrations/` are tracked in git and must be committed alongside schema changes. Do not gitignore or delete migration files.
 - Use `pnpm prisma:push` only for rapid local prototyping, never for production.
 - Never write raw SQL unless Prisma can't express the query.
 - Singleton Prisma client in `src/lib/db.ts` — always import from there.
