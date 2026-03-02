@@ -49,9 +49,8 @@ export function computeTruthScore(answers: ModelAnswer[]): TruthResult {
   const numericDisagreements = detectNumericDisagreements(allClaims);
   const numericDisagreementDetected = numericDisagreements.length > 0;
 
-  // 3. Cluster by full response text (TF-IDF + cosine similarity across whole responses)
-  const totalModels = answers.length;
-  const { clusters, consensusPercent } = clusterAssertions(answers, totalModels);
+  // 3. Cluster by response text (Jaccard similarity across whole responses)
+  const { clusters, consensusPercent } = clusterAssertions(answers);
 
   // 4. Compute citation rate
   const answersWithCitations = answers.filter(

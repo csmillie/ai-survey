@@ -236,7 +236,7 @@ describe("clusterAssertions", () => {
       makeAnswer("model-b", "The economy is growing rapidly with strong consumer demand and robust employment figures"),
       makeAnswer("model-c", "Cats and dogs are popular household pets kept by millions of families worldwide"),
     ];
-    const { clusters, consensusPercent } = clusterAssertions(answers, 3);
+    const { clusters, consensusPercent } = clusterAssertions(answers);
     // model-a and model-b should cluster; model-c should not
     expect(clusters.some((c) => c.models.length >= 2)).toBe(true);
     expect(consensusPercent).toBeGreaterThanOrEqual(2 / 3);
@@ -247,7 +247,7 @@ describe("clusterAssertions", () => {
       makeAnswer("model-a", "Machine learning and artificial intelligence are transforming modern healthcare delivery systems and patient outcomes"),
       makeAnswer("model-b", "Artificial intelligence and machine learning are transforming modern healthcare delivery practices and patient outcomes"),
     ];
-    const { consensusPercent } = clusterAssertions(answers, 2);
+    const { consensusPercent } = clusterAssertions(answers);
     expect(consensusPercent).toBeGreaterThanOrEqual(0.5);
   });
 
@@ -256,14 +256,14 @@ describe("clusterAssertions", () => {
       makeAnswer("model-a", "The stock market rose sharply driven by technology sector gains and investor optimism"),
       makeAnswer("model-b", "Rainfall patterns shifted dramatically across tropical regions due to ocean temperature changes"),
     ];
-    const { consensusPercent } = clusterAssertions(answers, 2);
+    const { consensusPercent } = clusterAssertions(answers);
     expect(consensusPercent).toBeLessThan(1);
   });
 
   it("handles empty answers array", () => {
-    const { clusters, consensusPercent } = clusterAssertions([], 3);
+    const { clusters, consensusPercent } = clusterAssertions([]);
     expect(clusters.length).toBe(0);
-    expect(consensusPercent).toBe(1);
+    expect(consensusPercent).toBe(0);
   });
 
   it("excludes isEmpty answers from clustering", () => {
@@ -271,7 +271,7 @@ describe("clusterAssertions", () => {
       makeAnswer("model-a", "The economy is growing", false),
       makeAnswer("model-b", "", true),
     ];
-    const { clusters } = clusterAssertions(answers, 2);
+    const { clusters } = clusterAssertions(answers);
     expect(clusters.every((c) => !c.models.includes("model-b"))).toBe(true);
   });
 });
@@ -390,21 +390,27 @@ describe("computeTruthScore", () => {
     const highResult = computeTruthScore(highAnswers);
     expect(["HIGH", "MEDIUM"]).toContain(highResult.truthLabel);
 
-    // Numeric disagreement + no citations + empty answer → LOW
-    // Score: 50 (base) - 20 (numeric disagree) - 10 (no citations) - 10 (empty) = 10
+    // 4 models all on different topics + no citations + 1 empty → LOW
+    // nonEmpty=3, all singleton clusters → consensusPercent≈0.33
+    // Score: 50 + 13 (consensus) - 10 (no citations, low consensus) - 10 (empty) ≈ 43 → LOW
     const lowAnswers: ModelAnswer[] = [
       makeAnswer({
         modelKey: "a",
-        text: "The unemployment rate is 3% across all sectors.",
+        text: "The stock market crashed sharply today causing widespread investor panic across exchanges.",
         citations: [],
       }),
       makeAnswer({
         modelKey: "b",
-        text: "The unemployment rate is 25% across all sectors.",
+        text: "Scientists discovered evidence of ancient microbial fossils buried deep inside Antarctic glaciers.",
         citations: [],
       }),
       makeAnswer({
         modelKey: "c",
+        text: "Local authorities announced new restrictions on overnight parking near residential areas.",
+        citations: [],
+      }),
+      makeAnswer({
+        modelKey: "d",
         text: "",
         citations: [],
         isEmpty: true,

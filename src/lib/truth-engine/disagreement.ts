@@ -143,16 +143,17 @@ function jaccardSimilarity(a: string[], b: string[]): number {
 
 /**
  * Cluster model answers by Jaccard similarity of their token sets.
- * Returns clusters and the consensusPercent (largest cluster / total models).
+ * Returns clusters and the consensusPercent (largest cluster / non-empty models).
+ * Empty answers are excluded from both clustering and the denominator so that
+ * failed/empty responses do not artificially deflate consensus.
  */
 export function clusterAssertions(
-  answers: ModelAnswer[],
-  totalModels: number
+  answers: ModelAnswer[]
 ): { clusters: ClaimCluster[]; consensusPercent: number } {
   const nonEmpty = answers.filter((a) => !a.isEmpty);
 
   if (nonEmpty.length === 0) {
-    return { clusters: [], consensusPercent: totalModels > 0 ? 1 : 0 };
+    return { clusters: [], consensusPercent: 0 };
   }
 
   // Tokenize full response text
@@ -235,8 +236,7 @@ export function clusterAssertions(
     clusterId++;
   }
 
-  const consensusPercent =
-    totalModels > 0 ? largestClusterModelCount / totalModels : 0;
+  const consensusPercent = largestClusterModelCount / nonEmpty.length;
 
   return { clusters, consensusPercent };
 }
