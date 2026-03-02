@@ -24,7 +24,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogTrigger,
@@ -34,6 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SCALE_PRESETS } from "@/lib/schemas";
+import { deleteSurveyAction } from "@/app/app/surveys/actions";
 import {
   updateSurveyAction,
   addQuestionAction,
@@ -125,18 +126,6 @@ export function SurveyBuilder({
 
       {/* Tabs */}
       <Tabs defaultValue="questions">
-        <TabsList>
-          <TabsTrigger value="questions">
-            Decision Prompts ({questions.length})
-          </TabsTrigger>
-          <TabsTrigger value="variables">
-            Variables ({variables.length})
-          </TabsTrigger>
-          <TabsTrigger value="sharing">
-            Sharing ({shares.length})
-          </TabsTrigger>
-        </TabsList>
-
         <TabsContent value="questions">
           <QuestionsTab surveyId={surveyId} questions={questions} />
         </TabsContent>
@@ -220,7 +209,52 @@ export function SurveyBuilder({
           </CardContent>
         </Card>
       )}
+
+      {/* Danger zone */}
+      {isOwner && (
+        <DeleteEvaluationDialog surveyId={surveyId} />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Delete Evaluation Dialog
+// ---------------------------------------------------------------------------
+
+function DeleteEvaluationDialog({ surveyId }: { surveyId: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="flex justify-end border-t border-[hsl(var(--border))] pt-6">
+        <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
+          Delete Evaluation
+        </Button>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Evaluation?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            This will permanently delete the evaluation and all of its prompts,
+            runs, and results. This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <form action={deleteSurveyAction as unknown as (formData: FormData) => void}>
+              <input type="hidden" name="surveyId" value={surveyId} />
+              <Button type="submit" variant="destructive">
+                Delete
+              </Button>
+            </form>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -384,7 +418,7 @@ function QuestionsTab({
         </div>
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger>
-            <Button size="sm">Add Prompt</Button>
+            <Button variant="outline" size="sm">Add Prompt</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -770,28 +804,18 @@ function QuestionEditRow({
             <input type="hidden" name="type" value={editType} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor={`edit-q-title-${question.id}`}>Title</Label>
-              <Input
-                id={`edit-q-title-${question.id}`}
-                name="title"
-                defaultValue={question.title}
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`edit-q-mode-${question.id}`}>Mode</Label>
-              <Select
-                id={`edit-q-mode-${question.id}`}
-                name="mode"
-                value={editMode}
-                onChange={(e) => setEditMode(e.target.value as "STATELESS" | "THREADED")}
-              >
-                <SelectOption value="STATELESS">Stateless</SelectOption>
-                <SelectOption value="THREADED">Threaded</SelectOption>
-              </Select>
-            </div>
+          <input type="hidden" name="title" value={question.title} />
+          <div className="space-y-1">
+            <Label htmlFor={`edit-q-mode-${question.id}`}>Mode</Label>
+            <Select
+              id={`edit-q-mode-${question.id}`}
+              name="mode"
+              value={editMode}
+              onChange={(e) => setEditMode(e.target.value as "STATELESS" | "THREADED")}
+            >
+              <SelectOption value="STATELESS">Stateless</SelectOption>
+              <SelectOption value="THREADED">Threaded</SelectOption>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor={`edit-q-prompt-${question.id}`}>

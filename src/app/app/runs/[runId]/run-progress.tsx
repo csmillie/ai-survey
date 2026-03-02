@@ -378,7 +378,6 @@ export function RunProgressView({
             surveyTitle={surveyTitle}
             completedAt={completedAt}
             modelCount={modelCount}
-            recommendation={hasMetrics ? recommendation : null}
             totalResponses={responses.length}
             avgLatencyMs={avgLatencyMs}
             status={status}
@@ -397,11 +396,6 @@ export function RunProgressView({
             </div>
           )}
 
-          <NeedsReview
-            questionAgreements={questionAgreements}
-            onScrollToQuestion={handleScrollToQuestion}
-          />
-
           {hasMetrics && (
             <ModelTrustPanel
               modelMetrics={modelMetrics}
@@ -409,8 +403,14 @@ export function RunProgressView({
               runId={runId}
               modelStats={modelStats}
               onScrollToQuestion={handleScrollToQuestion}
+              recommendation={recommendation}
             />
           )}
+
+          <NeedsReview
+            questionAgreements={questionAgreements}
+            onScrollToQuestion={handleScrollToQuestion}
+          />
 
           <QuestionResults
             questionGroups={questionGroups}
