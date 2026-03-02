@@ -630,7 +630,7 @@ export const QuestionResults = memo(function QuestionResults({
                       <TableRow>
                         <TableHead>Model</TableHead>
                         <TableHead>Output</TableHead>
-                        <TableHead className="text-center">Confidence</TableHead>
+                        <TableHead className="text-center">AI Confidence</TableHead>
                         <TableHead className="text-center">Sentiment</TableHead>
                         <TableHead className="text-center">Citations</TableHead>
                         <TableHead />
