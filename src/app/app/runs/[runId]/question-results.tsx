@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, useTransition, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -18,6 +18,12 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -25,7 +31,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ScoreBar, SentimentBadge, AgreementBadge } from "./shared-components";
-import { getResponseDebugData } from "./actions";
+import { ModelComparison } from "./model-comparison";
+import { SideBySideView } from "./side-by-side-view";
+import { getResponseDebugData, setVerificationStatusAction } from "./actions";
 import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +94,87 @@ function computeVarianceBadge(
 }
 
 // ---------------------------------------------------------------------------
+// Verification
+// ---------------------------------------------------------------------------
+
+function VerificationButton({
+  responseId,
+  currentStatus,
+}: {
+  responseId: string;
+  currentStatus: string;
+}): React.JSX.Element {
+  const [isPending, startTransition] = useTransition();
+  const [status, setStatus] = useState(currentStatus);
+
+  const handleClick = useCallback(
+    (targetStatus: "VERIFIED" | "INACCURATE") => {
+      startTransition(async () => {
+        const newStatus = status === targetStatus ? "UNREVIEWED" : targetStatus;
+        const result = await setVerificationStatusAction(responseId, newStatus);
+        if (result.success) {
+          setStatus(newStatus);
+        }
+      });
+    },
+    [responseId, status]
+  );
+
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      <button
+        type="button"
+        title="Mark as verified"
+        disabled={isPending}
+        className={`rounded p-0.5 transition-colors ${
+          status === "VERIFIED"
+            ? "text-green-600 dark:text-green-400"
+            : "text-[hsl(var(--muted-foreground))] hover:text-green-600 dark:hover:text-green-400"
+        }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClick("VERIFIED");
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        title="Flag as inaccurate"
+        disabled={isPending}
+        className={`rounded p-0.5 transition-colors ${
+          status === "INACCURATE"
+            ? "text-red-600 dark:text-red-400"
+            : "text-[hsl(var(--muted-foreground))] hover:text-red-600 dark:hover:text-red-400"
+        }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClick("INACCURATE");
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+          <line x1="4" y1="22" x2="4" y2="15" />
+        </svg>
+      </button>
+    </span>
+  );
+}
+
+function verificationBorderClass(status: string): string {
+  switch (status) {
+    case "VERIFIED":
+      return "border-l-2 border-l-green-500";
+    case "INACCURATE":
+      return "border-l-2 border-l-red-500";
+    default:
+      return "border-l-2 border-l-transparent";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal: ResponseRow
 // ---------------------------------------------------------------------------
 
@@ -128,7 +217,7 @@ function ResponseRow({
   return (
     <>
       <TableRow
-        className="cursor-pointer"
+        className={`cursor-pointer ${verificationBorderClass(response.verificationStatus)}`}
         onClick={onToggle}
       >
         <TableCell>
@@ -137,6 +226,10 @@ function ResponseRow({
             <span className="text-xs text-[hsl(var(--muted-foreground))]">
               {response.provider}
             </span>
+            <VerificationButton
+              responseId={response.id}
+              currentStatus={response.verificationStatus}
+            />
             <button
               type="button"
               title="View API call details"
@@ -180,12 +273,6 @@ function ResponseRow({
         <TableCell className="text-center">
           <span className="text-sm">{response.citations.length}</span>
         </TableCell>
-        <TableCell className="text-right text-sm">
-          {response.costUsd ? `$${parseFloat(response.costUsd).toFixed(6)}` : "-"}
-        </TableCell>
-        <TableCell className="text-right text-sm">
-          {response.latencyMs ? `${response.latencyMs}ms` : "-"}
-        </TableCell>
         <TableCell className="text-right">
           <button
             type="button"
@@ -200,7 +287,7 @@ function ResponseRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 p-6">
+          <TableCell colSpan={5} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
               {/* Full answer or reasoning */}
               <div>
@@ -406,7 +493,7 @@ export const QuestionResults = memo(function QuestionResults({
 }: QuestionResultsProps): React.JSX.Element {
   return (
     <>
-      {questionGroups.map((group) => {
+      {questionGroups.map((group, groupIndex) => {
         const agreement = agreementMap.get(group.questionId);
         const varianceBadge = computeVarianceBadge(group.responses);
 
@@ -418,7 +505,7 @@ export const QuestionResults = memo(function QuestionResults({
             }}
           >
             <CardHeader>
-              <CardTitle className="text-lg">{group.questionTitle}</CardTitle>
+              <CardTitle className="text-lg">Q{groupIndex + 1}: {group.questionTitle}</CardTitle>
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}
@@ -446,32 +533,54 @@ export const QuestionResults = memo(function QuestionResults({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Answer</TableHead>
-                    <TableHead className="text-center">Sentiment</TableHead>
-                    <TableHead className="text-center">Citations</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Latency</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {group.responses.map((resp) => {
-                    const isExpanded = expandedRows.has(resp.id);
-                    return (
-                      <ResponseRow
-                        key={resp.id}
-                        response={resp}
-                        isExpanded={isExpanded}
-                        onToggle={() => onToggleRow(resp.id)}
-                      />
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <Tabs defaultValue="responses">
+                <TabsList>
+                  <TabsTrigger value="responses">Responses</TabsTrigger>
+                  <TabsTrigger value="comparison">Comparison</TabsTrigger>
+                  <TabsTrigger value="side-by-side">Side by Side</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="responses">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Model</TableHead>
+                        <TableHead>Answer</TableHead>
+                        <TableHead className="text-center">Sentiment</TableHead>
+                        <TableHead className="text-center">Citations</TableHead>
+                        <TableHead />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {group.responses.map((resp) => {
+                        const isExpanded = expandedRows.has(resp.id);
+                        return (
+                          <ResponseRow
+                            key={resp.id}
+                            response={resp}
+                            isExpanded={isExpanded}
+                            onToggle={() => onToggleRow(resp.id)}
+                          />
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TabsContent>
+
+                <TabsContent value="comparison">
+                  <ModelComparison
+                    responses={group.responses}
+                    questionType={group.responses[0]?.questionType ?? "OPEN_ENDED"}
+                  />
+                </TabsContent>
+
+                <TabsContent value="side-by-side">
+                  <SideBySideView
+                    responses={group.responses}
+                    questionType={group.responses[0]?.questionType ?? "OPEN_ENDED"}
+                  />
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         );

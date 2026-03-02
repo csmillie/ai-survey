@@ -54,6 +54,7 @@ export interface ResponseData {
   questionId: string;
   questionTitle: string;
   questionType: string;
+  questionOrder: number;
   questionConfig: { scaleMin: number; scaleMax: number } | null;
   modelName: string;
   provider: string;
@@ -61,6 +62,7 @@ export interface ResponseData {
   score: number | null;
   reasoningText: string | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
+  verificationStatus: string;
   sentimentScore: number | null;
   costUsd: string | null;
   latencyMs: number | null;
@@ -83,5 +85,6 @@ export interface DebugData {
 export interface QuestionGroup {
   questionId: string;
   questionTitle: string;
+  questionOrder: number;
   responses: ResponseData[];
 }
