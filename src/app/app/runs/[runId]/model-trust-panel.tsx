@@ -24,7 +24,6 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { CardDescription as CalibrationDesc } from "@/components/ui/card";
 import { ScoreBar, AgreementBadge, PenaltyItem } from "./shared-components";
 import { POOR_CALIBRATION_SCORE_THRESHOLD } from "@/lib/analysis/calibration";
 import type { ModelMetricData, QuestionAgreementData } from "./types";
@@ -72,7 +71,7 @@ function CalibrationWarning({
   );
 
   return (
-    <CalibrationDesc className="mt-1 text-amber-600 dark:text-amber-400">
+    <CardDescription className="mt-1 text-amber-600 dark:text-amber-400">
       {poorCalibration.map((m) => {
         const count = questionsWithOverconfidence.filter((q) =>
           q.overconfidentModels.includes(m.modelName)
@@ -81,7 +80,7 @@ function CalibrationWarning({
           ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
           : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(1)}/10)`;
       }).join(". ")}
-    </CalibrationDesc>
+    </CardDescription>
   );
 }
 
@@ -99,21 +98,12 @@ function ReliabilityRow({
   const [expanded, setExpanded] = useState(false);
 
   const handleToggle = (): void => setExpanded(!expanded);
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      handleToggle();
-    }
-  };
 
   return (
     <>
       <TableRow
         className="cursor-pointer"
-        role="button"
-        tabIndex={0}
         onClick={handleToggle}
-        onKeyDown={handleKeyDown}
       >
         <TableCell>
           <div className="flex items-center gap-1.5">
@@ -151,8 +141,15 @@ function ReliabilityRow({
         <TableCell className="text-right text-sm">
           {metric.totalResponses}
         </TableCell>
-        <TableCell className="text-right text-xs text-[hsl(var(--muted-foreground))]">
-          {expanded ? "Hide" : "Details"}
+        <TableCell className="text-right">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={`${metric.modelName} — ${expanded ? "hide" : "show"} penalty breakdown`}
+            className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          >
+            {expanded ? "Hide" : "Details"}
+          </button>
         </TableCell>
       </TableRow>
       {expanded && (

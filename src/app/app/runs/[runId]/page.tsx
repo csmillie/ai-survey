@@ -210,7 +210,6 @@ export default async function RunPage({ params }: RunPageProps) {
     <RunProgressView
       runId={runId}
       initialStatus={run.status}
-      surveyId={run.survey.id}
       surveyTitle={run.survey.title}
       totalJobs={totalJobs}
       completedJobs={completedJobs}

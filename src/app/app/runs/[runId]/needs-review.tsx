@@ -27,14 +27,13 @@ export function NeedsReview({
   questionAgreements,
   onScrollToQuestion,
 }: NeedsReviewProps): React.JSX.Element | null {
-  const flagged = questionAgreements
+  const allFlagged = questionAgreements
     .filter((q) => q.humanReviewFlag)
-    .sort((a, b) => a.agreementPercent - b.agreementPercent)
-    .slice(0, 5);
+    .sort((a, b) => a.agreementPercent - b.agreementPercent);
+  const flagged = allFlagged.slice(0, 5);
+  const totalFlagged = allFlagged.length;
 
-  if (flagged.length === 0) return null;
-
-  const totalFlagged = questionAgreements.filter((q) => q.humanReviewFlag).length;
+  if (totalFlagged === 0) return null;
 
   return (
     <Card className="border-amber-500/50">

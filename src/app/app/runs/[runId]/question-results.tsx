@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -44,22 +44,42 @@ interface QuestionResultsProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function hasScore(r: ResponseData): r is ResponseData & { score: number } {
+  return r.score !== null;
+}
+
+function formatAvgScore(responses: ResponseData[]): React.JSX.Element | null {
+  const scores = responses.filter(hasScore).map((r) => r.score);
+  if (scores.length === 0) return null;
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const config = responses[0]?.questionConfig;
+  if (!config) return null;
+  return (
+    <span className="ml-2 font-medium">
+      Avg: {avg.toFixed(1)} / {config.scaleMax}
+    </span>
+  );
+}
+
 function computeVarianceBadge(
   responses: ResponseData[]
 ): { label: string; variant: "secondary" | "destructive" } | null {
-  const scores = responses
-    .filter((r) => r.score !== null)
-    .map((r) => r.score!);
+  const scores = responses.filter(hasScore).map((r) => r.score);
   if (scores.length < 2) return null;
 
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  if (mean === 0) return null;
-
   const variance =
     scores.reduce((sum, s) => sum + (s - mean) ** 2, 0) / scores.length;
   const stddev = Math.sqrt(variance);
-  const cv = stddev / Math.abs(mean);
 
+  // When mean is near zero, CV is unstable — fall back to absolute stddev
+  if (Math.abs(mean) < 0.01) {
+    if (stddev < 0.5) return { label: "Low variance", variant: "secondary" };
+    if (stddev < 1.5) return { label: "Med variance", variant: "secondary" };
+    return { label: "High variance", variant: "destructive" };
+  }
+
+  const cv = stddev / Math.abs(mean);
   if (cv < 0.15) return { label: "Low variance", variant: "secondary" };
   if (cv < 0.30) return { label: "Med variance", variant: "secondary" };
   return { label: "High variance", variant: "destructive" };
@@ -86,15 +106,18 @@ function ResponseRow({
     setDebugOpen(true);
     if (debugData) return;
     setDebugLoading(true);
-    const result = await getResponseDebugData(response.id);
-    if (result.success) {
-      setDebugData({
-        rawText: result.rawText,
-        requestMessages: result.requestMessages,
-        usageJson: result.usageJson,
-      });
+    try {
+      const result = await getResponseDebugData(response.id);
+      if (result.success) {
+        setDebugData({
+          rawText: result.rawText,
+          requestMessages: result.requestMessages,
+          usageJson: result.usageJson,
+        });
+      }
+    } finally {
+      setDebugLoading(false);
     }
-    setDebugLoading(false);
   }, [response.id, debugData]);
 
   const truncatedAnswer =
@@ -102,21 +125,11 @@ function ResponseRow({
       ? response.answerText.slice(0, 120) + "..."
       : response.answerText;
 
-  const handleKeyDown = (e: React.KeyboardEvent): void => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onToggle();
-    }
-  };
-
   return (
     <>
       <TableRow
         className="cursor-pointer"
-        role="button"
-        tabIndex={0}
         onClick={onToggle}
-        onKeyDown={handleKeyDown}
       >
         <TableCell>
           <div className="flex items-center gap-1.5">
@@ -176,6 +189,8 @@ function ResponseRow({
         <TableCell className="text-right">
           <button
             type="button"
+            aria-expanded={isExpanded}
+            aria-label={`${response.modelName} — ${isExpanded ? "collapse" : "expand"} details`}
             className="text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
           >
             {isExpanded ? "Collapse" : "Expand"}
@@ -217,10 +232,12 @@ function ResponseRow({
                 <div>
                   <h4 className="mb-1 text-sm font-medium">Citations</h4>
                   <ul className="list-inside list-disc space-y-1 text-sm">
-                    {response.citations.map((c, i) => (
-                      <li key={i}>
+                    {response.citations.map((c, i) => {
+                      const safeHref = /^https?:\/\//i.test(c.url) ? c.url : "#";
+                      return (
+                      <li key={`${c.url}-${i}`}>
                         <a
-                          href={c.url}
+                          href={safeHref}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[hsl(var(--primary))] underline"
@@ -234,7 +251,8 @@ function ResponseRow({
                           </span>
                         )}
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -379,7 +397,7 @@ function ResponseRow({
 // QuestionResults
 // ---------------------------------------------------------------------------
 
-export function QuestionResults({
+export const QuestionResults = memo(function QuestionResults({
   questionGroups,
   agreementMap,
   expandedRows,
@@ -404,19 +422,7 @@ export function QuestionResults({
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}
-                {(() => {
-                  const scores = group.responses
-                    .filter((r) => r.score !== null)
-                    .map((r) => r.score!);
-                  if (scores.length === 0) return null;
-                  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-                  const config = group.responses[0]?.questionConfig;
-                  return config ? (
-                    <span className="ml-2 font-medium">
-                      Avg: {avg.toFixed(1)} / {config.scaleMax}
-                    </span>
-                  ) : null;
-                })()}
+                {formatAvgScore(group.responses)}
                 {agreement && (
                   <>
                     <AgreementBadge percent={agreement.agreementPercent} className="ml-2" />
@@ -472,4 +478,4 @@ export function QuestionResults({
       })}
     </>
   );
-}
+});

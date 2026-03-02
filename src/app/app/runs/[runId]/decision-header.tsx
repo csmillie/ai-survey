@@ -20,6 +20,7 @@ interface DecisionHeaderProps {
   status: string;
   onExport: () => void;
   isExporting: boolean;
+  exportSuccess: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ interface DecisionHeaderProps {
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
+  return d.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -52,6 +53,7 @@ export function DecisionHeader({
   status,
   onExport,
   isExporting,
+  exportSuccess,
 }: DecisionHeaderProps): React.JSX.Element {
   return (
     <div className="sticky top-0 z-10 -mx-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/80 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-[hsl(var(--background))]/60">
@@ -120,9 +122,9 @@ export function DecisionHeader({
               variant="secondary"
               size="sm"
               onClick={onExport}
-              disabled={isExporting}
+              disabled={isExporting || exportSuccess}
             >
-              {isExporting ? "Exporting..." : "Export CSV"}
+              {isExporting ? "Exporting..." : exportSuccess ? "Export Queued" : "Export CSV"}
             </Button>
           )}
         </div>

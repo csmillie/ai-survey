@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useTransition, useMemo } from "react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,7 +32,6 @@ import type {
 interface RunProgressViewProps {
   runId: string;
   initialStatus: string;
-  surveyId: string;
   surveyTitle: string;
   totalJobs: number;
   completedJobs: number;
@@ -46,15 +46,15 @@ interface RunProgressViewProps {
   avgLatencyMs?: number | null;
 }
 
-interface SseEvent {
-  runId: string;
-  status: string;
-  total: number;
-  completed: number;
-  failed: number;
-  running: number;
-  progress: number;
-}
+const sseEventSchema = z.object({
+  runId: z.string(),
+  status: z.string(),
+  total: z.number(),
+  completed: z.number(),
+  failed: z.number(),
+  running: z.number(),
+  progress: z.number(),
+});
 
 // ---------------------------------------------------------------------------
 // Component
@@ -85,6 +85,7 @@ export function RunProgressView({
 
   const [isCancelling, startCancelTransition] = useTransition();
   const [isExporting, startExportTransition] = useTransition();
+  const [exportSuccess, setExportSuccess] = useState(false);
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -101,7 +102,10 @@ export function RunProgressView({
 
     es.onmessage = (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data as string) as SseEvent;
+        const raw: unknown = JSON.parse(event.data as string);
+        const result = sseEventSchema.safeParse(raw);
+        if (!result.success) return;
+        const data = result.data;
         setStatus(data.status);
         setTotal(data.total);
         setCompleted(data.completed);
@@ -139,9 +143,12 @@ export function RunProgressView({
   const handleExport = useCallback(() => {
     startExportTransition(async () => {
       setError(null);
+      setExportSuccess(false);
       const result = await exportRunAction(runId);
       if (!result.success) {
         setError(result.error);
+      } else {
+        setExportSuccess(true);
       }
     });
   }, [runId]);
@@ -196,8 +203,7 @@ export function RunProgressView({
 
   // Build model stats (avg latency + avg cost) keyed by modelTargetId
   const modelStats = useMemo(() => {
-    const accum = new Map<string, { totalLatency: number; totalCost: number; count: number; modelTargetId: string }>();
-    // We need modelTargetId — derive from modelName+provider matching against modelMetrics
+    const accum = new Map<string, { totalLatency: number; latencyCount: number; totalCost: number; costCount: number }>();
     const modelTargetLookup = new Map<string, string>();
     for (const m of modelMetrics) {
       modelTargetLookup.set(`${m.modelName}|${m.provider}`, m.modelTargetId);
@@ -210,20 +216,25 @@ export function RunProgressView({
 
       let entry = accum.get(targetId);
       if (!entry) {
-        entry = { totalLatency: 0, totalCost: 0, count: 0, modelTargetId: targetId };
+        entry = { totalLatency: 0, latencyCount: 0, totalCost: 0, costCount: 0 };
         accum.set(targetId, entry);
       }
-      entry.count++;
-      if (resp.latencyMs !== null) entry.totalLatency += resp.latencyMs;
-      if (resp.costUsd !== null) entry.totalCost += parseFloat(resp.costUsd);
+      if (resp.latencyMs !== null) {
+        entry.totalLatency += resp.latencyMs;
+        entry.latencyCount++;
+      }
+      if (resp.costUsd !== null) {
+        entry.totalCost += parseFloat(resp.costUsd);
+        entry.costCount++;
+      }
     }
 
     const result = new Map<string, { avgLatencyMs: number; avgCostUsd: number }>();
     for (const [targetId, entry] of accum) {
-      if (entry.count > 0) {
+      if (entry.latencyCount > 0 || entry.costCount > 0) {
         result.set(targetId, {
-          avgLatencyMs: entry.totalLatency / entry.count,
-          avgCostUsd: entry.totalCost / entry.count,
+          avgLatencyMs: entry.latencyCount > 0 ? entry.totalLatency / entry.latencyCount : 0,
+          avgCostUsd: entry.costCount > 0 ? entry.totalCost / entry.costCount : 0,
         });
       }
     }
@@ -305,6 +316,7 @@ export function RunProgressView({
             status={status}
             onExport={handleExport}
             isExporting={isExporting}
+            exportSuccess={exportSuccess}
           />
 
           <NeedsReview

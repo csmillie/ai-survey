@@ -82,21 +82,6 @@ export function StatCard({
 }
 
 // ---------------------------------------------------------------------------
-// SummaryCard
-// ---------------------------------------------------------------------------
-
-export function SummaryCard({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return (
-    <div className="rounded-lg border border-[hsl(var(--border))] p-3">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-[hsl(var(--foreground))]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ScoreBar
 // ---------------------------------------------------------------------------
 
