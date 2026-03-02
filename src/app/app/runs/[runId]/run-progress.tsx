@@ -182,6 +182,7 @@ export function RunProgressView({
         group = {
           questionId: resp.questionId,
           questionTitle: resp.questionTitle,
+          questionOrder: resp.questionOrder,
           responses: [],
         };
         groupMap.set(resp.questionId, group);
@@ -189,6 +190,7 @@ export function RunProgressView({
       }
       group.responses.push(resp);
     }
+    groups.sort((a, b) => a.questionOrder - b.questionOrder);
     return groups;
   }, [responses]);
 

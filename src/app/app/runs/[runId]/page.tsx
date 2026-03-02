@@ -57,7 +57,7 @@ export default async function RunPage({ params }: RunPageProps) {
       responses: {
         include: {
           question: {
-            select: { id: true, title: true, type: true, configJson: true },
+            select: { id: true, title: true, type: true, configJson: true, order: true },
           },
           modelTarget: {
             select: { modelName: true, provider: true },
@@ -100,6 +100,7 @@ export default async function RunPage({ params }: RunPageProps) {
       questionId: resp.question.id,
       questionTitle: resp.question.title,
       questionType: resp.question.type,
+      questionOrder: resp.question.order,
       questionConfig: (() => {
         const result = rankedConfigSchema.safeParse(resp.question.configJson);
         return result.success
@@ -113,6 +114,7 @@ export default async function RunPage({ params }: RunPageProps) {
       reasoningText: resp.reasoningText ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
+      verificationStatus: resp.verificationStatus,
       costUsd: resp.costUsd?.toString() ?? null,
       latencyMs: resp.latencyMs,
       flags: (resp.analysis?.flagsJson as string[] | null) ?? [],

@@ -64,6 +64,12 @@ enum JobStatus {
   CANCELLED
 }
 
+enum VerificationStatus {
+  UNREVIEWED
+  VERIFIED
+  INACCURATE
+}
+
 model User {
   id            String      @id @default(uuid())
   email         String      @unique
@@ -79,6 +85,7 @@ model User {
   shares        SurveyShare[]
   runsCreated   SurveyRun[] @relation("RunCreator")
   auditEvents   AuditEvent[] @relation("AuditActor")
+  verifiedResponses LlmResponse[] @relation("ResponseVerifier")
 
   @@index([role])
 }
@@ -278,15 +285,20 @@ model LlmResponse {
   confidence          Float?
   costUsd             Decimal? @db.Decimal(12, 6)
   latencyMs     Int?
+  verificationStatus  VerificationStatus @default(UNREVIEWED)
+  verifiedAt          DateTime?
+  verifiedByUserId    String?
   createdAt     DateTime @default(now())
 
   run           SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
   modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
   question      Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  verifiedBy    User?       @relation("ResponseVerifier", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
   analysis      AnalysisResult?
 
   @@unique([runId, modelTargetId, questionId, threadKey])
   @@index([runId, modelTargetId])
+  @@index([runId, verificationStatus])
 }
 
 model AnalysisResult {
