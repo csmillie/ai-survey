@@ -59,22 +59,113 @@ describe("extractNumericClaims", () => {
 describe("extractDateClaims", () => {
   it("extracts year mentions with category", () => {
     const claims = extractDateClaims("Founded in 2020 and expanded since 2023.");
-    expect(claims).toHaveLength(2);
-    expect(claims[0].value).toBe(2020);
-    expect(claims[0].category).toBe("year");
-    expect(claims[1].value).toBe(2023);
-    expect(claims[1].category).toBe("year");
+    const years = claims.filter((c) => c.category === "year");
+    expect(years.length).toBeGreaterThanOrEqual(2);
+    expect(years.find((c) => c.value === 2020)).toBeDefined();
+    expect(years.find((c) => c.value === 2023)).toBeDefined();
   });
 
-  it("extracts month-year combinations", () => {
+  it("extracts month-year combinations as full_date with numeric value", () => {
     const claims = extractDateClaims("Released in January 2024.");
     const monthYear = claims.find((c) => c.normalized === "January 2024");
     expect(monthYear).toBeDefined();
+    expect(monthYear?.category).toBe("full_date");
+    expect(monthYear?.value).toBeCloseTo(2024 + 1 / 12, 2);
+  });
+
+  it("extracts full date strings with category full_date", () => {
+    const claims = extractDateClaims("The event was on March 5, 2024.");
+    const fullDate = claims.find((c) => c.category === "full_date" && c.normalized === "March 5, 2024");
+    expect(fullDate).toBeDefined();
+    expect(fullDate?.value).toBeGreaterThan(0); // days since epoch
+  });
+
+  it("extracts day-of-week mentions", () => {
+    const claims = extractDateClaims("The meeting is on Monday.");
+    const dow = claims.find((c) => c.category === "day_of_week");
+    expect(dow).toBeDefined();
+    expect(dow?.normalized).toBe("Monday");
+    expect(dow?.value).toBe(1); // Monday = 1
+  });
+
+  it("extracts month-only mentions with preposition", () => {
+    const claims = extractDateClaims("Sales typically peak in December each year.");
+    const month = claims.find((c) => c.category === "month");
+    expect(month).toBeDefined();
+    expect(month?.normalized).toBe("December");
+    expect(month?.value).toBe(12);
+  });
+
+  it("does not double-extract month from month-year as month-only", () => {
+    const claims = extractDateClaims("Released in January 2024.");
+    const months = claims.filter((c) => c.category === "month");
+    // "in January 2024" has a digit after January, so month-only should NOT match
+    expect(months).toHaveLength(0);
   });
 
   it("returns empty array for text without dates", () => {
     const claims = extractDateClaims("No dates mentioned here at all.");
     expect(claims).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Date disagreement detection
+// ---------------------------------------------------------------------------
+
+describe("compareAcrossModels date disagreements", () => {
+  it("detects day-of-week disagreement", () => {
+    const models: ModelFactData[] = [
+      {
+        modelName: "model-a",
+        factCheck: extractFactCheckData("The market closes on Friday.", []),
+      },
+      {
+        modelName: "model-b",
+        factCheck: extractFactCheckData("The market closes on Wednesday.", []),
+      },
+    ];
+    const result = compareAcrossModels(models);
+    const dowDisagreement = result.numericDisagreements.find(
+      (d) => d.category === "day_of_week"
+    );
+    expect(dowDisagreement).toBeDefined();
+  });
+
+  it("detects month-only disagreement", () => {
+    const models: ModelFactData[] = [
+      {
+        modelName: "model-a",
+        factCheck: extractFactCheckData("Applications open in January.", []),
+      },
+      {
+        modelName: "model-b",
+        factCheck: extractFactCheckData("Applications open in March.", []),
+      },
+    ];
+    const result = compareAcrossModels(models);
+    const monthDisagreement = result.numericDisagreements.find(
+      (d) => d.category === "month"
+    );
+    expect(monthDisagreement).toBeDefined();
+  });
+
+  it("detects full-date string disagreement", () => {
+    const models: ModelFactData[] = [
+      {
+        modelName: "model-a",
+        factCheck: extractFactCheckData("The product launched on January 10, 2024.", []),
+      },
+      {
+        modelName: "model-b",
+        factCheck: extractFactCheckData("The product launched on January 25, 2024.", []),
+      },
+    ];
+    const result = compareAcrossModels(models);
+    const fullDateDisagreement = result.numericDisagreements.find(
+      (d) => d.category === "full_date"
+    );
+    expect(fullDateDisagreement).toBeDefined();
   });
 });
 

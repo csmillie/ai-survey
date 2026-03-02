@@ -7,7 +7,7 @@
 // Types
 // ---------------------------------------------------------------------------
 
-export type ClaimCategory = "percentage" | "currency" | "year" | "rating";
+export type ClaimCategory = "percentage" | "currency" | "year" | "rating" | "month" | "day_of_week" | "full_date";
 
 export interface ExtractedClaim {
   type: "number" | "percentage" | "date" | "assertion" | "rating";
@@ -116,12 +116,74 @@ export function extractNumericClaims(text: string): ExtractedClaim[] {
   return claims;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const DAY_NAMES = [
+  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+];
+
 /**
- * Extract date claims from text.
+ * Extract date claims from text, including years, month-year combos,
+ * full date strings, month-only mentions, and days of the week.
  */
 export function extractDateClaims(text: string): ExtractedClaim[] {
   const claims: ExtractedClaim[] = [];
   const seen = new Set<string>();
+
+  const monthPattern = MONTH_NAMES.join("|");
+  const dayPattern = DAY_NAMES.join("|");
+
+  // Full date strings: "March 5, 2024", "January 15th, 2023"
+  const fullDateRegex = new RegExp(
+    `\\b(${monthPattern})\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+((?:19|20)\\d{2})\\b`,
+    "gi"
+  );
+  for (const match of text.matchAll(fullDateRegex)) {
+    const raw = match[0].trim();
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    const monthIdx = MONTH_NAMES.findIndex(
+      (m) => m.toLowerCase() === match[1].toLowerCase()
+    );
+    const day = parseInt(match[2], 10);
+    const year = parseInt(match[3], 10);
+    const daysSinceEpoch = Math.floor(
+      new Date(year, monthIdx, day).getTime() / (1000 * 60 * 60 * 24)
+    );
+    claims.push({
+      type: "date",
+      category: "full_date",
+      raw,
+      normalized: `${MONTH_NAMES[monthIdx]} ${day}, ${year}`,
+      value: daysSinceEpoch,
+    });
+  }
+
+  // Month-year: "January 2024", "March 2023"
+  const monthYearRegex = new RegExp(
+    `\\b(${monthPattern})\\s+((?:19|20)\\d{2})\\b`,
+    "gi"
+  );
+  for (const match of text.matchAll(monthYearRegex)) {
+    const raw = match[0].trim();
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    const monthIdx =
+      MONTH_NAMES.findIndex(
+        (m) => m.toLowerCase() === match[1].toLowerCase()
+      ) + 1; // 1-12
+    const year = parseInt(match[2], 10);
+    claims.push({
+      type: "date",
+      category: "full_date",
+      raw,
+      normalized: `${match[1]} ${match[2]}`,
+      value: year + monthIdx / 12,
+    });
+  }
 
   // Year mentions: "in 2024", "since 2020", "by 2030"
   const yearRegex = /\b(in|since|by|from|until|before|after|around)?\s*((?:19|20)\d{2})\b/gi;
@@ -138,17 +200,47 @@ export function extractDateClaims(text: string): ExtractedClaim[] {
     });
   }
 
-  // Month-year: "January 2024", "March 2023"
-  const monthYearRegex =
-    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+((?:19|20)\d{2})\b/gi;
-  for (const match of text.matchAll(monthYearRegex)) {
+  // Month-only: "in January", "during March" — not followed by a year or day digit
+  const monthOnlyRegex = new RegExp(
+    `\\b(?:in|during|since|by|from|until|of)\\s+(${monthPattern})\\b(?!\\s*\\d)`,
+    "gi"
+  );
+  for (const match of text.matchAll(monthOnlyRegex)) {
     const raw = match[0].trim();
     if (seen.has(raw)) continue;
     seen.add(raw);
+    const monthIdx =
+      MONTH_NAMES.findIndex(
+        (m) => m.toLowerCase() === match[1].toLowerCase()
+      ) + 1; // 1-12
     claims.push({
       type: "date",
+      category: "month",
       raw,
-      normalized: `${match[1]} ${match[2]}`,
+      normalized: MONTH_NAMES[monthIdx - 1],
+      value: monthIdx,
+    });
+  }
+
+  // Day of week: "on Monday", "last Tuesday", "next Wednesday", "every Friday"
+  const dayOfWeekRegex = new RegExp(
+    `\\b(?:on|last|next|every)?\\s*(${dayPattern})\\b`,
+    "gi"
+  );
+  for (const match of text.matchAll(dayOfWeekRegex)) {
+    const raw = match[0].trim();
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    const dayIdx =
+      DAY_NAMES.findIndex(
+        (d) => d.toLowerCase() === match[1].toLowerCase()
+      ) + 1; // 1-7 (Mon=1, Sun=7)
+    claims.push({
+      type: "date",
+      category: "day_of_week",
+      raw,
+      normalized: DAY_NAMES[dayIdx - 1],
+      value: dayIdx,
     });
   }
 
@@ -328,18 +420,22 @@ export function compareAcrossModels(
         c.type === "number" ||
         c.type === "percentage" ||
         c.type === "rating" ||
-        (c.type === "date" && c.category === "year")
+        c.type === "date"
     )
   );
 
   if (allComparableClaims.length > 0 && numericDisagreements.length === 0) {
-    // Generate category-specific agreement signals
+    // Generate category-specific agreement signals (deduped by label)
     const agreedCategories = new Set(
       allComparableClaims.map((c) => c.category).filter(Boolean)
     );
     if (agreedCategories.size > 0) {
+      const agreedLabels = new Set<string>();
       for (const cat of agreedCategories) {
-        agreementSignals.push(`consistent ${categoryLabel(cat)} claims`);
+        agreedLabels.add(`consistent ${categoryLabel(cat)} claims`);
+      }
+      for (const signal of agreedLabels) {
+        agreementSignals.push(signal);
       }
     } else {
       agreementSignals.push("consistent numeric claims");
@@ -449,6 +545,12 @@ function claimGroupKey(claim: ExtractedClaim): string {
   // Ratings are always compared on the normalised 0-100 scale
   if (cat === "rating") return "rating:normalized";
 
+  // Date sub-types use fixed group keys so all values of the same type
+  // are compared together regardless of magnitude
+  if (cat === "month") return "month:all";
+  if (cat === "day_of_week") return "day_of_week:all";
+  if (cat === "full_date") return "full_date:all";
+
   const comparisonValue =
     claim.value !== undefined && claim.value !== 0
       ? Math.floor(Math.log10(Math.abs(claim.value)))
@@ -465,7 +567,7 @@ function comparableValue(claim: ExtractedClaim): number | undefined {
   return claim.value;
 }
 
-/** Human-readable label for a category. */
+/** Human-readable label for a category (used in agreement/disagreement signals). */
 function categoryLabel(cat: ClaimCategory | undefined): string {
   switch (cat) {
     case "percentage":
@@ -476,6 +578,10 @@ function categoryLabel(cat: ClaimCategory | undefined): string {
       return "year";
     case "rating":
       return "rating";
+    case "month":
+    case "day_of_week":
+    case "full_date":
+      return "date";
     default:
       return "numeric";
   }
@@ -502,7 +608,7 @@ function findNumericDisagreements(
         c.type === "number" ||
         c.type === "percentage" ||
         c.type === "rating" ||
-        (c.type === "date" && c.category === "year");
+        c.type === "date";
       if (isComparable && comparableValue(c) !== undefined) {
         allClaims.push({ modelName: m.modelName, claim: c });
       }
@@ -539,10 +645,15 @@ function findNumericDisagreements(
     const maxDelta = Math.max(...values) - Math.min(...values);
 
     // Category-aware threshold:
-    //   years → any difference (threshold 0) since even 1 year matters
+    //   date types → any difference (threshold 0) since even 1 unit matters
     //   everything else → 5% of the mean
     const cat = group[0].claim.category;
-    const threshold = cat === "year" ? 0 : Math.abs(meanValue) * 0.05;
+    const isDateCat =
+      cat === "year" ||
+      cat === "month" ||
+      cat === "day_of_week" ||
+      cat === "full_date";
+    const threshold = isDateCat ? 0 : Math.abs(meanValue) * 0.05;
     if (maxDelta > threshold && maxDelta > 0) {
       disagreements.push({
         claim: group[0].claim.normalized,
