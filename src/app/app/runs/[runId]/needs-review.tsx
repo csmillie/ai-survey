@@ -67,7 +67,8 @@ export function NeedsReview({
         <div className="space-y-2">
           {flagged.map((q) => {
             const isExpanded = expandedQuestions.has(q.questionId);
-            const isTruncatable = q.questionTitle.length > 100;
+            const displayText = q.questionPrompt;
+            const isTruncatable = displayText.length > 100;
             return (
               <button
                 key={q.questionId}
@@ -78,8 +79,8 @@ export function NeedsReview({
                 <span className="mr-3 min-w-0 text-sm font-medium">
                   <span className="text-[hsl(var(--muted-foreground))]">Q{q.questionOrder + 1}:</span>{" "}
                   {isTruncatable && !isExpanded
-                    ? q.questionTitle.slice(0, 100) + "…"
-                    : q.questionTitle}
+                    ? displayText.slice(0, 100) + "…"
+                    : displayText}
                   {isTruncatable && (
                     <span
                       role="button"

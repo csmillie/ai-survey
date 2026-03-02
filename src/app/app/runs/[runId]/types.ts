@@ -60,6 +60,7 @@ export interface FactComparisonData {
 export interface QuestionAgreementData {
   questionId: string;
   questionTitle: string;
+  questionPrompt: string;
   questionOrder: number;
   agreementPercent: number;
   outlierModels: string[];
@@ -75,6 +76,7 @@ export interface ResponseData {
   id: string;
   questionId: string;
   questionTitle: string;
+  questionPrompt: string;
   questionType: string;
   questionOrder: number;
   questionConfig: { scaleMin: number; scaleMax: number } | null;
@@ -108,6 +110,7 @@ export interface DebugData {
 export interface QuestionGroup {
   questionId: string;
   questionTitle: string;
+  questionPrompt: string;
   questionOrder: number;
   responses: ResponseData[];
 }
