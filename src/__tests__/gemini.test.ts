@@ -56,7 +56,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse());
 
     const options: LlmRequestOptions = {
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [
         { role: "system", content: "You are helpful." },
         { role: "user", content: "Hello" },
@@ -76,7 +76,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse());
 
     const options: LlmRequestOptions = {
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [
         { role: "system", content: "Rule one." },
         { role: "system", content: "Rule two." },
@@ -94,7 +94,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse());
 
     const options: LlmRequestOptions = {
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: "Hello" }],
     };
 
@@ -108,7 +108,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse());
 
     const options: LlmRequestOptions = {
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [
         { role: "user", content: "Hello" },
         { role: "assistant", content: "Hi there" },
@@ -130,7 +130,7 @@ describe("GeminiProvider", () => {
     );
 
     const result = await provider.sendRequest({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -145,7 +145,7 @@ describe("GeminiProvider", () => {
     });
 
     const result = await provider.sendRequest({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -160,7 +160,7 @@ describe("GeminiProvider", () => {
 
     await expect(
       provider.sendRequest({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         messages: [{ role: "user", content: "Hello" }],
       })
     ).rejects.toThrow("Gemini returned no text content");
@@ -175,7 +175,7 @@ describe("GeminiProvider", () => {
 
     await expect(
       provider.sendRequest({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         messages: [{ role: "user", content: "Hello" }],
       })
     ).rejects.toThrow("finishReason: SAFETY");
@@ -185,7 +185,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse({ text: "" }));
 
     const result = await provider.sendRequest({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -196,7 +196,7 @@ describe("GeminiProvider", () => {
     mockGenerateContent.mockResolvedValue(makeResponse());
 
     await provider.sendRequest({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       messages: [{ role: "user", content: "test content" }],
     });
 
