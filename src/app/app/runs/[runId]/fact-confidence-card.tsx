@@ -171,11 +171,11 @@ export function FactConfidenceCard({
                 <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
                   {categoryHeading(cat === "numeric" ? undefined : (cat as ClaimCategory))} Disagreements:
                 </p>
-                {items.map((d) => (
-                  <div key={d.claim} className="mt-1 text-xs">
-                    {d.values.map((v) => (
+                {items.map((d, dIdx) => (
+                  <div key={`${d.claim}-${dIdx}`} className="mt-1 text-xs">
+                    {d.values.map((v, vIdx) => (
                       <span
-                        key={`${d.claim}-${v.modelName}`}
+                        key={`${d.claim}-${v.modelName}-${vIdx}`}
                         className="mr-2 inline-block"
                       >
                         <span className="font-medium">{v.modelName}:</span>{" "}
