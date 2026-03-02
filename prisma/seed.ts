@@ -122,6 +122,12 @@ async function main() {
     );
   }
 
+  // Disable gemini-2.0-flash (unreliable JSON output)
+  await prisma.modelTarget.updateMany({
+    where: { provider: "GEMINI", modelName: "gemini-2.0-flash" },
+    data: { isEnabled: false },
+  });
+
   console.log("Seed completed.");
 }
 
