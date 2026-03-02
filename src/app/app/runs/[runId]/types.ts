@@ -48,3 +48,40 @@ export interface QuestionAgreementData {
   humanReviewFlag: boolean;
   overconfidentModels: string[];
 }
+
+export interface ResponseData {
+  id: string;
+  questionId: string;
+  questionTitle: string;
+  questionType: string;
+  questionConfig: { scaleMin: number; scaleMax: number } | null;
+  modelName: string;
+  provider: string;
+  answerText: string;
+  score: number | null;
+  reasoningText: string | null;
+  citations: Array<{ url: string; title?: string; snippet?: string }>;
+  sentimentScore: number | null;
+  costUsd: string | null;
+  latencyMs: number | null;
+  flags: string[];
+  brandMentions: string[];
+  institutionMentions: string[];
+  entities: {
+    people: string[];
+    places: string[];
+    organizations: string[];
+  } | null;
+}
+
+export interface DebugData {
+  rawText: string;
+  requestMessages: Array<{ role: string; content: string }> | null;
+  usageJson: { inputTokens: number; outputTokens: number } | null;
+}
+
+export interface QuestionGroup {
+  questionId: string;
+  questionTitle: string;
+  responses: ResponseData[];
+}

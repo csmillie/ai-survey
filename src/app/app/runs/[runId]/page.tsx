@@ -47,6 +47,9 @@ export default async function RunPage({ params }: RunPageProps) {
       survey: {
         select: { id: true, title: true, ownerId: true },
       },
+      models: {
+        select: { modelTargetId: true },
+      },
       jobs: {
         where: { type: "EXECUTE_QUESTION" },
         select: { status: true },
@@ -194,6 +197,15 @@ export default async function RunPage({ params }: RunPageProps) {
     ? recommendationResult.data
     : null;
 
+  // Compute avg latency from responses that have latency data
+  const latencies = responses
+    .map((r) => r.latencyMs)
+    .filter((ms): ms is number => ms !== null);
+  const avgLatencyMs =
+    latencies.length > 0
+      ? latencies.reduce((a, b) => a + b, 0) / latencies.length
+      : null;
+
   return (
     <RunProgressView
       runId={runId}
@@ -208,6 +220,9 @@ export default async function RunPage({ params }: RunPageProps) {
       modelMetrics={modelMetricsData}
       questionAgreements={questionAgreementsData}
       recommendation={recommendation}
+      completedAt={run.completedAt?.toISOString() ?? null}
+      modelCount={run.models.length}
+      avgLatencyMs={avgLatencyMs}
     />
   );
 }
