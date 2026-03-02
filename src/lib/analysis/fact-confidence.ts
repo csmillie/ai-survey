@@ -86,7 +86,9 @@ export function computeFactConfidence(
                 ? "year"
                 : cat === "rating"
                   ? "rating"
-                  : "numeric";
+                  : cat === "month" || cat === "day_of_week" || cat === "full_date"
+                    ? "date"
+                    : "numeric";
         signals.push(`${label} disagreement detected`);
       }
     } else {

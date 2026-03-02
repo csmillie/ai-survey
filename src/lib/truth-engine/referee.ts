@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { getProvider } from "@/providers/registry";
 import { FORMATTING_SYSTEM_PROMPT } from "@/providers/types";
-import { repairAndParseJson } from "@/lib/json-repair";
+import { repairAndParseJsonRaw } from "@/lib/json-repair";
 import type { ExtractedClaim, NumericDisagreement } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -177,15 +177,15 @@ export async function runReferee(params: {
       clearTimeout(timeoutId);
     }
 
-    // Parse response
-    const { parsed, error } = repairAndParseJson(response.text);
+    // Parse response — use raw parser since referee JSON shape differs from llmResponseSchema
+    const rawResult = repairAndParseJsonRaw(response.text);
 
-    if (error || !parsed) {
-      console.warn(`[referee] Failed to parse referee response: ${error}`);
+    if (!rawResult.ok) {
+      console.warn(`[referee] Failed to parse referee response: ${rawResult.error}`);
       return null;
     }
 
-    const result = refereeResponseSchema.safeParse(parsed);
+    const result = refereeResponseSchema.safeParse(rawResult.parsed);
     if (!result.success) {
       console.warn(
         `[referee] Referee response validation failed: ${result.error.message}`
@@ -199,7 +199,7 @@ export async function runReferee(params: {
       verifyChecklist: result.data.verify_checklist,
       recommendedAnswerModelKey: result.data.recommended_answer_model,
       confidence: result.data.confidence,
-      raw: parsed as Record<string, unknown>,
+      raw: rawResult.parsed as Record<string, unknown>,
     };
   } catch (err) {
     console.warn(

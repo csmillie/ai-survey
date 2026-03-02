@@ -212,7 +212,7 @@ export const overconfidentModelsSchema = z.array(z.string());
 // Fact-check JSON column schemas
 // ---------------------------------------------------------------------------
 
-export const claimCategorySchema = z.enum(["percentage", "currency", "year", "rating"]);
+export const claimCategorySchema = z.enum(["percentage", "currency", "year", "rating", "month", "day_of_week", "full_date"]);
 
 export const extractedClaimSchema = z.object({
   type: z.enum(["number", "percentage", "date", "assertion", "rating"]),

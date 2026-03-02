@@ -40,7 +40,7 @@ export interface DriftPoint {
   models: Record<string, number | undefined>;
 }
 
-export type ClaimCategory = "percentage" | "currency" | "year" | "rating";
+export type ClaimCategory = "percentage" | "currency" | "year" | "rating" | "month" | "day_of_week" | "full_date";
 
 export interface NumericDisagreementData {
   claim: string;

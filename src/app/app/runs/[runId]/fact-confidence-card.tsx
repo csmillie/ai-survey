@@ -90,13 +90,16 @@ function categoryHeading(category: ClaimCategory | undefined): string {
     case "percentage":
       return "Percentage";
     case "currency":
-      return "Dollar Amount";
+      return "Dollar Value";
     case "year":
-      return "Year";
+    case "month":
+    case "day_of_week":
+    case "full_date":
+      return "Dates";
     case "rating":
       return "Rating / Score";
     default:
-      return "Numeric";
+      return "Comparison";
   }
 }
 
