@@ -490,18 +490,20 @@ const TITLE_TRUNCATE_LENGTH = 100;
 function QuestionTitle({
   order,
   title,
+  questionId,
   isExpanded,
   onToggle,
 }: {
   order: number;
   title: string;
+  questionId: string;
   isExpanded: boolean;
-  onToggle: () => void;
+  onToggle: (questionId: string) => void;
 }): React.JSX.Element {
   const isTruncatable = title.length > TITLE_TRUNCATE_LENGTH;
   const displayText =
     isTruncatable && !isExpanded
-      ? title.slice(0, TITLE_TRUNCATE_LENGTH) + ".."
+      ? title.slice(0, TITLE_TRUNCATE_LENGTH) + "…"
       : title;
 
   return (
@@ -510,9 +512,11 @@ function QuestionTitle({
       {isTruncatable && (
         <button
           type="button"
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} question ${order}`}
           onClick={(e) => {
             e.stopPropagation();
-            onToggle();
+            onToggle(questionId);
           }}
           className="ml-1 text-sm font-normal text-[hsl(var(--primary))] hover:underline"
         >
@@ -565,8 +569,9 @@ export const QuestionResults = memo(function QuestionResults({
               <QuestionTitle
                 order={group.questionOrder + 1}
                 title={group.questionTitle}
+                questionId={group.questionId}
                 isExpanded={expandedTitles.has(group.questionId)}
-                onToggle={() => toggleTitle(group.questionId)}
+                onToggle={toggleTitle}
               />
               <CardDescription>
                 {group.responses.length} response
