@@ -10,6 +10,11 @@ import {
   overconfidentModelsSchema,
   factConfidenceSignalsSchema,
   factComparisonSchema,
+  truthBreakdownSchema,
+  numericDisagreementsJsonSchema,
+  claimClustersJsonSchema,
+  refereeDisagreementsJsonSchema,
+  refereeChecklistJsonSchema,
 } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
@@ -130,27 +135,34 @@ export default async function RunPage({ params }: RunPageProps) {
     };
   });
 
-  // Load ModelTrust metrics (may be empty for older runs)
-  const [modelMetrics, questionAgreements] = await Promise.all([
-    prisma.runModelMetric.findMany({
-      where: { runId },
-      include: {
-        modelTarget: {
-          select: { modelName: true, provider: true },
+  // Load ModelTrust metrics + Truth Engine data (may be empty for older runs)
+  const [modelMetrics, questionAgreements, questionTruths, questionReferees] =
+    await Promise.all([
+      prisma.runModelMetric.findMany({
+        where: { runId },
+        include: {
+          modelTarget: {
+            select: { modelName: true, provider: true },
+          },
         },
-      },
-      orderBy: { reliabilityScore: "desc" },
-    }),
-    prisma.runQuestionAgreement.findMany({
-      where: { runId },
-      include: {
-        question: {
-          select: { title: true, order: true },
+        orderBy: { reliabilityScore: "desc" },
+      }),
+      prisma.runQuestionAgreement.findMany({
+        where: { runId },
+        include: {
+          question: {
+            select: { title: true, order: true },
+          },
         },
-      },
-      orderBy: { agreementPercent: "asc" },
-    }),
-  ]);
+        orderBy: { agreementPercent: "asc" },
+      }),
+      prisma.runQuestionTruth.findMany({
+        where: { runId },
+      }),
+      prisma.runQuestionReferee.findMany({
+        where: { runId },
+      }),
+    ]);
 
   const modelMetricsData = modelMetrics.flatMap((m) => {
     const breakdown = penaltyBreakdownSchema.safeParse(m.penaltyBreakdownJson);
@@ -197,6 +209,49 @@ export default async function RunPage({ params }: RunPageProps) {
     ];
   });
 
+  // Transform truth engine data
+  const questionTruthsData = questionTruths.flatMap((t) => {
+    const breakdown = truthBreakdownSchema.safeParse(t.breakdownJson);
+    if (!breakdown.success) return [];
+    const numericDisagreements = numericDisagreementsJsonSchema.parse(
+      t.numericDisagreementsJson
+    );
+    const claimClusters = claimClustersJsonSchema.parse(t.claimClustersJson);
+    return [
+      {
+        questionId: t.questionId,
+        truthScore: t.truthScore,
+        truthLabel: t.truthLabel,
+        consensusPercent: t.consensusPercent,
+        citationRate: t.citationRate,
+        numericDisagreements: numericDisagreements,
+        claimClusters: claimClusters,
+        breakdown: breakdown.data,
+      },
+    ];
+  });
+
+  // Transform referee data
+  const questionRefereesData = questionReferees.flatMap((r) => {
+    const disagreements = refereeDisagreementsJsonSchema.parse(
+      r.disagreementsJson
+    );
+    const verifyChecklist = refereeChecklistJsonSchema.parse(
+      r.verifyChecklistJson
+    );
+    return [
+      {
+        questionId: r.questionId,
+        refereeModelKey: r.refereeModelKey,
+        summary: r.summary,
+        disagreements,
+        verifyChecklist,
+        recommendedAnswerModelKey: r.recommendedAnswerModelKey,
+        confidence: r.confidence,
+      },
+    ];
+  });
+
   const recommendationResult = recommendationSchema.safeParse(
     run.recommendationJson
   );
@@ -224,6 +279,8 @@ export default async function RunPage({ params }: RunPageProps) {
       responses={responses}
       modelMetrics={modelMetricsData}
       questionAgreements={questionAgreementsData}
+      questionTruths={questionTruthsData}
+      questionReferees={questionRefereesData}
       recommendation={recommendation}
       completedAt={run.completedAt?.toISOString() ?? null}
       modelCount={run.models.length}

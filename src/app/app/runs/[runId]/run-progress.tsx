@@ -24,6 +24,8 @@ import type {
   ModelMetricData,
   RecommendationData,
   QuestionAgreementData,
+  QuestionTruthData,
+  QuestionRefereeData,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +42,8 @@ interface RunProgressViewProps {
   responses: ResponseData[];
   modelMetrics?: ModelMetricData[];
   questionAgreements?: QuestionAgreementData[];
+  questionTruths?: QuestionTruthData[];
+  questionReferees?: QuestionRefereeData[];
   recommendation?: RecommendationData | null;
   completedAt?: string | null;
   modelCount?: number;
@@ -70,6 +74,8 @@ export function RunProgressView({
   responses,
   modelMetrics = [],
   questionAgreements = [],
+  questionTruths = [],
+  questionReferees = [],
   recommendation = null,
   completedAt = null,
   modelCount = 0,
@@ -196,6 +202,23 @@ export function RunProgressView({
     }
     return map;
   }, [questionAgreements]);
+
+  // Build truth/referee lookups for per-question panels
+  const truthMap = useMemo(() => {
+    const map = new Map<string, QuestionTruthData>();
+    for (const t of questionTruths) {
+      map.set(t.questionId, t);
+    }
+    return map;
+  }, [questionTruths]);
+
+  const refereeMap = useMemo(() => {
+    const map = new Map<string, QuestionRefereeData>();
+    for (const r of questionReferees) {
+      map.set(r.questionId, r);
+    }
+    return map;
+  }, [questionReferees]);
 
   // Build model stats (avg latency + avg cost) keyed by modelTargetId
   const modelStats = useMemo(() => {
@@ -328,6 +351,8 @@ export function RunProgressView({
           <QuestionResults
             questionGroups={questionGroups}
             agreementMap={agreementMap}
+            truthMap={truthMap}
+            refereeMap={refereeMap}
             expandedRows={expandedRows}
             onToggleRow={toggleRow}
             questionRefs={questionRefsRef}

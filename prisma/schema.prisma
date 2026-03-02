@@ -156,6 +156,8 @@ model Question {
   jobs            Job[]
   responses       LlmResponse[]
   questionAgreements RunQuestionAgreement[]
+  questionTruths     RunQuestionTruth[]
+  questionReferees   RunQuestionReferee[]
 
   @@index([surveyId, order])
 }
@@ -206,6 +208,8 @@ model SurveyRun {
   auditEvents  AuditEvent[] @relation("AuditTargetRun")
   modelMetrics       RunModelMetric[]
   questionAgreements RunQuestionAgreement[]
+  questionTruths     RunQuestionTruth[]
+  questionReferees   RunQuestionReferee[]
 
   @@index([surveyId, createdAt])
   @@index([surveyId, status, completedAt])
@@ -380,6 +384,48 @@ model RunQuestionAgreement {
 
   run                SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   question           Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
+}
+
+model RunQuestionTruth {
+  id                       String    @id @default(uuid())
+  runId                    String
+  questionId               String
+  truthScore               Float
+  truthLabel               String
+  consensusPercent         Float
+  citationRate             Float
+  numericDisagreementsJson Json
+  claimClustersJson        Json
+  breakdownJson            Json
+  createdAt                DateTime  @default(now())
+
+  run                      SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  question                 Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
+}
+
+model RunQuestionReferee {
+  id                       String    @id @default(uuid())
+  runId                    String
+  questionId               String
+  refereeModelKey          String
+  summary                  String    @db.Text
+  disagreementsJson        Json
+  verifyChecklistJson      Json
+  recommendedAnswerModelKey String?
+  confidence               Float
+  rawJson                  Json
+  createdAt                DateTime  @default(now())
+
+  run                      SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  question                 Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([runId, questionId])
   @@index([runId])

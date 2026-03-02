@@ -37,6 +37,9 @@ import {
   type FactCheckResult,
 } from "@/lib/analysis/fact-check";
 import { computeFactConfidence } from "@/lib/analysis/fact-confidence";
+import { computeTruthScore, extractClaims } from "@/lib/truth-engine";
+import type { ModelAnswer, ExtractedClaim } from "@/lib/truth-engine";
+import { runReferee } from "@/lib/truth-engine/referee";
 
 interface ComputeMetricsHandlerPayload extends ComputeMetricsPayload {
   jobId: string;
@@ -452,7 +455,145 @@ export async function handleComputeMetrics(
       ]);
     });
 
-    // 7. Mark job as SUCCEEDED
+    // 7. Compute Truth Engine scores + AI Referee per question
+    let truthCount = 0;
+    let refereeCount = 0;
+
+    for (const [questionId, data] of byQuestion) {
+      // Skip ranked questions — truth engine is designed for open-ended
+      if (data.questionType === "RANKED") continue;
+
+      try {
+        // Build ModelAnswer inputs
+        const modelAnswers: ModelAnswer[] = data.responses.map((r) => {
+          const flags = flagsJsonSchema.parse(r.analysis?.flagsJson) ?? [];
+          const rawParsed: unknown = r.parsedJson;
+          const parsed =
+            rawParsed === null || rawParsed === Prisma.JsonNull
+              ? null
+              : (rawParsed as Record<string, unknown>);
+          const rawCitations: unknown = r.citationsJson;
+          const citations =
+            rawCitations === null || rawCitations === Prisma.JsonNull
+              ? null
+              : (rawCitations as Array<{ url?: string }>);
+
+          const answerText =
+            parsed && typeof parsed === "object" && "answerText" in parsed
+              ? String(parsed.answerText)
+              : r.rawText;
+
+          const citationUrls: string[] = [];
+          if (citations && Array.isArray(citations)) {
+            for (const c of citations) {
+              if (c && typeof c === "object" && "url" in c && typeof c.url === "string") {
+                citationUrls.push(c.url);
+              }
+            }
+          }
+
+          return {
+            modelKey: r.modelTarget.modelName,
+            text: answerText,
+            citations: citationUrls,
+            isEmpty: flags.includes("empty_answer") || !r.rawText.trim(),
+            isShort: flags.includes("short_answer"),
+          };
+        });
+
+        // Compute truth score
+        const truthResult = computeTruthScore(modelAnswers);
+
+        // Persist RunQuestionTruth
+        await prisma.runQuestionTruth.upsert({
+          where: { runId_questionId: { runId, questionId } },
+          create: {
+            runId,
+            questionId,
+            truthScore: truthResult.truthScore,
+            truthLabel: truthResult.truthLabel,
+            consensusPercent: truthResult.consensusPercent,
+            citationRate: truthResult.citationRate,
+            numericDisagreementsJson:
+              truthResult.numericDisagreements as unknown as Prisma.InputJsonValue,
+            claimClustersJson:
+              truthResult.claimClusters as unknown as Prisma.InputJsonValue,
+            breakdownJson:
+              truthResult.breakdown as unknown as Prisma.InputJsonValue,
+          },
+          update: {
+            truthScore: truthResult.truthScore,
+            truthLabel: truthResult.truthLabel,
+            consensusPercent: truthResult.consensusPercent,
+            citationRate: truthResult.citationRate,
+            numericDisagreementsJson:
+              truthResult.numericDisagreements as unknown as Prisma.InputJsonValue,
+            claimClustersJson:
+              truthResult.claimClusters as unknown as Prisma.InputJsonValue,
+            breakdownJson:
+              truthResult.breakdown as unknown as Prisma.InputJsonValue,
+          },
+        });
+        truthCount++;
+
+        // Run AI Referee Pass
+        const allClaims: ExtractedClaim[] = modelAnswers.flatMap((a) =>
+          a.isEmpty ? [] : extractClaims(a.text, a.modelKey, a.citations)
+        );
+
+        const refereeResult = await runReferee({
+          questionText: data.questionTitle,
+          modelAnswers: modelAnswers
+            .filter((a) => !a.isEmpty)
+            .map((a) => ({ modelKey: a.modelKey, text: a.text })),
+          claims: allClaims,
+          disagreements: truthResult.numericDisagreements,
+        });
+
+        if (refereeResult) {
+          await prisma.runQuestionReferee.upsert({
+            where: { runId_questionId: { runId, questionId } },
+            create: {
+              runId,
+              questionId,
+              refereeModelKey: "gpt-4o-mini",
+              summary: refereeResult.summary,
+              disagreementsJson:
+                refereeResult.disagreements as unknown as Prisma.InputJsonValue,
+              verifyChecklistJson:
+                refereeResult.verifyChecklist as unknown as Prisma.InputJsonValue,
+              recommendedAnswerModelKey:
+                refereeResult.recommendedAnswerModelKey,
+              confidence: refereeResult.confidence,
+              rawJson:
+                refereeResult.raw as unknown as Prisma.InputJsonValue,
+            },
+            update: {
+              refereeModelKey: "gpt-4o-mini",
+              summary: refereeResult.summary,
+              disagreementsJson:
+                refereeResult.disagreements as unknown as Prisma.InputJsonValue,
+              verifyChecklistJson:
+                refereeResult.verifyChecklist as unknown as Prisma.InputJsonValue,
+              recommendedAnswerModelKey:
+                refereeResult.recommendedAnswerModelKey,
+              confidence: refereeResult.confidence,
+              rawJson:
+                refereeResult.raw as unknown as Prisma.InputJsonValue,
+            },
+          });
+          refereeCount++;
+        }
+      } catch (truthErr) {
+        // Truth engine errors should not fail the entire metrics job
+        console.warn(
+          `[compute-metrics] Truth engine error for question ${questionId}:`,
+          truthErr instanceof Error ? truthErr.message : truthErr
+        );
+      }
+    }
+
+    // 8. Mark job as SUCCEEDED
     await prisma.job.update({
       where: { id: jobId },
       data: {
@@ -462,7 +603,7 @@ export async function handleComputeMetrics(
     });
 
     console.log(
-      `[compute-metrics] Completed for run ${runId}: ${modelScores.length} models, ${questionReviews.length} questions`
+      `[compute-metrics] Completed for run ${runId}: ${modelScores.length} models, ${questionReviews.length} questions, ${truthCount} truth scores, ${refereeCount} referee passes`
     );
   } catch (err) {
     try {
