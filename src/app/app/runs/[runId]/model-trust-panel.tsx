@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -178,6 +178,20 @@ export function ModelTrustPanel({
   runId,
   modelStats,
 }: ModelTrustPanelProps): React.JSX.Element {
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
+
+  const toggleQuestion = useCallback((questionId: string) => {
+    setExpandedQuestions((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -242,11 +256,28 @@ export function ModelTrustPanel({
                   const outlierSet = new Set(a.outlierModels);
                   return (
                     <TableRow key={a.questionId}>
-                      <TableCell className="max-w-xs font-medium">
+                      <TableCell className="max-w-md font-medium">
                         <span className="text-[hsl(var(--muted-foreground))]">
                           Q{a.questionOrder + 1}:
                         </span>{" "}
-                        <span className="truncate">{a.questionTitle}</span>
+                        {a.questionTitle.length > 100 ? (
+                          <>
+                            {expandedQuestions.has(a.questionId)
+                              ? a.questionTitle
+                              : a.questionTitle.slice(0, 100) + "…"}
+                            <button
+                              type="button"
+                              aria-expanded={expandedQuestions.has(a.questionId)}
+                              aria-label={`${expandedQuestions.has(a.questionId) ? "Collapse" : "Expand"} question ${a.questionOrder + 1}`}
+                              onClick={() => toggleQuestion(a.questionId)}
+                              className="ml-1 text-xs font-normal text-[hsl(var(--primary))] hover:underline"
+                            >
+                              {expandedQuestions.has(a.questionId) ? "show less" : "show more"}
+                            </button>
+                          </>
+                        ) : (
+                          a.questionTitle
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
