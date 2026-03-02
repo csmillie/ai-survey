@@ -127,11 +127,6 @@ export default async function RunPage({ params }: RunPageProps) {
     };
   });
 
-  // Total cost
-  const totalCostUsd = responses.reduce((sum, r) => {
-    return sum + (r.costUsd ? parseFloat(r.costUsd) : 0);
-  }, 0);
-
   // Load ModelTrust metrics (may be empty for older runs)
   const [modelMetrics, questionAgreements] = await Promise.all([
     prisma.runModelMetric.findMany({
@@ -218,7 +213,6 @@ export default async function RunPage({ params }: RunPageProps) {
       completedJobs={completedJobs}
       failedJobs={failedJobs}
       responses={responses}
-      totalCostUsd={totalCostUsd}
       modelMetrics={modelMetricsData}
       questionAgreements={questionAgreementsData}
       recommendation={recommendation}

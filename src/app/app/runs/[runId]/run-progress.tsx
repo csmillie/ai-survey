@@ -12,7 +12,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cancelRunAction, exportRunAction } from "./actions";
+import { cancelRunAction } from "./actions";
 import { StatusBadge, StatCard } from "./shared-components";
 import { DecisionHeader } from "./decision-header";
 import { NeedsReview } from "./needs-review";
@@ -38,7 +38,6 @@ interface RunProgressViewProps {
   completedJobs: number;
   failedJobs: number;
   responses: ResponseData[];
-  totalCostUsd: number;
   modelMetrics?: ModelMetricData[];
   questionAgreements?: QuestionAgreementData[];
   recommendation?: RecommendationData | null;
@@ -69,7 +68,6 @@ export function RunProgressView({
   completedJobs: initialCompleted,
   failedJobs: initialFailed,
   responses,
-  totalCostUsd,
   modelMetrics = [],
   questionAgreements = [],
   recommendation = null,
@@ -85,8 +83,6 @@ export function RunProgressView({
   const [error, setError] = useState<string | null>(null);
 
   const [isCancelling, startCancelTransition] = useTransition();
-  const [isExporting, startExportTransition] = useTransition();
-  const [exportSuccess, setExportSuccess] = useState(false);
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -147,19 +143,6 @@ export function RunProgressView({
         setError(result.error);
       } else {
         setStatus("CANCELLED");
-      }
-    });
-  }, [runId]);
-
-  const handleExport = useCallback(() => {
-    startExportTransition(async () => {
-      setError(null);
-      setExportSuccess(false);
-      const result = await exportRunAction(runId);
-      if (!result.success) {
-        setError(result.error);
-      } else {
-        setExportSuccess(true);
       }
     });
   }, [runId]);
@@ -324,12 +307,8 @@ export function RunProgressView({
             modelCount={modelCount}
             recommendation={hasMetrics ? recommendation : null}
             totalResponses={responses.length}
-            totalCostUsd={totalCostUsd}
             avgLatencyMs={avgLatencyMs}
             status={status}
-            onExport={handleExport}
-            isExporting={isExporting}
-            exportSuccess={exportSuccess}
           />
 
           <NeedsReview
