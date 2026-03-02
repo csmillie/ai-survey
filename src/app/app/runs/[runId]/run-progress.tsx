@@ -115,6 +115,7 @@ export function RunProgressView({
         if (terminal) {
           es.close();
           eventSourceRef.current = null;
+          setStatus(data.status);
           router.refresh();
           return;
         }
