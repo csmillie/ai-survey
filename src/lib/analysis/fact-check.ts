@@ -7,11 +7,16 @@
 // Types
 // ---------------------------------------------------------------------------
 
+export type ClaimCategory = "percentage" | "currency" | "year" | "rating";
+
 export interface ExtractedClaim {
-  type: "number" | "percentage" | "date" | "assertion";
+  type: "number" | "percentage" | "date" | "assertion" | "rating";
+  category?: ClaimCategory;
   raw: string;
   normalized: string;
   value?: number;
+  scaleMax?: number;        // For ratings: top of the scale (e.g. 10 for "7/10")
+  normalizedScore?: number; // For ratings: value normalized to 0-100
 }
 
 export interface CitationAnalysis {
@@ -28,6 +33,7 @@ export interface FactCheckResult {
 
 export interface NumericDisagreement {
   claim: string;
+  category?: ClaimCategory;
   values: Array<{ modelName: string; value: number; raw: string }>;
   maxDelta: number;
   meanValue: number;
@@ -62,6 +68,7 @@ export function extractNumericClaims(text: string): ExtractedClaim[] {
     seen.add(raw);
     claims.push({
       type: "percentage",
+      category: "percentage",
       raw,
       normalized: `${parseFloat(match[1])}%`,
       value: parseFloat(match[1]),
@@ -79,6 +86,7 @@ export function extractNumericClaims(text: string): ExtractedClaim[] {
     const multiplier = getMultiplier(match[2]);
     claims.push({
       type: "number",
+      category: "currency",
       raw,
       normalized: `$${(base * multiplier).toLocaleString("en-US")}`,
       value: base * multiplier,
@@ -123,6 +131,7 @@ export function extractDateClaims(text: string): ExtractedClaim[] {
     seen.add(raw);
     claims.push({
       type: "date",
+      category: "year",
       raw,
       normalized: match[2],
       value: parseInt(match[2], 10),
@@ -140,6 +149,67 @@ export function extractDateClaims(text: string): ExtractedClaim[] {
       type: "date",
       raw,
       normalized: `${match[1]} ${match[2]}`,
+    });
+  }
+
+  return claims;
+}
+
+/**
+ * Extract rating/score claims from text.
+ * Patterns: "7 out of 10", "8/10", "4.5 of 5", "rated 85/100",
+ * "score: 7/10", "3.5 out of 5 stars"
+ */
+export function extractRatingClaims(text: string): ExtractedClaim[] {
+  const claims: ExtractedClaim[] = [];
+  const seen = new Set<string>();
+
+  // Common rating scales we recognise
+  const validScales = new Set([3, 4, 5, 6, 7, 10, 20, 25, 50, 100]);
+
+  // Pattern 1: "X out of Y", "X of Y" (with optional context words)
+  // e.g., "7 out of 10", "rated 4.5 out of 5", "score of 85 out of 100"
+  const outOfRegex =
+    /(?:rated?|score[ds]?|rating|ranked?|graded?)?[:\s]*(\d+(?:\.\d+)?)\s+(?:out\s+of|of)\s+(\d+(?:\.\d+)?)\s*(?:stars?|points?)?/gi;
+  for (const match of text.matchAll(outOfRegex)) {
+    const raw = match[0].trim();
+    if (seen.has(raw)) continue;
+    const val = parseFloat(match[1]);
+    const scale = parseFloat(match[2]);
+    if (!validScales.has(scale) || val > scale || val < 0 || scale === 0)
+      continue;
+    seen.add(raw);
+    claims.push({
+      type: "rating",
+      category: "rating",
+      raw,
+      normalized: `${val}/${scale}`,
+      value: val,
+      scaleMax: scale,
+      normalizedScore: (val / scale) * 100,
+    });
+  }
+
+  // Pattern 2: "X/Y" (slash notation)
+  // e.g., "8/10", "4.5/5", "85/100"
+  const slashRegex =
+    /(?:rated?|score[ds]?|rating|ranked?|graded?)?[:\s]*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*(?:stars?|points?)?/gi;
+  for (const match of text.matchAll(slashRegex)) {
+    const raw = match[0].trim();
+    if (seen.has(raw)) continue;
+    const val = parseFloat(match[1]);
+    const scale = parseFloat(match[2]);
+    if (!validScales.has(scale) || val > scale || val < 0 || scale === 0)
+      continue;
+    seen.add(raw);
+    claims.push({
+      type: "rating",
+      category: "rating",
+      raw,
+      normalized: `${val}/${scale}`,
+      value: val,
+      scaleMax: scale,
+      normalizedScore: (val / scale) * 100,
     });
   }
 
@@ -205,7 +275,11 @@ export function extractFactCheckData(
   citations: Array<{ url: string; title?: string; snippet?: string }>
 ): FactCheckResult {
   return {
-    claims: [...extractNumericClaims(text), ...extractDateClaims(text)],
+    claims: [
+      ...extractNumericClaims(text),
+      ...extractDateClaims(text),
+      ...extractRatingClaims(text),
+    ],
     citationAnalysis: analyzeCitations(citations),
     keySentences: extractKeySentences(text),
   };
@@ -230,21 +304,46 @@ export function compareAcrossModels(
   const agreementSignals: string[] = [];
   const disagreementSignals: string[] = [];
 
-  // --- Numeric comparison ---
-  // Group numeric claims by normalized form or close values
+  // --- Numeric comparison (category-aware) ---
   const numericDisagreements = findNumericDisagreements(models);
+
   if (numericDisagreements.length > 0) {
-    disagreementSignals.push(
-      `${numericDisagreements.length} numeric disagreement${numericDisagreements.length === 1 ? "" : "s"} detected`
-    );
+    // Group disagreements by category to produce specific signals
+    const catCounts = new Map<string, number>();
+    for (const d of numericDisagreements) {
+      const label = categoryLabel(d.category);
+      catCounts.set(label, (catCounts.get(label) ?? 0) + 1);
+    }
+    for (const [label, count] of catCounts) {
+      disagreementSignals.push(
+        `${count} ${label} disagreement${count === 1 ? "" : "s"} detected`
+      );
+    }
   }
 
-  // Check if all models that mention numbers agree
-  const allNumericClaims = models.flatMap((m) =>
-    m.factCheck.claims.filter((c) => c.type === "number" || c.type === "percentage")
+  // Check if all models that mention comparable values agree
+  const allComparableClaims = models.flatMap((m) =>
+    m.factCheck.claims.filter(
+      (c) =>
+        c.type === "number" ||
+        c.type === "percentage" ||
+        c.type === "rating" ||
+        (c.type === "date" && c.category === "year")
+    )
   );
-  if (allNumericClaims.length > 0 && numericDisagreements.length === 0) {
-    agreementSignals.push("consistent numeric claims");
+
+  if (allComparableClaims.length > 0 && numericDisagreements.length === 0) {
+    // Generate category-specific agreement signals
+    const agreedCategories = new Set(
+      allComparableClaims.map((c) => c.category).filter(Boolean)
+    );
+    if (agreedCategories.size > 0) {
+      for (const cat of agreedCategories) {
+        agreementSignals.push(`consistent ${categoryLabel(cat)} claims`);
+      }
+    } else {
+      agreementSignals.push("consistent numeric claims");
+    }
   }
 
   // --- Citation comparison ---
@@ -338,13 +437,60 @@ function getMultiplier(suffix: string | undefined): number {
 }
 
 /**
+ * Build a grouping key for a claim based on its category + magnitude.
+ * Claims with a category are grouped by category first (percentage vs
+ * percentage, currency vs currency, etc.) then by order of magnitude.
+ * Ratings use the normalized 0-100 score for comparison, so different
+ * scales (e.g. "7/10" and "3.5/5") can be compared directly.
+ */
+function claimGroupKey(claim: ExtractedClaim): string {
+  const cat = claim.category ?? claim.type;
+
+  // Ratings are always compared on the normalised 0-100 scale
+  if (cat === "rating") return "rating:normalized";
+
+  const comparisonValue =
+    claim.value !== undefined && claim.value !== 0
+      ? Math.floor(Math.log10(Math.abs(claim.value)))
+      : 0;
+  return `${cat}:${comparisonValue}`;
+}
+
+/**
+ * For ratings we compare the normalizedScore (0-100); for everything else
+ * we compare the raw value.
+ */
+function comparableValue(claim: ExtractedClaim): number | undefined {
+  if (claim.category === "rating") return claim.normalizedScore;
+  return claim.value;
+}
+
+/** Human-readable label for a category. */
+function categoryLabel(cat: ClaimCategory | undefined): string {
+  switch (cat) {
+    case "percentage":
+      return "percentage";
+    case "currency":
+      return "dollar amount";
+    case "year":
+      return "year";
+    case "rating":
+      return "rating";
+    default:
+      return "numeric";
+  }
+}
+
+/**
  * Find numeric disagreements across models.
- * Groups claims by proximity (within 20% of mean) and flags splits.
+ * Groups claims by category + magnitude so that percentages are compared
+ * with percentages, dollar amounts with dollar amounts, ratings with
+ * ratings (normalised to 0-100), and years with years.
  */
 function findNumericDisagreements(
   models: ModelFactData[]
 ): NumericDisagreement[] {
-  // Collect all numeric claims with model attribution
+  // Collect all comparable claims with model attribution
   const allClaims: Array<{
     modelName: string;
     claim: ExtractedClaim;
@@ -352,7 +498,12 @@ function findNumericDisagreements(
 
   for (const m of models) {
     for (const c of m.factCheck.claims) {
-      if ((c.type === "number" || c.type === "percentage") && c.value !== undefined) {
+      const isComparable =
+        c.type === "number" ||
+        c.type === "percentage" ||
+        c.type === "rating" ||
+        (c.type === "date" && c.category === "year");
+      if (isComparable && comparableValue(c) !== undefined) {
         allClaims.push({ modelName: m.modelName, claim: c });
       }
     }
@@ -360,15 +511,10 @@ function findNumericDisagreements(
 
   if (allClaims.length < 2) return [];
 
-  // Group claims by type + rough magnitude (same order of magnitude)
+  // Group claims by category + magnitude
   const groups = new Map<string, typeof allClaims>();
   for (const entry of allClaims) {
-    // Group key: type + order of magnitude
-    const magnitude =
-      entry.claim.value !== undefined && entry.claim.value !== 0
-        ? Math.floor(Math.log10(Math.abs(entry.claim.value)))
-        : 0;
-    const key = `${entry.claim.type}:${magnitude}`;
+    const key = claimGroupKey(entry.claim);
     const group = groups.get(key);
     if (group) {
       group.push(entry);
@@ -385,21 +531,25 @@ function findNumericDisagreements(
     if (uniqueModels.size < 2) continue;
 
     const values = group
-      .filter((g) => g.claim.value !== undefined)
-      .map((g) => g.claim.value as number);
+      .map((g) => comparableValue(g.claim))
+      .filter((v): v is number => v !== undefined);
     if (values.length < 2) continue;
 
     const meanValue = values.reduce((a, b) => a + b, 0) / values.length;
     const maxDelta = Math.max(...values) - Math.min(...values);
 
-    // Flag if values differ by more than 5% of the mean
-    const threshold = Math.abs(meanValue) * 0.05;
+    // Category-aware threshold:
+    //   years → any difference (threshold 0) since even 1 year matters
+    //   everything else → 5% of the mean
+    const cat = group[0].claim.category;
+    const threshold = cat === "year" ? 0 : Math.abs(meanValue) * 0.05;
     if (maxDelta > threshold && maxDelta > 0) {
       disagreements.push({
         claim: group[0].claim.normalized,
+        category: cat,
         values: group.map((g) => ({
           modelName: g.modelName,
-          value: g.claim.value as number,
+          value: comparableValue(g.claim) ?? (g.claim.value as number),
           raw: g.claim.raw,
         })),
         maxDelta,

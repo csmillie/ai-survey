@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import type { QuestionAgreementData } from "./types";
+import type { QuestionAgreementData, ClaimCategory } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,7 +65,7 @@ function signalIcon(signal: string): string {
   ) {
     return "+";
   }
-  // Negative signals
+  // Negative signals (includes category-specific like "percentage disagreement")
   if (
     signal.includes("disagreement") ||
     signal.includes("missing") ||
@@ -83,6 +83,21 @@ function signalColor(signal: string): string {
   if (icon === "+") return "text-green-700 dark:text-green-400";
   if (icon === "-") return "text-red-700 dark:text-red-400";
   return "text-[hsl(var(--muted-foreground))]";
+}
+
+function categoryHeading(category: ClaimCategory | undefined): string {
+  switch (category) {
+    case "percentage":
+      return "Percentage";
+    case "currency":
+      return "Dollar Amount";
+    case "year":
+      return "Year";
+    case "rating":
+      return "Rating / Score";
+    default:
+      return "Numeric";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -136,24 +151,44 @@ export function FactConfidenceCard({
 
       {factComparison && factComparison.numericDisagreements.length > 0 && (
         <div className="mt-2 border-t border-[hsl(var(--border))]/50 pt-2">
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-            Numeric Disagreements:
-          </p>
-          {factComparison.numericDisagreements.map((d) => (
-            <div key={d.claim} className="mt-1 text-xs">
-              {d.values.map((v) => (
-                <span
-                  key={`${d.claim}-${v.modelName}`}
-                  className="mr-2 inline-block"
-                >
-                  <span className="font-medium">{v.modelName}:</span>{" "}
-                  <span className="text-[hsl(var(--muted-foreground))]">
-                    {v.raw}
-                  </span>
-                </span>
-              ))}
-            </div>
-          ))}
+          {/* Group disagreements by category */}
+          {(() => {
+            const byCategory = new Map<
+              string,
+              typeof factComparison.numericDisagreements
+            >();
+            for (const d of factComparison.numericDisagreements) {
+              const key = d.category ?? "numeric";
+              const list = byCategory.get(key);
+              if (list) {
+                list.push(d);
+              } else {
+                byCategory.set(key, [d]);
+              }
+            }
+            return [...byCategory.entries()].map(([cat, items]) => (
+              <div key={cat} className="mb-1">
+                <p className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                  {categoryHeading(cat === "numeric" ? undefined : (cat as ClaimCategory))} Disagreements:
+                </p>
+                {items.map((d) => (
+                  <div key={d.claim} className="mt-1 text-xs">
+                    {d.values.map((v) => (
+                      <span
+                        key={`${d.claim}-${v.modelName}`}
+                        className="mr-2 inline-block"
+                      >
+                        <span className="font-medium">{v.modelName}:</span>{" "}
+                        <span className="text-[hsl(var(--muted-foreground))]">
+                          {v.raw}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ));
+          })()}
         </div>
       )}
 
