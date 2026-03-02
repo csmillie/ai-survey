@@ -176,4 +176,25 @@ describe("GrokProvider", () => {
     expect(call.max_tokens).toBe(4096);
     expect(call.temperature).toBe(0.7);
   });
+
+  it("passes topP to the API call", async () => {
+    mockCreate.mockResolvedValue(makeResponse());
+    await provider.sendRequest({
+      model: "grok-2",
+      messages: [{ role: "user", content: "Hello" }],
+      topP: 0.5,
+    });
+    const call = mockCreate.mock.calls[0][0];
+    expect(call.top_p).toBe(0.5);
+  });
+
+  it("defaults topP to 1 when not provided", async () => {
+    mockCreate.mockResolvedValue(makeResponse());
+    await provider.sendRequest({
+      model: "grok-2",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+    const call = mockCreate.mock.calls[0][0];
+    expect(call.top_p).toBe(1);
+  });
 });
