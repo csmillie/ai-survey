@@ -485,6 +485,48 @@ function ResponseRow({
 }
 
 // ---------------------------------------------------------------------------
+// QuestionTitle — truncates long titles with expand/collapse
+// ---------------------------------------------------------------------------
+
+const TITLE_TRUNCATE_LENGTH = 100;
+
+function QuestionTitle({
+  order,
+  title,
+  isExpanded,
+  onToggle,
+}: {
+  order: number;
+  title: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}): React.JSX.Element {
+  const isTruncatable = title.length > TITLE_TRUNCATE_LENGTH;
+  const displayText =
+    isTruncatable && !isExpanded
+      ? title.slice(0, TITLE_TRUNCATE_LENGTH) + ".."
+      : title;
+
+  return (
+    <CardTitle className="text-lg">
+      Q{order}: {displayText}
+      {isTruncatable && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className="ml-1 text-sm font-normal text-[hsl(var(--primary))] hover:underline"
+        >
+          {isExpanded ? "show less" : "show more"}
+        </button>
+      )}
+    </CardTitle>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // QuestionResults
 // ---------------------------------------------------------------------------
 
@@ -495,6 +537,20 @@ export const QuestionResults = memo(function QuestionResults({
   onToggleRow,
   questionRefs,
 }: QuestionResultsProps): React.JSX.Element {
+  const [expandedTitles, setExpandedTitles] = useState<Set<string>>(new Set());
+
+  const toggleTitle = useCallback((questionId: string) => {
+    setExpandedTitles((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <>
       {questionGroups.map((group) => {
@@ -509,7 +565,12 @@ export const QuestionResults = memo(function QuestionResults({
             }}
           >
             <CardHeader>
-              <CardTitle className="text-lg">Q{group.questionOrder}: {group.questionTitle}</CardTitle>
+              <QuestionTitle
+                order={group.questionOrder + 1}
+                title={group.questionTitle}
+                isExpanded={expandedTitles.has(group.questionId)}
+                onToggle={() => toggleTitle(group.questionId)}
+              />
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}
