@@ -41,9 +41,8 @@ export default function LoginPage() {
               Evaluate which AI models can be trusted in real decision-making.
             </span>
             <span className="block">
-              ModelTrust compares responses across models, measures reliability,
-              detects disagreement, and helps teams decide when human review is
-              needed.
+              ModelTrust compares outputs across models, measures reliability,
+              detects disagreement, and signals when human review is needed.
             </span>
           </CardDescription>
         </CardHeader>

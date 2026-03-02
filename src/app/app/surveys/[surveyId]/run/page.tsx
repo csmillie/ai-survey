@@ -97,9 +97,9 @@ export default async function RunConfigPage({ params }: RunConfigPageProps) {
           href={`/app/surveys/${surveyId}`}
           className="text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          &larr; Back to Survey
+          &larr; Back to Evaluation
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Run Survey</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Run Evaluation</h1>
       </div>
 
       <p className="text-[hsl(var(--muted-foreground))]">
@@ -107,7 +107,7 @@ export default async function RunConfigPage({ params }: RunConfigPageProps) {
         <span className="font-medium text-[hsl(var(--foreground))]">
           {survey.title}
         </span>
-        . This survey has {fullSurvey.questions.length} question
+        . This evaluation has {fullSurvey.questions.length} prompt
         {fullSurvey.questions.length === 1 ? "" : "s"} and{" "}
         {fullSurvey.variables.length} variable
         {fullSurvey.variables.length === 1 ? "" : "s"}.
@@ -130,9 +130,9 @@ export default async function RunConfigPage({ params }: RunConfigPageProps) {
       {pastRuns.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Past Runs</CardTitle>
+            <CardTitle>Run History</CardTitle>
             <CardDescription>
-              Previous runs for this survey.
+              Previous runs for this evaluation.
             </CardDescription>
           </CardHeader>
           <CardContent>

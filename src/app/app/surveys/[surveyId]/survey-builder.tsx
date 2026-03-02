@@ -126,7 +126,7 @@ export function SurveyBuilder({
       <Tabs defaultValue="questions">
         <TabsList>
           <TabsTrigger value="questions">
-            Questions ({questions.length})
+            Decision Prompts ({questions.length})
           </TabsTrigger>
           <TabsTrigger value="variables">
             Variables ({variables.length})
@@ -157,7 +157,7 @@ export function SurveyBuilder({
       {runs.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Results</CardTitle>
+            <CardTitle className="text-xl">Run History</CardTitle>
             <CardDescription>
               Past runs and their results.
             </CardDescription>
@@ -209,7 +209,7 @@ export function SurveyBuilder({
                         href={`/app/runs/${run.id}`}
                         className="text-sm font-medium text-[hsl(var(--primary))] hover:underline"
                       >
-                        Results
+                        Analysis
                       </Link>
                     </TableCell>
                   </TableRow>
@@ -376,23 +376,23 @@ function QuestionsTab({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
-          <CardTitle className="text-xl">Questions</CardTitle>
+          <CardTitle className="text-xl">Decision Prompts</CardTitle>
           <CardDescription>
-            Define the questions that will be sent to AI models.
+            Define the prompts that will be sent to AI models.
           </CardDescription>
         </div>
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger>
-            <Button size="sm">Add Question</Button>
+            <Button size="sm">Add Prompt</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Question</DialogTitle>
+              <DialogTitle>Add Decision Prompt</DialogTitle>
             </DialogHeader>
             <form ref={addFormRef} action={handleAddQuestion} className="space-y-4">
               {/* Question Type Selector */}
               <div className="space-y-2">
-                <Label>Question Type</Label>
+                <Label>Prompt Type</Label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -416,7 +416,7 @@ function QuestionsTab({
 
               {/* Prompt Template */}
               <div className="space-y-2">
-                <Label htmlFor="q-prompt">Question</Label>
+                <Label htmlFor="q-prompt">Prompt</Label>
                 <Textarea
                   id="q-prompt"
                   name="promptTemplate"
@@ -486,7 +486,7 @@ function QuestionsTab({
                       className="h-4 w-4 rounded border-[hsl(var(--border))]"
                     />
                     <Label htmlFor="q-includeReasoning" className="text-sm font-normal">
-                      Include reasoning in response
+                      Include reasoning in output
                     </Label>
                   </div>
                   <input
@@ -576,7 +576,7 @@ function QuestionsTab({
                     value={creatingNewThread ? newThreadKey : threadKeySelection}
                   />
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    Questions with the same thread share conversation history.
+                    Prompts with the same thread share conversation history.
                   </p>
                 </div>
               )}
@@ -588,7 +588,7 @@ function QuestionsTab({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Add Question</Button>
+                <Button type="submit">Add Prompt</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -597,7 +597,7 @@ function QuestionsTab({
       <CardContent>
         {questions.length === 0 ? (
           <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-            No questions yet. Add your first question to get started.
+            No decision prompts yet. Add your first prompt to get started.
           </p>
         ) : (
           <Table>
@@ -1252,7 +1252,7 @@ function SharingTab({
       <CardHeader>
         <CardTitle className="text-xl">Sharing</CardTitle>
         <CardDescription>
-          Manage who has access to this survey.
+          Manage who has access to this evaluation.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -1291,7 +1291,7 @@ function SharingTab({
           </Table>
         ) : (
           <p className="py-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
-            This survey is not shared with anyone yet.
+            This evaluation is not shared with anyone yet.
           </p>
         )}
 

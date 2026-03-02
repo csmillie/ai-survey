@@ -293,7 +293,7 @@ function ResponseRow({
               {/* Full answer or reasoning */}
               <div>
                 <h4 className="mb-1 text-sm font-medium">
-                  {response.score !== null ? "Score & Reasoning" : "Full Answer"}
+                  {response.score !== null ? "Score & Reasoning" : "Full Output"}
                 </h4>
                 {response.score !== null && response.questionConfig ? (
                   <div className="space-y-2">
@@ -347,7 +347,7 @@ function ResponseRow({
 
               {/* Analysis */}
               <div>
-                <h4 className="mb-1 text-sm font-medium">Analysis</h4>
+                <h4 className="mb-1 text-sm font-medium">Reliability Analysis</h4>
                 <div className="flex flex-wrap gap-2">
                   {response.sentimentScore !== null && (
                     <Badge variant="secondary">
@@ -412,7 +412,7 @@ function ResponseRow({
               API Call — {response.provider} / {response.modelName}
             </DialogTitle>
             <DialogDescription>
-              Full request and response for this LLM call
+              Full request and output for this LLM call
               {debugData?.usageJson && (
                 <span className="ml-2">
                   ({debugData.usageJson.inputTokens.toLocaleString()} input /{" "}
@@ -574,7 +574,7 @@ export const QuestionResults = memo(function QuestionResults({
                 onToggle={toggleTitle}
               />
               <CardDescription>
-                {group.responses.length} response
+                {group.responses.length} model output
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
                 {agreement && (
@@ -612,7 +612,7 @@ export const QuestionResults = memo(function QuestionResults({
                     <TableHeader>
                       <TableRow>
                         <TableHead>Model</TableHead>
-                        <TableHead>Answer</TableHead>
+                        <TableHead>Output</TableHead>
                         <TableHead className="text-center">Sentiment</TableHead>
                         <TableHead className="text-center">Citations</TableHead>
                         <TableHead />

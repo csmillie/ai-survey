@@ -22,7 +22,7 @@ export default async function AppLayout({
                 href="/app/surveys"
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                Surveys
+                Evaluations
               </Link>
             </nav>
           </div>

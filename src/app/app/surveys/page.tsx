@@ -29,20 +29,19 @@ export default async function SurveysPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Surveys</h1>
+        <h1 className="text-2xl font-bold">Evaluations</h1>
         <Link href="/app/surveys/new">
-          <Button>New Survey</Button>
+          <Button>New Evaluation</Button>
         </Link>
       </div>
 
       {surveys.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Evaluate which AI models can be trusted in real decision-making.</CardTitle>
+            <CardTitle>No evaluations yet</CardTitle>
             <CardDescription>
-              ModelTrust compares responses across models, measures reliability,
-              detects disagreement, and helps teams decide when human review is
-              needed. Create your first survey to get started.
+              Evaluate which AI models can be trusted in real decision-making.
+              Create your first evaluation to get started.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -55,7 +54,7 @@ export default async function SurveysPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{survey.title}</CardTitle>
                     <span className="text-sm text-muted-foreground">
-                      {survey._count.questions} question{survey._count.questions !== 1 ? "s" : ""}
+                      {survey._count.questions} prompt{survey._count.questions !== 1 ? "s" : ""}
                       {" · "}
                       {survey._count.runs} run{survey._count.runs !== 1 ? "s" : ""}
                     </span>

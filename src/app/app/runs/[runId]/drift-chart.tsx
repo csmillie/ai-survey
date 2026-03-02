@@ -105,7 +105,7 @@ export function DriftChart({ runId }: DriftChartProps) {
   if (!data || data.length < 2) {
     return (
       <p className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]">
-        Run this survey multiple times to see reliability trends over time.
+        Run this evaluation multiple times to see reliability trends over time.
       </p>
     );
   }

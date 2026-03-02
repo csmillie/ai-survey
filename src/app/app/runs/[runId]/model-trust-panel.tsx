@@ -77,7 +77,7 @@ function CalibrationWarning({
           q.overconfidentModels.includes(m.modelName)
         ).length;
         return count > 0
-          ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
+          ? `${m.modelName} overconfident on ${count} prompt${count === 1 ? "" : "s"}`
           : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(1)}/10)`;
       }).join(". ")}
     </CardDescription>
@@ -210,7 +210,7 @@ export function ModelTrustPanel({
                   <TableHead className="text-center">Calibration</TableHead>
                   <TableHead className="text-right">Avg Latency</TableHead>
                   <TableHead className="text-right">Avg Cost</TableHead>
-                  <TableHead className="text-right">Responses</TableHead>
+                  <TableHead className="text-right">Outputs</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -230,7 +230,7 @@ export function ModelTrustPanel({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Question</TableHead>
+                  <TableHead>Prompt</TableHead>
                   <TableHead>Agreement</TableHead>
                   <TableHead>Models</TableHead>
                   <TableHead className="text-center">Overconfidence</TableHead>
