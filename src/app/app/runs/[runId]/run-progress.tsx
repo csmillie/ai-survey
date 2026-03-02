@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useTransition, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +90,7 @@ export function RunProgressView({
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+  const router = useRouter();
   const eventSourceRef = useRef<EventSource | null>(null);
   const questionRefsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
   const isLive = status === "QUEUED" || status === "RUNNING";
@@ -106,6 +108,15 @@ export function RunProgressView({
         const result = sseEventSchema.safeParse(raw);
         if (!result.success) return;
         const data = result.data;
+
+        const terminal = data.status === "COMPLETED" || data.status === "FAILED" || data.status === "CANCELLED";
+        if (terminal) {
+          es.close();
+          eventSourceRef.current = null;
+          router.refresh();
+          return;
+        }
+
         setStatus(data.status);
         setTotal(data.total);
         setCompleted(data.completed);
