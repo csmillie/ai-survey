@@ -269,6 +269,23 @@ function ResponseRow({
           )}
         </TableCell>
         <TableCell className="text-center">
+          {response.confidence !== null ? (
+            <span
+              className={`text-sm font-medium ${
+                response.confidence >= 0.8
+                  ? "text-green-600 dark:text-green-400"
+                  : response.confidence >= 0.5
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-red-600 dark:text-red-400"
+              }`}
+            >
+              {Math.round(response.confidence * 100)}%
+            </span>
+          ) : (
+            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+          )}
+        </TableCell>
+        <TableCell className="text-center">
           <SentimentBadge score={response.sentimentScore} />
         </TableCell>
         <TableCell className="text-center">
@@ -288,7 +305,7 @@ function ResponseRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={5} className="bg-[hsl(var(--muted))]/30 p-6">
+          <TableCell colSpan={6} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
               {/* Full answer or reasoning */}
               <div>
@@ -613,6 +630,7 @@ export const QuestionResults = memo(function QuestionResults({
                       <TableRow>
                         <TableHead>Model</TableHead>
                         <TableHead>Output</TableHead>
+                        <TableHead className="text-center">Confidence</TableHead>
                         <TableHead className="text-center">Sentiment</TableHead>
                         <TableHead className="text-center">Citations</TableHead>
                         <TableHead />

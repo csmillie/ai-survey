@@ -114,6 +114,7 @@ export default async function RunPage({ params }: RunPageProps) {
       reasoningText: resp.reasoningText ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
+      confidence: resp.confidence,
       verificationStatus: resp.verificationStatus,
       costUsd: resp.costUsd?.toString() ?? null,
       latencyMs: resp.latencyMs,
