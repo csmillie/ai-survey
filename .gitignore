@@ -45,3 +45,7 @@ next-env.d.ts
 # editor
 .vscode/
 .idea/
+
+# deploy
+/logs/
+deploy.lock
