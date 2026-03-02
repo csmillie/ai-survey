@@ -63,6 +63,7 @@ export interface ResponseData {
   score: number | null;
   reasoningText: string | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
+  confidence: number | null;
   verificationStatus: "UNREVIEWED" | "VERIFIED" | "INACCURATE";
   sentimentScore: number | null;
   costUsd: string | null;

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
 }
 
@@ -20,7 +20,7 @@ const variantStyles: Record<BadgeVariant, string> = {
 
 function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
-    <div
+    <span
       className={cn(
         "inline-flex items-center rounded-full border border-[hsl(var(--border))] px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2",
         variantStyles[variant],

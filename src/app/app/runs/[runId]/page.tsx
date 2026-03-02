@@ -114,6 +114,7 @@ export default async function RunPage({ params }: RunPageProps) {
       reasoningText: resp.reasoningText ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
+      confidence: resp.confidence,
       verificationStatus: resp.verificationStatus,
       costUsd: resp.costUsd?.toString() ?? null,
       latencyMs: resp.latencyMs,
@@ -126,11 +127,6 @@ export default async function RunPage({ params }: RunPageProps) {
         (resp.analysis?.entitiesJson as AnalysisEntities | null) ?? null,
     };
   });
-
-  // Total cost
-  const totalCostUsd = responses.reduce((sum, r) => {
-    return sum + (r.costUsd ? parseFloat(r.costUsd) : 0);
-  }, 0);
 
   // Load ModelTrust metrics (may be empty for older runs)
   const [modelMetrics, questionAgreements] = await Promise.all([
@@ -218,7 +214,6 @@ export default async function RunPage({ params }: RunPageProps) {
       completedJobs={completedJobs}
       failedJobs={failedJobs}
       responses={responses}
-      totalCostUsd={totalCostUsd}
       modelMetrics={modelMetricsData}
       questionAgreements={questionAgreementsData}
       recommendation={recommendation}

@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./shared-components";
 import type { RecommendationData } from "./types";
@@ -15,12 +14,8 @@ interface DecisionHeaderProps {
   modelCount: number;
   recommendation: RecommendationData | null;
   totalResponses: number;
-  totalCostUsd: number;
   avgLatencyMs: number | null;
   status: string;
-  onExport: () => void;
-  isExporting: boolean;
-  exportSuccess: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,12 +43,8 @@ export function DecisionHeader({
   modelCount,
   recommendation,
   totalResponses,
-  totalCostUsd,
   avgLatencyMs,
   status,
-  onExport,
-  isExporting,
-  exportSuccess,
 }: DecisionHeaderProps): React.JSX.Element {
   return (
     <div className="sticky top-0 z-10 -mx-4 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/80 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-[hsl(var(--background))]/60">
@@ -99,16 +90,12 @@ export function DecisionHeader({
           </div>
         )}
 
-        {/* Right: Stats + Export */}
+        {/* Right: Stats */}
         <div className="flex flex-shrink-0 items-center gap-4">
           <div className="flex gap-4 text-sm">
             <div className="text-right">
               <p className="text-xs text-[hsl(var(--muted-foreground))]">Model Outputs</p>
               <p className="font-semibold">{totalResponses}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Cost</p>
-              <p className="font-semibold">${totalCostUsd.toFixed(4)}</p>
             </div>
             {avgLatencyMs !== null && (
               <div className="text-right">
@@ -117,16 +104,6 @@ export function DecisionHeader({
               </div>
             )}
           </div>
-          {status === "COMPLETED" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onExport}
-              disabled={isExporting || exportSuccess}
-            >
-              {isExporting ? "Exporting..." : exportSuccess ? "Export Queued" : "Export CSV"}
-            </Button>
-          )}
         </div>
       </div>
 
