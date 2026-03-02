@@ -65,12 +65,15 @@ describe("extractDateClaims", () => {
     expect(years.find((c) => c.value === 2023)).toBeDefined();
   });
 
-  it("extracts month-year combinations as full_date with numeric value", () => {
+  it("extracts month-year combinations as full_date with daysSinceEpoch value", () => {
     const claims = extractDateClaims("Released in January 2024.");
     const monthYear = claims.find((c) => c.normalized === "January 2024");
     expect(monthYear).toBeDefined();
     expect(monthYear?.category).toBe("full_date");
-    expect(monthYear?.value).toBeCloseTo(2024 + 1 / 12, 2);
+    // Stored as daysSinceEpoch of day 1 of the month so it is comparable to
+    // precise full-date claims (which also use daysSinceEpoch).
+    const expectedDays = Math.floor(new Date(2024, 0, 1).getTime() / (1000 * 60 * 60 * 24));
+    expect(monthYear?.value).toBeCloseTo(expectedDays, 0);
   });
 
   it("extracts full date strings with category full_date", () => {

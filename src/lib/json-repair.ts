@@ -5,6 +5,48 @@ interface RepairResult {
   error?: string;
 }
 
+// Discriminated union for raw JSON parsing so that JSON.parse("null") — a
+// valid payload returning the JS value null — is not confused with a parse
+// failure.  The old { parsed: null } sentinel was ambiguous.
+type RawParseResult =
+  | { ok: true; parsed: unknown }
+  | { ok: false; error: string };
+
+/**
+ * Attempt to repair and parse raw text as JSON, returning the parsed value
+ * as `unknown` without applying any schema validation. Useful for callers
+ * that perform their own validation (e.g. the AI referee).
+ *
+ * Returns a discriminated union: check `result.ok` before accessing
+ * `result.parsed`.
+ */
+export function repairAndParseJsonRaw(raw: string): RawParseResult {
+  const directParsed = tryParseRaw(raw);
+  if (directParsed.ok) return directParsed;
+
+  let text = raw;
+  text = stripMarkdownFences(text);
+  text = extractJsonObject(text);
+
+  if (!text) {
+    return { ok: false, error: "No JSON object found in input" };
+  }
+
+  text = normalizeSmartQuotes(text);
+  text = removeTrailingCommas(text);
+
+  return tryParseRaw(text);
+}
+
+function tryParseRaw(text: string): RawParseResult {
+  try {
+    return { ok: true, parsed: JSON.parse(text) };
+  } catch (parseError: unknown) {
+    const message = parseError instanceof Error ? parseError.message : "Invalid JSON";
+    return { ok: false, error: `JSON parse error: ${message}` };
+  }
+}
+
 /**
  * Attempt to parse a raw string as JSON conforming to the LLM response schema.
  *
@@ -17,38 +59,6 @@ interface RepairResult {
  *  6. Retry JSON.parse after repairs
  *  7. Validate against Zod schema
  */
-/**
- * Attempt to repair and parse raw text as JSON, returning the parsed value
- * as `unknown` without applying any schema validation. Useful for callers
- * that perform their own validation (e.g. the AI referee).
- */
-export function repairAndParseJsonRaw(raw: string): { parsed: unknown | null; error?: string } {
-  const directParsed = tryParseRaw(raw);
-  if (directParsed.parsed !== null) return directParsed;
-
-  let text = raw;
-  text = stripMarkdownFences(text);
-  text = extractJsonObject(text);
-
-  if (!text) {
-    return { parsed: null, error: "No JSON object found in input" };
-  }
-
-  text = normalizeSmartQuotes(text);
-  text = removeTrailingCommas(text);
-
-  return tryParseRaw(text);
-}
-
-function tryParseRaw(text: string): { parsed: unknown | null; error?: string } {
-  try {
-    return { parsed: JSON.parse(text) };
-  } catch (parseError: unknown) {
-    const message = parseError instanceof Error ? parseError.message : "Invalid JSON";
-    return { parsed: null, error: `JSON parse error: ${message}` };
-  }
-}
-
 export function repairAndParseJson(raw: string): RepairResult {
   // Step 1: Try direct parse
   const directResult = tryParseAndValidate(raw);
