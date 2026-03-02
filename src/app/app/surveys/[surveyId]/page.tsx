@@ -47,16 +47,12 @@ export default async function SurveyDetailPage({
     notFound();
   }
 
-  // Load completed/failed runs for this survey
+  // Load runs for this survey
   const runs = await prisma.surveyRun.findMany({
     where: { surveyId },
     include: {
       createdBy: { select: { email: true } },
-      _count: { select: { jobs: { where: { type: "EXECUTE_QUESTION" } } } },
-      jobs: {
-        where: { type: "EXECUTE_QUESTION", status: "SUCCEEDED" },
-        select: { id: true },
-      },
+      _count: { select: { responses: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -127,8 +123,7 @@ export default async function SurveyDetailPage({
           createdAt: r.createdAt.toISOString(),
           completedAt: r.completedAt?.toISOString() ?? null,
           createdByEmail: r.createdBy.email,
-          succeededJobs: r.jobs.length,
-          totalJobs: r._count.jobs,
+          responseCount: r._count.responses,
         }))}
       />
     </div>

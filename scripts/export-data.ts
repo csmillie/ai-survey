@@ -21,6 +21,9 @@
  *
  * User and ModelTarget FKs are replaced with emails / (provider, modelName)
  * pairs in the export so the import script can remap them to production IDs.
+ *
+ * NOTE: Uses separate flat queries per table rather than one deeply-nested
+ * include, which avoids MySQL reliability issues with deep Prisma includes.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -28,9 +31,22 @@ import { writeFileSync } from "fs";
 
 const prisma = new PrismaClient();
 
-async function main(): Promise<void> {
-  console.log("Fetching survey data...");
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    let arr = map.get(k);
+    if (!arr) { arr = []; map.set(k, arr); }
+    arr.push(item);
+  }
+  return map;
+}
 
+async function main(): Promise<void> {
+  // -------------------------------------------------------------------------
+  // 1. Surveys (with questions, variables, shares — these are small)
+  // -------------------------------------------------------------------------
+  console.log("Fetching surveys...");
   const surveys = await prisma.survey.findMany({
     where: { deletedAt: null },
     include: {
@@ -38,35 +54,89 @@ async function main(): Promise<void> {
       questions: { orderBy: { order: "asc" } },
       variables: { orderBy: { createdAt: "asc" } },
       shares: { include: { user: { select: { email: true } } } },
-      runs: {
-        where: { status: { in: ["COMPLETED", "FAILED", "CANCELLED"] } },
-        orderBy: { createdAt: "asc" },
-        include: {
-          createdBy: { select: { email: true } },
-          models: {
-            include: { modelTarget: { select: { provider: true, modelName: true } } },
-          },
-          responses: {
-            include: {
-              modelTarget: { select: { provider: true, modelName: true } },
-              verifiedBy: { select: { email: true } },
-              analysis: true,
-            },
-          },
-          modelMetrics: {
-            include: { modelTarget: { select: { provider: true, modelName: true } } },
-          },
-          questionAgreements: true,
-          questionTruths: true,
-          questionReferees: true,
-          threads: {
-            include: { modelTarget: { select: { provider: true, modelName: true } } },
-          },
-        },
-      },
     },
   });
+  const surveyIds = surveys.map((s) => s.id);
+  console.log(`  ${surveys.length} surveys`);
 
+  // -------------------------------------------------------------------------
+  // 2. Runs (flat, no nested includes)
+  // -------------------------------------------------------------------------
+  console.log("Fetching runs...");
+  const runs = await prisma.surveyRun.findMany({
+    where: {
+      surveyId: { in: surveyIds },
+      status: { in: ["COMPLETED", "FAILED", "CANCELLED"] },
+    },
+    include: { createdBy: { select: { email: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  const runIds = runs.map((r) => r.id);
+  console.log(`  ${runs.length} runs`);
+
+  if (runIds.length === 0) {
+    console.log("\nNo completed runs found — nothing to export beyond survey structure.");
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. All run child tables — separate flat queries
+  // -------------------------------------------------------------------------
+  console.log("Fetching run data...");
+  const [
+    runModels,
+    responses,
+    analyses,
+    threads,
+    modelMetrics,
+    questionAgreements,
+    questionTruths,
+    questionReferees,
+  ] = await Promise.all([
+    prisma.runModel.findMany({
+      where: { runId: { in: runIds } },
+      include: { modelTarget: { select: { provider: true, modelName: true } } },
+    }),
+    prisma.llmResponse.findMany({
+      where: { runId: { in: runIds } },
+      include: {
+        modelTarget: { select: { provider: true, modelName: true } },
+        verifiedBy: { select: { email: true } },
+      },
+    }),
+    prisma.analysisResult.findMany({
+      where: { response: { runId: { in: runIds } } },
+    }),
+    prisma.conversationThread.findMany({
+      where: { runId: { in: runIds } },
+      include: { modelTarget: { select: { provider: true, modelName: true } } },
+    }),
+    prisma.runModelMetric.findMany({
+      where: { runId: { in: runIds } },
+      include: { modelTarget: { select: { provider: true, modelName: true } } },
+    }),
+    prisma.runQuestionAgreement.findMany({ where: { runId: { in: runIds } } }),
+    prisma.runQuestionTruth.findMany({ where: { runId: { in: runIds } } }),
+    prisma.runQuestionReferee.findMany({ where: { runId: { in: runIds } } }),
+  ]);
+  console.log(`  ${responses.length} responses, ${analyses.length} analysis results`);
+  console.log(`  ${modelMetrics.length} model metrics, ${questionAgreements.length} agreements`);
+
+  // -------------------------------------------------------------------------
+  // 4. Build lookup maps for assembly
+  // -------------------------------------------------------------------------
+  const runModelsByRunId    = groupBy(runModels,          (m) => m.runId);
+  const responsesByRunId    = groupBy(responses,          (r) => r.runId);
+  const analysisByResponseId = new Map(analyses.map((a) => [a.responseId, a]));
+  const threadsByRunId      = groupBy(threads,            (t) => t.runId);
+  const metricsByRunId      = groupBy(modelMetrics,       (m) => m.runId);
+  const agreementsByRunId   = groupBy(questionAgreements, (a) => a.runId);
+  const truthsByRunId       = groupBy(questionTruths,     (t) => t.runId);
+  const refereesByRunId     = groupBy(questionReferees,   (r) => r.runId);
+  const runsBySurveyId      = groupBy(runs,               (r) => r.surveyId);
+
+  // -------------------------------------------------------------------------
+  // 5. Assemble export document
+  // -------------------------------------------------------------------------
   const exportData = {
     exportedAt: new Date().toISOString(),
     surveys: surveys.map((s) => ({
@@ -105,7 +175,7 @@ async function main(): Promise<void> {
         role: sh.role,
         createdAt: sh.createdAt.toISOString(),
       })),
-      runs: s.runs.map((r) => ({
+      runs: (runsBySurveyId.get(s.id) ?? []).map((r) => ({
         id: r.id,
         surveyId: r.surveyId,
         createdByEmail: r.createdBy.email,
@@ -118,14 +188,14 @@ async function main(): Promise<void> {
         completedAt: r.completedAt?.toISOString() ?? null,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
-        models: r.models.map((m) => ({
+        models: (runModelsByRunId.get(r.id) ?? []).map((m) => ({
           id: m.id,
           runId: m.runId,
           provider: m.modelTarget.provider,
           modelName: m.modelTarget.modelName,
           createdAt: m.createdAt.toISOString(),
         })),
-        responses: r.responses.map((res) => ({
+        responses: (responsesByRunId.get(r.id) ?? []).map((res) => ({
           id: res.id,
           runId: res.runId,
           questionId: res.questionId,
@@ -136,7 +206,6 @@ async function main(): Promise<void> {
           parsedJson: res.parsedJson,
           citationsJson: res.citationsJson,
           usageJson: res.usageJson,
-          // Decimal → string to preserve precision in JSON
           costUsd: res.costUsd !== null ? String(res.costUsd) : null,
           latencyMs: res.latencyMs,
           reasoningText: res.reasoningText,
@@ -146,23 +215,26 @@ async function main(): Promise<void> {
           verifiedAt: res.verifiedAt?.toISOString() ?? null,
           verifiedByEmail: res.verifiedBy?.email ?? null,
           createdAt: res.createdAt.toISOString(),
-          analysis: res.analysis
-            ? {
-                id: res.analysis.id,
-                responseId: res.analysis.responseId,
-                sentimentScore: res.analysis.sentimentScore,
-                entitiesJson: res.analysis.entitiesJson,
-                brandMentionsJson: res.analysis.brandMentionsJson,
-                institutionMentionsJson: res.analysis.institutionMentionsJson,
-                flagsJson: res.analysis.flagsJson,
-                citationAnalysisJson: res.analysis.citationAnalysisJson,
-                claimsJson: res.analysis.claimsJson,
-                keySentencesJson: res.analysis.keySentencesJson,
-                createdAt: res.analysis.createdAt.toISOString(),
-              }
+          analysis: analysisByResponseId.has(res.id)
+            ? (() => {
+                const a = analysisByResponseId.get(res.id)!;
+                return {
+                  id: a.id,
+                  responseId: a.responseId,
+                  sentimentScore: a.sentimentScore,
+                  entitiesJson: a.entitiesJson,
+                  brandMentionsJson: a.brandMentionsJson,
+                  institutionMentionsJson: a.institutionMentionsJson,
+                  flagsJson: a.flagsJson,
+                  citationAnalysisJson: a.citationAnalysisJson,
+                  claimsJson: a.claimsJson,
+                  keySentencesJson: a.keySentencesJson,
+                  createdAt: a.createdAt.toISOString(),
+                };
+              })()
             : null,
         })),
-        modelMetrics: r.modelMetrics.map((mm) => ({
+        modelMetrics: (metricsByRunId.get(r.id) ?? []).map((mm) => ({
           id: mm.id,
           runId: mm.runId,
           provider: mm.modelTarget.provider,
@@ -179,7 +251,7 @@ async function main(): Promise<void> {
           calibrationScore: mm.calibrationScore,
           createdAt: mm.createdAt.toISOString(),
         })),
-        questionAgreements: r.questionAgreements.map((qa) => ({
+        questionAgreements: (agreementsByRunId.get(r.id) ?? []).map((qa) => ({
           id: qa.id,
           runId: qa.runId,
           questionId: qa.questionId,
@@ -194,7 +266,7 @@ async function main(): Promise<void> {
           factConfidenceSignals: qa.factConfidenceSignals,
           createdAt: qa.createdAt.toISOString(),
         })),
-        questionTruths: r.questionTruths.map((qt) => ({
+        questionTruths: (truthsByRunId.get(r.id) ?? []).map((qt) => ({
           id: qt.id,
           runId: qt.runId,
           questionId: qt.questionId,
@@ -207,7 +279,7 @@ async function main(): Promise<void> {
           breakdownJson: qt.breakdownJson,
           createdAt: qt.createdAt.toISOString(),
         })),
-        questionReferees: r.questionReferees.map((qr) => ({
+        questionReferees: (refereesByRunId.get(r.id) ?? []).map((qr) => ({
           id: qr.id,
           runId: qr.runId,
           questionId: qr.questionId,
@@ -220,7 +292,7 @@ async function main(): Promise<void> {
           rawJson: qr.rawJson,
           createdAt: qr.createdAt.toISOString(),
         })),
-        threads: r.threads.map((t) => ({
+        threads: (threadsByRunId.get(r.id) ?? []).map((t) => ({
           id: t.id,
           runId: t.runId,
           provider: t.modelTarget.provider,
@@ -234,6 +306,9 @@ async function main(): Promise<void> {
     })),
   };
 
+  // -------------------------------------------------------------------------
+  // 6. Write file
+  // -------------------------------------------------------------------------
   const filename = `export-${new Date().toISOString().slice(0, 10)}.json`;
   writeFileSync(filename, JSON.stringify(exportData, null, 2));
 
