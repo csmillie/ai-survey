@@ -29,7 +29,12 @@ export default async function SurveysPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Evaluations</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Evaluations</h1>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Create an evaluation to see which AI models can be trusted before using them in real decisions.
+          </p>
+        </div>
         <Link href="/app/surveys/new">
           <Button>New Evaluation</Button>
         </Link>
