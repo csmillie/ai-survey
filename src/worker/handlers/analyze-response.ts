@@ -7,6 +7,7 @@ import {
   extractBrandMentions,
   extractInstitutionMentions,
 } from "@/lib/analysis/entities";
+import { extractFactCheckData } from "@/lib/analysis/fact-check";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +79,10 @@ export async function handleAnalyzeResponse(
     const brandMentions = extractBrandMentions(textToAnalyze);
     const institutionMentions = extractInstitutionMentions(textToAnalyze);
 
+    // 4b. Extract fact-check data (claims, citation analysis, key sentences)
+    const parsedCitations = (parsed as unknown as ParsedLlmResponse).citations ?? [];
+    const factCheckData = extractFactCheckData(textToAnalyze, parsedCitations);
+
     // 5. Build flags
     const flags: string[] = [];
     if (textToAnalyze.length < 20) {
@@ -99,6 +104,16 @@ export async function handleAnalyzeResponse(
         flagsJson:
           flags.length > 0
             ? (flags as unknown as Prisma.InputJsonValue)
+            : undefined,
+        claimsJson:
+          factCheckData.claims.length > 0
+            ? (factCheckData.claims as unknown as Prisma.InputJsonValue)
+            : undefined,
+        citationAnalysisJson:
+          factCheckData.citationAnalysis as unknown as Prisma.InputJsonValue,
+        keySentencesJson:
+          factCheckData.keySentences.length > 0
+            ? (factCheckData.keySentences as unknown as Prisma.InputJsonValue)
             : undefined,
       },
     });

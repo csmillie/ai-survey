@@ -40,6 +40,23 @@ export interface DriftPoint {
   models: Record<string, number | undefined>;
 }
 
+export interface NumericDisagreementData {
+  claim: string;
+  values: Array<{ modelName: string; value: number; raw: string }>;
+  maxDelta: number;
+  meanValue: number;
+}
+
+export interface FactComparisonData {
+  numericDisagreements: NumericDisagreementData[];
+  citationOverlap: number;
+  modelsWithCitations: number;
+  totalModels: number;
+  sharedDomains: string[];
+  agreementSignals: string[];
+  disagreementSignals: string[];
+}
+
 export interface QuestionAgreementData {
   questionId: string;
   questionTitle: string;
@@ -48,6 +65,10 @@ export interface QuestionAgreementData {
   outlierModels: string[];
   humanReviewFlag: boolean;
   overconfidentModels: string[];
+  factConfidenceLevel: string | null;
+  factConfidenceScore: number | null;
+  factConfidenceSignals: string[];
+  factComparison: FactComparisonData | null;
 }
 
 export interface ResponseData {

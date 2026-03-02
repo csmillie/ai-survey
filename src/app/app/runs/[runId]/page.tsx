@@ -8,6 +8,8 @@ import {
   recommendationSchema,
   outlierModelsSchema,
   overconfidentModelsSchema,
+  factConfidenceSignalsSchema,
+  factComparisonSchema,
 } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
@@ -176,6 +178,8 @@ export default async function RunPage({ params }: RunPageProps) {
     const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
     if (!outliers.success) return [];
     const overconfident = overconfidentModelsSchema.safeParse(a.overconfidentModelsJson);
+    const signals = factConfidenceSignalsSchema.parse(a.factConfidenceSignals);
+    const comparison = factComparisonSchema.parse(a.factComparisonJson);
     return [
       {
         questionId: a.questionId,
@@ -185,6 +189,10 @@ export default async function RunPage({ params }: RunPageProps) {
         outlierModels: outliers.data,
         humanReviewFlag: a.humanReviewFlag,
         overconfidentModels: overconfident.success ? overconfident.data : [],
+        factConfidenceLevel: a.factConfidenceLevel,
+        factConfidenceScore: a.factConfidenceScore,
+        factConfidenceSignals: signals ?? [],
+        factComparison: comparison,
       },
     ];
   });
