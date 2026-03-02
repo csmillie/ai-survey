@@ -260,11 +260,11 @@ export function ModelTrustPanel({
                         <span className="text-[hsl(var(--muted-foreground))]">
                           Q{a.questionOrder + 1}:
                         </span>{" "}
-                        {a.questionTitle.length > 100 ? (
+                        {a.questionPrompt.length > 100 ? (
                           <>
                             {expandedQuestions.has(a.questionId)
-                              ? a.questionTitle
-                              : a.questionTitle.slice(0, 100) + "…"}
+                              ? a.questionPrompt
+                              : a.questionPrompt.slice(0, 100) + "…"}
                             <button
                               type="button"
                               aria-expanded={expandedQuestions.has(a.questionId)}
@@ -276,7 +276,7 @@ export function ModelTrustPanel({
                             </button>
                           </>
                         ) : (
-                          a.questionTitle
+                          a.questionPrompt
                         )}
                       </TableCell>
                       <TableCell>

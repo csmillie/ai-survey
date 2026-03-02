@@ -182,6 +182,7 @@ export function RunProgressView({
         group = {
           questionId: resp.questionId,
           questionTitle: resp.questionTitle,
+          questionPrompt: resp.questionPrompt,
           questionOrder: resp.questionOrder,
           responses: [],
         };

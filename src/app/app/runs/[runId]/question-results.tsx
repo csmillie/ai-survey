@@ -612,7 +612,7 @@ export const QuestionResults = memo(function QuestionResults({
             <CardHeader>
               <QuestionTitle
                 order={group.questionOrder + 1}
-                title={group.questionTitle}
+                title={group.questionPrompt}
                 questionId={group.questionId}
                 isExpanded={expandedTitles.has(group.questionId)}
                 onToggle={toggleTitle}

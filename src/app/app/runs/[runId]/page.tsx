@@ -64,7 +64,7 @@ export default async function RunPage({ params }: RunPageProps) {
       responses: {
         include: {
           question: {
-            select: { id: true, title: true, type: true, configJson: true, order: true },
+            select: { id: true, title: true, promptTemplate: true, type: true, configJson: true, order: true },
           },
           modelTarget: {
             select: { modelName: true, provider: true },
@@ -106,6 +106,7 @@ export default async function RunPage({ params }: RunPageProps) {
       id: resp.id,
       questionId: resp.question.id,
       questionTitle: resp.question.title,
+      questionPrompt: resp.question.promptTemplate,
       questionType: resp.question.type,
       questionOrder: resp.question.order,
       questionConfig: (() => {
@@ -151,7 +152,7 @@ export default async function RunPage({ params }: RunPageProps) {
         where: { runId },
         include: {
           question: {
-            select: { title: true, order: true },
+            select: { title: true, promptTemplate: true, order: true },
           },
         },
         orderBy: { agreementPercent: "asc" },
@@ -196,6 +197,7 @@ export default async function RunPage({ params }: RunPageProps) {
       {
         questionId: a.questionId,
         questionTitle: a.question.title,
+        questionPrompt: a.question.promptTemplate,
         questionOrder: a.question.order,
         agreementPercent: a.agreementPercent,
         outlierModels: outliers.data,
