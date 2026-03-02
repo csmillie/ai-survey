@@ -46,8 +46,8 @@ describe("computeFactConfidence", () => {
       totalModels: 3,
     });
     expect(result.level).toBe("high");
-    expect(result.score).toBeGreaterThanOrEqual(70);
-    expect(result.signals).toContain("strong agreement");
+    expect(result.score).toBe(100);
+    expect(result.signals).toContain("unanimous agreement");
   });
 
   it("returns low confidence when models disagree", () => {
@@ -90,6 +90,18 @@ describe("computeFactConfidence", () => {
       totalModels: 3,
     });
     expect(result.level).toBe("medium");
+  });
+
+  it("returns 100 when all models unanimously agree", () => {
+    // modelsWithCitations: 1 neutralises the citation check (neither all nor none)
+    const result = computeFactConfidence({
+      agreementPercent: 1.0,
+      comparison: makeComparison({ totalModels: 3, modelsWithCitations: 1 }),
+      totalModels: 3,
+    });
+    expect(result.score).toBe(100);
+    expect(result.level).toBe("high");
+    expect(result.signals).toContain("unanimous agreement");
   });
 
   it("penalizes single-model responses", () => {
