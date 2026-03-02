@@ -17,6 +17,10 @@ const ANALYZE_CONCURRENCY = 10;
 const EXPORT_CONCURRENCY = 2;
 const METRICS_CONCURRENCY = 2;
 
+// Jobs stuck in RUNNING longer than this are presumed orphaned (worker crash)
+const STALE_JOB_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const STALE_JOB_CHECK_INTERVAL_MS = 30 * 1000; // check every 30s
+
 // ---------------------------------------------------------------------------
 // Worker state
 // ---------------------------------------------------------------------------
@@ -24,6 +28,7 @@ const METRICS_CONCURRENCY = 2;
 const prisma = new PrismaClient();
 let running = true;
 const activeJobs = new Set<string>();
+let lastStaleCheck = 0;
 
 // ---------------------------------------------------------------------------
 // Job claimer - atomically claim a PENDING job by updating status to RUNNING
@@ -39,11 +44,13 @@ async function claimJob(
 
   // Find and claim a PENDING job atomically using a raw query for MySQL
   // We use updateMany with a limit-like pattern to avoid race conditions
+  // Extract plain job IDs from tracking keys (format: "TYPE:ID")
+  const activeJobIds = [...activeJobs].map((key) => key.split(":").slice(1).join(":"));
   const pendingJob = await prisma.job.findFirst({
     where: {
       type,
       status: "PENDING",
-      id: { notIn: [...activeJobs] },
+      ...(activeJobIds.length > 0 ? { id: { notIn: activeJobIds } } : {}),
     },
     orderBy: { createdAt: "asc" },
   });
@@ -135,6 +142,44 @@ async function processJob(job: Job): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Stale job recovery - reset orphaned RUNNING jobs back to PENDING
+// ---------------------------------------------------------------------------
+
+async function recoverStaleJobs(): Promise<void> {
+  const cutoff = new Date(Date.now() - STALE_JOB_TIMEOUT_MS);
+
+  // Don't reset jobs this worker is actively processing
+  const activeJobIds = [...activeJobs].map((key) => key.split(":").slice(1).join(":"));
+
+  const staleJobs = await prisma.job.findMany({
+    where: {
+      status: "RUNNING",
+      startedAt: { lt: cutoff },
+      ...(activeJobIds.length > 0 ? { id: { notIn: activeJobIds } } : {}),
+    },
+    select: { id: true, type: true, runId: true, attempt: true },
+  });
+
+  for (const job of staleJobs) {
+    // Reset to PENDING so the poll loop picks it up again
+    const updated = await prisma.job.updateMany({
+      where: { id: job.id, status: "RUNNING" },
+      data: {
+        status: "PENDING",
+        startedAt: null,
+        lastError: `Recovered from stale RUNNING state (attempt ${job.attempt})`,
+      },
+    });
+
+    if (updated.count > 0) {
+      console.warn(
+        `[worker] Recovered stale job ${job.id} (${job.type}, run ${job.runId}) — reset to PENDING`
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Poll loop
 // ---------------------------------------------------------------------------
 
@@ -142,6 +187,17 @@ async function pollLoop(): Promise<void> {
   console.log("[worker] Starting poll loop...");
 
   while (running) {
+    // Periodically check for stale RUNNING jobs (orphaned by crashes)
+    const now = Date.now();
+    if (now - lastStaleCheck >= STALE_JOB_CHECK_INTERVAL_MS) {
+      lastStaleCheck = now;
+      try {
+        await recoverStaleJobs();
+      } catch (err) {
+        console.error("[worker] Error recovering stale jobs:", err);
+      }
+    }
+
     let claimed = false;
 
     // Try to claim jobs of each type
