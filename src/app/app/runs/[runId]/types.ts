@@ -111,3 +111,65 @@ export interface QuestionGroup {
   questionOrder: number;
   responses: ResponseData[];
 }
+
+// ---------------------------------------------------------------------------
+// Truth Engine types
+// ---------------------------------------------------------------------------
+
+export interface TruthBreakdownData {
+  baseScore: number;
+  consensusBonus: number;
+  citationBonus: number;
+  citationPenalty: number;
+  numericDisagreementPenalty: number;
+  assertionDisagreementPenalty: number;
+  emptyShortPenalty: number;
+  finalScore: number;
+}
+
+export interface TruthNumericDisagreementData {
+  claimText: string;
+  values: Array<{ modelKey: string; value: number; unit?: string }>;
+  maxDelta: number;
+}
+
+export interface ClaimClusterData {
+  clusterId: number;
+  kind: "numeric" | "assertion";
+  claims: Array<{ kind: string; text: string; modelKey: string }>;
+  models: string[];
+}
+
+export interface QuestionTruthData {
+  questionId: string;
+  truthScore: number;
+  truthLabel: string;
+  consensusPercent: number;
+  citationRate: number;
+  numericDisagreements: TruthNumericDisagreementData[];
+  claimClusters: ClaimClusterData[];
+  breakdown: TruthBreakdownData;
+}
+
+export interface RefereeDisagreementData {
+  type: string;
+  description: string;
+  models: string[];
+  severity: string;
+}
+
+export interface RefereeChecklistItemData {
+  item: string;
+  why: string;
+  suggested_source: string;
+}
+
+export interface QuestionRefereeData {
+  questionId: string;
+  refereeModelKey: string;
+  summary: string;
+  disagreements: RefereeDisagreementData[];
+  verifyChecklist: RefereeChecklistItemData[];
+  recommendedAnswerModelKey: string | null;
+  confidence: number;
+}

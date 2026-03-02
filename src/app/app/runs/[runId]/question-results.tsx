@@ -35,7 +35,8 @@ import { ModelComparison } from "./model-comparison";
 import { SideBySideView } from "./side-by-side-view";
 import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
-import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } from "./types";
+import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData, QuestionTruthData, QuestionRefereeData } from "./types";
+import { TruthConfidenceBadge, TruthConfidencePanel } from "./truth-confidence-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,6 +45,8 @@ import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } fr
 interface QuestionResultsProps {
   questionGroups: QuestionGroup[];
   agreementMap: Map<string, QuestionAgreementData>;
+  truthMap?: Map<string, QuestionTruthData>;
+  refereeMap?: Map<string, QuestionRefereeData>;
   expandedRows: Set<string>;
   onToggleRow: (responseId: string) => void;
   questionRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>;
@@ -571,6 +574,8 @@ function QuestionTitle({
 export const QuestionResults = memo(function QuestionResults({
   questionGroups,
   agreementMap,
+  truthMap = new Map(),
+  refereeMap = new Map(),
   expandedRows,
   onToggleRow,
   questionRefs,
@@ -593,6 +598,8 @@ export const QuestionResults = memo(function QuestionResults({
     <>
       {questionGroups.map((group) => {
         const agreement = agreementMap.get(group.questionId);
+        const truth = truthMap.get(group.questionId);
+        const referee = refereeMap.get(group.questionId);
         const varianceBadge = computeVarianceBadge(group.responses);
 
         return (
@@ -623,6 +630,9 @@ export const QuestionResults = memo(function QuestionResults({
                       </Badge>
                     )}
                   </>
+                )}
+                {truth && (
+                  <TruthConfidenceBadge truth={truth} className="ml-2" />
                 )}
                 {varianceBadge && (
                   <Badge variant={varianceBadge.variant} className="ml-2">
@@ -693,6 +703,11 @@ export const QuestionResults = memo(function QuestionResults({
                   />
                 </TabsContent>
               </Tabs>
+
+              {/* Truth Confidence Panel */}
+              {truth && (
+                <TruthConfidencePanel truth={truth} referee={referee} />
+              )}
             </CardContent>
           </Card>
         );
