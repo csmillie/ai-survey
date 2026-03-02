@@ -5,8 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Survey Platform",
-  description: "Run structured surveys against LLM APIs",
+  title: "ModelTrust",
+  description:
+    "Evaluate which AI models can be trusted in real decision-making. ModelTrust compares outputs across models, measures reliability, detects disagreement, and signals when human review is needed.",
 };
 
 export default function RootLayout({

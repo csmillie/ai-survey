@@ -15,14 +15,14 @@ export default async function AppLayout({
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-6">
             <Link href="/app/surveys" className="text-lg font-semibold">
-              AI Survey Platform
+              ModelTrust
             </Link>
             <nav className="flex items-center gap-4 text-sm">
               <Link
                 href="/app/surveys"
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                Surveys
+                Evaluations
               </Link>
             </nav>
           </div>

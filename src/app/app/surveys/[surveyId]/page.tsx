@@ -72,11 +72,11 @@ export default async function SurveyDetailPage({
           href="/app/surveys"
           className="text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          &larr; Surveys
+          &larr; Evaluations
         </Link>
         <div className="flex items-center gap-2">
           <Link href={`/app/surveys/${surveyId}/run`}>
-            <Button>Run Survey</Button>
+            <Button>Run Evaluation</Button>
           </Link>
           {isOwner && (
             <form action={deleteSurveyAction as unknown as (formData: FormData) => void}>

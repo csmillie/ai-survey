@@ -216,7 +216,7 @@ export function RunConfigForm({
           <CardTitle>Select Models</CardTitle>
           <CardDescription>
             Choose which AI models to include in this run. Each model will
-            receive all {questionCount} question
+            receive all {questionCount} prompt
             {questionCount === 1 ? "" : "s"}.
           </CardDescription>
         </CardHeader>
@@ -395,7 +395,7 @@ export function RunConfigForm({
                 warningText={`Limit: $${limits.maxCostPerRunUsd.toFixed(2)}`}
               />
               <SummaryCard
-                label="Models x Questions"
+                label="Models x Prompts"
                 value={`${estimate.totalModels} x ${estimate.totalQuestions}`}
               />
             </div>

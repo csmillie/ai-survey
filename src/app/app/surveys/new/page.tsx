@@ -24,16 +24,16 @@ export default async function NewSurveyPage() {
           href="/app/surveys"
           className="text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          &larr; Back to Surveys
+          &larr; Back to Evaluations
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>New Survey</CardTitle>
+          <CardTitle>New Evaluation</CardTitle>
           <CardDescription>
-            Create a new AI survey. You can add questions, variables, and
-            configure sharing after creation.
+            Create a new evaluation. You can add decision prompts, variables,
+            and configure sharing after creation.
           </CardDescription>
         </CardHeader>
         <form action={createSurveyAction as unknown as (formData: FormData) => void}>
@@ -43,7 +43,7 @@ export default async function NewSurveyPage() {
               <Input
                 id="title"
                 name="title"
-                placeholder="Enter survey title"
+                placeholder="Enter evaluation title"
                 required
                 maxLength={200}
               />
@@ -53,7 +53,7 @@ export default async function NewSurveyPage() {
               <Textarea
                 id="description"
                 name="description"
-                placeholder="Optional description of your survey"
+                placeholder="Optional description of your evaluation"
                 rows={3}
               />
             </div>
@@ -64,7 +64,7 @@ export default async function NewSurveyPage() {
                 Cancel
               </Button>
             </Link>
-            <Button type="submit">Create Survey</Button>
+            <Button type="submit">Create Evaluation</Button>
           </CardFooter>
         </form>
       </Card>

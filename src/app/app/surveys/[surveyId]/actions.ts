@@ -85,8 +85,8 @@ export async function addQuestionAction(surveyId: string, formData: FormData): P
   const title = (typeof titleRaw === "string" && titleRaw.trim())
     ? titleRaw.trim()
     : typeof promptTemplate === "string"
-      ? promptTemplate.slice(0, 60).trim() || "Untitled Question"
-      : "Untitled Question";
+      ? promptTemplate.slice(0, 60).trim() || "Untitled Prompt"
+      : "Untitled Prompt";
 
   const typeRaw = formData.get("type");
   const configJsonRaw = formData.get("configJson");

@@ -274,9 +274,9 @@ export function RunProgressView({
         <>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Run Results</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Decision &amp; Reliability Analysis</h1>
               <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-                Survey: {surveyTitle}
+                Evaluation: {surveyTitle}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -361,7 +361,7 @@ export function RunProgressView({
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-[hsl(var(--muted-foreground))]">
-              No responses were collected for this run.
+              No model outputs were collected for this run.
             </p>
           </CardContent>
         </Card>

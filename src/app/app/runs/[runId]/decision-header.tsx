@@ -103,7 +103,7 @@ export function DecisionHeader({
         <div className="flex flex-shrink-0 items-center gap-4">
           <div className="flex gap-4 text-sm">
             <div className="text-right">
-              <p className="text-xs text-[hsl(var(--muted-foreground))]">Responses</p>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">Model Outputs</p>
               <p className="font-semibold">{totalResponses}</p>
             </div>
             <div className="text-right">
