@@ -160,10 +160,10 @@ export async function handleExecuteQuestion(
         requestMessagesJson: messages as unknown as Prisma.InputJsonValue,
         parsedJson: finalParsed
           ? (finalParsed as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
+          : Prisma.DbNull,
         citationsJson: !isRanked && finalParsed && "citations" in finalParsed
           ? ((finalParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
+          : Prisma.DbNull,
         reasoningText,
         confidence,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
