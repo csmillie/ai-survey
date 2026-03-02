@@ -1,6 +1,3 @@
-// Prisma schema for LLM Survey Platform (v1)
-// Target DB: MySQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,6 +5,357 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String        @id @default(uuid())
+  email             String        @unique
+  passwordHash      String
+  role              UserRole      @default(USER)
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  disabledAt        DateTime?
+  name              String?
+  auditEvents       AuditEvent[]  @relation("AuditActor")
+  verifiedResponses LlmResponse[] @relation("ResponseVerifier")
+  surveysOwned      Survey[]      @relation("SurveyOwner")
+  runsCreated       SurveyRun[]   @relation("RunCreator")
+  shares            SurveyShare[]
+
+  @@index([role])
+}
+
+model Survey {
+  id          String        @id @default(uuid())
+  ownerId     String
+  title       String
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+  questions   Question[]
+  owner       User          @relation("SurveyOwner", fields: [ownerId], references: [id])
+  runs        SurveyRun[]
+  shares      SurveyShare[]
+  variables   Variable[]
+
+  @@index([ownerId])
+  @@index([deletedAt])
+}
+
+model SurveyShare {
+  id        String    @id @default(uuid())
+  surveyId  String
+  userId    String
+  role      ShareRole @default(EDIT)
+  createdAt DateTime  @default(now())
+  survey    Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, userId])
+  @@index([userId])
+  @@index([surveyId])
+}
+
+model Variable {
+  id           String   @id @default(uuid())
+  surveyId     String
+  key          String
+  label        String?
+  defaultValue String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  survey       Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, key])
+  @@index([surveyId])
+}
+
+model Question {
+  id                 String                 @id @default(uuid())
+  surveyId           String
+  order              Int
+  title              String
+  promptTemplate     String                 @db.Text
+  mode               QuestionMode           @default(STATELESS)
+  threadKey          String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  configJson         Json?
+  type               QuestionType           @default(OPEN_ENDED)
+  jobs               Job[]
+  responses          LlmResponse[]
+  survey             Survey                 @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questionAgreements RunQuestionAgreement[]
+  questionReferees   RunQuestionReferee[]
+  questionTruths     RunQuestionTruth[]
+
+  @@index([surveyId, order])
+}
+
+model ModelTarget {
+  id                     String               @id @default(uuid())
+  provider               Provider
+  modelName              String
+  isEnabled              Boolean              @default(true)
+  isDefaultCostEffective Boolean              @default(false)
+  inputTokenCostUsd      Decimal              @db.Decimal(12, 6)
+  outputTokenCostUsd     Decimal              @db.Decimal(12, 6)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  threads                ConversationThread[]
+  jobs                   Job[]
+  responses              LlmResponse[]
+  runModels              RunModel[]
+  modelMetrics           RunModelMetric[]
+
+  @@unique([provider, modelName])
+  @@index([isEnabled])
+  @@index([isDefaultCostEffective])
+}
+
+model SurveyRun {
+  id                 String                 @id @default(uuid())
+  surveyId           String
+  createdById        String
+  status             RunStatus              @default(DRAFT)
+  settingsJson       Json
+  limitsJson         Json
+  estimatedJson      Json?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  recommendationJson Json?
+  auditEvents        AuditEvent[]           @relation("AuditTargetRun")
+  threads            ConversationThread[]
+  jobs               Job[]
+  responses          LlmResponse[]
+  models             RunModel[]
+  modelMetrics       RunModelMetric[]
+  questionAgreements RunQuestionAgreement[]
+  questionReferees   RunQuestionReferee[]
+  questionTruths     RunQuestionTruth[]
+  createdBy          User                   @relation("RunCreator", fields: [createdById], references: [id])
+  survey             Survey                 @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId, createdAt])
+  @@index([surveyId, status, completedAt])
+  @@index([status])
+  @@index([createdById], map: "SurveyRun_createdById_fkey")
+}
+
+model RunModel {
+  id            String      @id @default(uuid())
+  runId         String
+  modelTargetId String
+  createdAt     DateTime    @default(now())
+  modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id])
+  run           SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, modelTargetId])
+  @@index([runId])
+  @@index([modelTargetId], map: "RunModel_modelTargetId_fkey")
+}
+
+model ConversationThread {
+  id            String      @id @default(uuid())
+  runId         String
+  modelTargetId String
+  threadKey     String
+  messagesJson  Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id])
+  run           SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, modelTargetId, threadKey])
+  @@index([runId])
+  @@index([modelTargetId], map: "ConversationThread_modelTargetId_fkey")
+}
+
+/// Job queue entries. Note: modelTargetId is required by the FK constraint but
+/// is not semantically used by COMPUTE_METRICS or EXPORT_RUN job types — callers
+/// pass any valid modelTargetId from the run to satisfy the constraint.
+model Job {
+  id             String      @id @default(uuid())
+  runId          String
+  modelTargetId  String
+  questionId     String?
+  threadKey      String
+  type           JobType
+  status         JobStatus   @default(PENDING)
+  attempt        Int         @default(0)
+  idempotencyKey String      @unique
+  payloadJson    Json
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  lastError      String?     @db.Text
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  modelTarget    ModelTarget @relation(fields: [modelTargetId], references: [id])
+  question       Question?   @relation(fields: [questionId], references: [id])
+  run            SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, status])
+  @@index([type, status])
+  @@index([runId, type, status])
+  @@index([modelTargetId], map: "Job_modelTargetId_fkey")
+  @@index([questionId], map: "Job_questionId_fkey")
+}
+
+model LlmResponse {
+  id                  String             @id @default(uuid())
+  runId               String
+  modelTargetId       String
+  questionId          String
+  threadKey           String
+  rawText             String             @db.LongText
+  parsedJson          Json?
+  citationsJson       Json?
+  usageJson           Json?
+  costUsd             Decimal?           @db.Decimal(12, 6)
+  latencyMs           Int?
+  createdAt           DateTime           @default(now())
+  reasoningText       String?            @db.Text
+  requestMessagesJson Json?
+  confidence          Float?
+  verificationStatus  VerificationStatus @default(UNREVIEWED)
+  verifiedAt          DateTime?
+  verifiedByUserId    String?
+  analysis            AnalysisResult?
+  modelTarget         ModelTarget        @relation(fields: [modelTargetId], references: [id])
+  question            Question           @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  run                 SurveyRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  verifiedBy          User?              @relation("ResponseVerifier", fields: [verifiedByUserId], references: [id])
+
+  @@unique([runId, modelTargetId, questionId, threadKey])
+  @@index([runId, modelTargetId])
+  @@index([runId, verificationStatus])
+  @@index([modelTargetId], map: "LlmResponse_modelTargetId_fkey")
+  @@index([questionId], map: "LlmResponse_questionId_fkey")
+  @@index([verifiedByUserId], map: "LlmResponse_verifiedByUserId_fkey")
+}
+
+model AnalysisResult {
+  id                      String      @id @default(uuid())
+  responseId              String      @unique
+  sentimentScore          Float?
+  entitiesJson            Json?
+  brandMentionsJson       Json?
+  institutionMentionsJson Json?
+  flagsJson               Json?
+  createdAt               DateTime    @default(now())
+  citationAnalysisJson    Json?
+  claimsJson              Json?
+  keySentencesJson        Json?
+  response                LlmResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id          String     @id @default(uuid())
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String
+  metaJson    Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime   @default(now())
+  runTargetId String?
+  actor       User       @relation("AuditActor", fields: [actorUserId], references: [id])
+  runTarget   SurveyRun? @relation("AuditTargetRun", fields: [runTargetId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action])
+  @@index([runTargetId], map: "AuditEvent_runTargetId_fkey")
+}
+
+model RunModelMetric {
+  id                   String      @id @default(uuid())
+  runId                String
+  modelTargetId        String
+  reliabilityScore     Float
+  jsonValidRate        Float
+  emptyAnswerRate      Float
+  shortAnswerRate      Float
+  citationRate         Float
+  latencyCv            Float
+  costCv               Float
+  penaltyBreakdownJson Json
+  totalResponses       Int
+  createdAt            DateTime    @default(now())
+  calibrationScore     Float?
+  modelTarget          ModelTarget @relation(fields: [modelTargetId], references: [id])
+  run                  SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, modelTargetId])
+  @@index([runId])
+  @@index([modelTargetId])
+}
+
+model RunQuestionAgreement {
+  id                      String    @id @default(uuid())
+  runId                   String
+  questionId              String
+  agreementPercent        Float
+  outlierModelsJson       Json
+  humanReviewFlag         Boolean
+  clusterDetailsJson      Json?
+  createdAt               DateTime  @default(now())
+  overconfidentModelsJson Json?
+  factComparisonJson      Json?
+  factConfidenceLevel     String?
+  factConfidenceScore     Float?
+  factConfidenceSignals   Json?
+  question                Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  run                     SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
+}
+
+model RunQuestionTruth {
+  id                       String    @id @default(uuid())
+  runId                    String
+  questionId               String
+  truthScore               Float
+  truthLabel               String
+  consensusPercent         Float
+  citationRate             Float
+  numericDisagreementsJson Json
+  claimClustersJson        Json
+  breakdownJson            Json
+  createdAt                DateTime  @default(now())
+  question                 Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  run                      SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
+}
+
+model RunQuestionReferee {
+  id                        String    @id @default(uuid())
+  runId                     String
+  questionId                String
+  refereeModelKey           String
+  summary                   String    @db.Text
+  disagreementsJson         Json
+  verifyChecklistJson       Json
+  recommendedAnswerModelKey String?
+  confidence                Float
+  rawJson                   Json
+  createdAt                 DateTime  @default(now())
+  question                  Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  run                       SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, questionId])
+  @@index([runId])
+  @@index([questionId])
 }
 
 enum UserRole {
@@ -68,366 +416,4 @@ enum VerificationStatus {
   UNREVIEWED
   VERIFIED
   INACCURATE
-}
-
-model User {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  name          String?
-  passwordHash  String
-  role          UserRole    @default(USER)
-  disabledAt    DateTime?
-  lastLoginAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  surveysOwned  Survey[]    @relation("SurveyOwner")
-  shares        SurveyShare[]
-  runsCreated   SurveyRun[] @relation("RunCreator")
-  auditEvents   AuditEvent[] @relation("AuditActor")
-  verifiedResponses LlmResponse[] @relation("ResponseVerifier")
-
-  @@index([role])
-}
-
-model Survey {
-  id          String       @id @default(uuid())
-  ownerId     String
-  title       String
-  description String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  deletedAt   DateTime?
-
-  owner       User         @relation("SurveyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  shares      SurveyShare[]
-  variables   Variable[]
-  questions   Question[]
-  runs        SurveyRun[]
-
-  @@index([ownerId])
-  @@index([deletedAt])
-}
-
-model SurveyShare {
-  id        String    @id @default(uuid())
-  surveyId  String
-  userId    String
-  role      ShareRole @default(EDIT)
-  createdAt DateTime  @default(now())
-
-  survey    Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([surveyId, userId])
-  @@index([userId])
-  @@index([surveyId])
-}
-
-model Variable {
-  id           String   @id @default(uuid())
-  surveyId     String
-  key          String
-  label        String?
-  defaultValue String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  survey       Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-
-  @@unique([surveyId, key])
-  @@index([surveyId])
-}
-
-model Question {
-  id             String       @id @default(uuid())
-  surveyId        String
-  order           Int
-  title           String
-  promptTemplate  String       @db.Text
-  type            QuestionType @default(OPEN_ENDED)
-  configJson      Json?
-  mode            QuestionMode @default(STATELESS)
-  threadKey       String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  survey          Survey        @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  jobs            Job[]
-  responses       LlmResponse[]
-  questionAgreements RunQuestionAgreement[]
-  questionTruths     RunQuestionTruth[]
-  questionReferees   RunQuestionReferee[]
-
-  @@index([surveyId, order])
-}
-
-model ModelTarget {
-  id                     String   @id @default(uuid())
-  provider               Provider
-  modelName              String
-  isEnabled              Boolean  @default(true)
-  isDefaultCostEffective Boolean  @default(false)
-  inputTokenCostUsd      Decimal  @db.Decimal(12, 6)
-  outputTokenCostUsd     Decimal  @db.Decimal(12, 6)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  runModels              RunModel[]
-  threads                ConversationThread[]
-  jobs                   Job[]
-  responses              LlmResponse[]
-  modelMetrics           RunModelMetric[]
-
-  @@unique([provider, modelName])
-  @@index([isEnabled])
-  @@index([isDefaultCostEffective])
-}
-
-model SurveyRun {
-  id           String    @id @default(uuid())
-  surveyId     String
-  createdById  String
-  status       RunStatus @default(DRAFT)
-  settingsJson Json
-  limitsJson   Json
-  estimatedJson Json?
-  startedAt    DateTime?
-  completedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  recommendationJson Json?
-
-  survey       Survey    @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  createdBy    User      @relation("RunCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  models       RunModel[]
-  threads      ConversationThread[]
-  jobs         Job[]
-  responses    LlmResponse[]
-  auditEvents  AuditEvent[] @relation("AuditTargetRun")
-  modelMetrics       RunModelMetric[]
-  questionAgreements RunQuestionAgreement[]
-  questionTruths     RunQuestionTruth[]
-  questionReferees   RunQuestionReferee[]
-
-  @@index([surveyId, createdAt])
-  @@index([surveyId, status, completedAt])
-  @@index([status])
-}
-
-model RunModel {
-  id            String     @id @default(uuid())
-  runId         String
-  modelTargetId String
-  createdAt     DateTime   @default(now())
-
-  run           SurveyRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
-  modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
-
-  @@unique([runId, modelTargetId])
-  @@index([runId])
-}
-
-model ConversationThread {
-  id            String    @id @default(uuid())
-  runId         String
-  modelTargetId String
-  threadKey     String
-  messagesJson  Json
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  run           SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
-
-  @@unique([runId, modelTargetId, threadKey])
-  @@index([runId])
-}
-
-/// Job queue entries. Note: modelTargetId is required by the FK constraint but
-/// is not semantically used by COMPUTE_METRICS or EXPORT_RUN job types — callers
-/// pass any valid modelTargetId from the run to satisfy the constraint.
-model Job {
-  id             String    @id @default(uuid())
-  runId          String
-  modelTargetId  String
-  questionId     String?
-  threadKey      String
-  type           JobType
-  status         JobStatus @default(PENDING)
-  attempt        Int       @default(0)
-  idempotencyKey String    @unique
-  payloadJson    Json
-  startedAt      DateTime?
-  finishedAt     DateTime?
-  lastError      String?   @db.Text
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  run            SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  modelTarget    ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
-  question       Question?   @relation(fields: [questionId], references: [id], onDelete: SetNull)
-
-  @@index([runId, status])
-  @@index([type, status])
-  @@index([runId, type, status])
-}
-
-model LlmResponse {
-  id            String   @id @default(uuid())
-  runId         String
-  modelTargetId String
-  questionId    String
-  threadKey     String
-  rawText       String   @db.LongText
-  parsedJson    Json?
-  reasoningText String?  @db.Text
-  citationsJson Json?
-  usageJson           Json?
-  requestMessagesJson Json?
-  confidence          Float?
-  costUsd             Decimal? @db.Decimal(12, 6)
-  latencyMs     Int?
-  verificationStatus  VerificationStatus @default(UNREVIEWED)
-  verifiedAt          DateTime?
-  verifiedByUserId    String?
-  createdAt     DateTime @default(now())
-
-  run           SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  modelTarget   ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
-  question      Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  verifiedBy    User?       @relation("ResponseVerifier", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
-  analysis      AnalysisResult?
-
-  @@unique([runId, modelTargetId, questionId, threadKey])
-  @@index([runId, modelTargetId])
-  @@index([runId, verificationStatus])
-}
-
-model AnalysisResult {
-  id                      String   @id @default(uuid())
-  responseId              String   @unique
-  sentimentScore          Float?
-  entitiesJson            Json?
-  brandMentionsJson       Json?
-  institutionMentionsJson Json?
-  flagsJson               Json?
-  claimsJson              Json?
-  citationAnalysisJson    Json?
-  keySentencesJson        Json?
-  createdAt               DateTime @default(now())
-
-  response                LlmResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
-}
-
-model AuditEvent {
-  id          String   @id @default(uuid())
-  actorUserId String
-  action      String
-  targetType  String
-  targetId    String
-  metaJson    Json?
-  ip          String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-
-  actor       User     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-
-  // Optional relations to improve query ergonomics (not required in app logic)
-  runTargetId String?
-  runTarget   SurveyRun? @relation("AuditTargetRun", fields: [runTargetId], references: [id], onDelete: SetNull)
-
-  @@index([actorUserId, createdAt])
-  @@index([targetType, targetId])
-  @@index([action])
-}
-
-model RunModelMetric {
-  id                   String      @id @default(uuid())
-  runId                String
-  modelTargetId        String
-  reliabilityScore     Float
-  jsonValidRate        Float
-  emptyAnswerRate      Float
-  shortAnswerRate      Float
-  citationRate         Float
-  latencyCv            Float
-  costCv               Float
-  calibrationScore     Float?
-  penaltyBreakdownJson Json
-  totalResponses       Int
-  createdAt            DateTime    @default(now())
-
-  run                  SurveyRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
-  modelTarget          ModelTarget @relation(fields: [modelTargetId], references: [id], onDelete: Restrict)
-
-  @@unique([runId, modelTargetId])
-  @@index([runId])
-  @@index([modelTargetId])
-}
-
-model RunQuestionAgreement {
-  id                      String    @id @default(uuid())
-  runId                   String
-  questionId              String
-  agreementPercent        Float
-  outlierModelsJson       Json
-  humanReviewFlag         Boolean
-  overconfidentModelsJson Json?
-  clusterDetailsJson      Json?
-  factConfidenceLevel     String?
-  factConfidenceScore     Float?
-  factConfidenceSignals   Json?
-  factComparisonJson      Json?
-  createdAt               DateTime  @default(now())
-
-  run                SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  question           Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@unique([runId, questionId])
-  @@index([runId])
-  @@index([questionId])
-}
-
-model RunQuestionTruth {
-  id                       String    @id @default(uuid())
-  runId                    String
-  questionId               String
-  truthScore               Float
-  truthLabel               String
-  consensusPercent         Float
-  citationRate             Float
-  numericDisagreementsJson Json
-  claimClustersJson        Json
-  breakdownJson            Json
-  createdAt                DateTime  @default(now())
-
-  run                      SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  question                 Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@unique([runId, questionId])
-  @@index([runId])
-  @@index([questionId])
-}
-
-model RunQuestionReferee {
-  id                       String    @id @default(uuid())
-  runId                    String
-  questionId               String
-  refereeModelKey          String
-  summary                  String    @db.Text
-  disagreementsJson        Json
-  verifyChecklistJson      Json
-  recommendedAnswerModelKey String?
-  confidence               Float
-  rawJson                  Json
-  createdAt                DateTime  @default(now())
-
-  run                      SurveyRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  question                 Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@unique([runId, questionId])
-  @@index([runId])
-  @@index([questionId])
 }
