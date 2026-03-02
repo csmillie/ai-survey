@@ -102,7 +102,7 @@ function VerificationButton({
   currentStatus,
 }: {
   responseId: string;
-  currentStatus: string;
+  currentStatus: "UNREVIEWED" | "VERIFIED" | "INACCURATE";
 }): React.JSX.Element {
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState(currentStatus);
@@ -124,6 +124,8 @@ function VerificationButton({
     <span className="inline-flex items-center gap-0.5">
       <button
         type="button"
+        aria-label="Mark as verified"
+        aria-pressed={status === "VERIFIED"}
         title="Mark as verified"
         disabled={isPending}
         className={`rounded p-0.5 transition-colors ${
@@ -142,6 +144,8 @@ function VerificationButton({
       </button>
       <button
         type="button"
+        aria-label="Flag as inaccurate"
+        aria-pressed={status === "INACCURATE"}
         title="Flag as inaccurate"
         disabled={isPending}
         className={`rounded p-0.5 transition-colors ${
@@ -163,7 +167,7 @@ function VerificationButton({
   );
 }
 
-function verificationBorderClass(status: string): string {
+function verificationBorderClass(status: "UNREVIEWED" | "VERIFIED" | "INACCURATE"): string {
   switch (status) {
     case "VERIFIED":
       return "border-l-2 border-l-green-500";
@@ -493,7 +497,7 @@ export const QuestionResults = memo(function QuestionResults({
 }: QuestionResultsProps): React.JSX.Element {
   return (
     <>
-      {questionGroups.map((group, groupIndex) => {
+      {questionGroups.map((group) => {
         const agreement = agreementMap.get(group.questionId);
         const varianceBadge = computeVarianceBadge(group.responses);
 
@@ -505,7 +509,7 @@ export const QuestionResults = memo(function QuestionResults({
             }}
           >
             <CardHeader>
-              <CardTitle className="text-lg">Q{groupIndex + 1}: {group.questionTitle}</CardTitle>
+              <CardTitle className="text-lg">Q{group.questionOrder}: {group.questionTitle}</CardTitle>
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}

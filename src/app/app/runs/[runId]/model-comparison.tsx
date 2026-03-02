@@ -9,21 +9,12 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { SentimentBadge } from "./shared-components";
+import type { ResponseData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface ResponseData {
-  id: string;
-  modelName: string;
-  provider: string;
-  answerText: string;
-  score: number | null;
-  questionConfig: { scaleMin: number; scaleMax: number } | null;
-  sentimentScore: number | null;
-  verificationStatus: string;
-}
 
 interface ModelComparisonProps {
   responses: ResponseData[];
@@ -57,22 +48,27 @@ function divergenceBg(sigmas: number): string {
   return "bg-red-500/5";
 }
 
+function hasScore(r: ResponseData): r is ResponseData & { score: number } {
+  return r.score !== null;
+}
+
+function hasSentiment(r: ResponseData): r is ResponseData & { sentimentScore: number } {
+  return r.sentimentScore !== null;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function ModelComparison({ responses, questionType }: ModelComparisonProps) {
+export function ModelComparison({ responses, questionType }: ModelComparisonProps): React.JSX.Element {
   const isRanked = questionType === "RANKED";
-  const scores = responses
-    .filter((r) => r.score !== null)
-    .map((r) => r.score!);
-  const sentiments = responses
-    .filter((r) => r.sentimentScore !== null)
-    .map((r) => r.sentimentScore!);
+  const scores = responses.filter(hasScore).map((r) => r.score);
+  const sentiments = responses.filter(hasSentiment).map((r) => r.sentimentScore);
 
   const scoreMean = scores.length > 0 ? mean(scores) : null;
   const scoreStd = scores.length > 1 ? stddev(scores) : 0;
   const sentimentMean = sentiments.length > 0 ? mean(sentiments) : null;
+  const sentStd = sentiments.length > 1 ? stddev(sentiments) : 0;
 
   // For open-ended: compute "agreement" as % of models with same sentiment direction
   const sentimentDirections = sentiments.map((s) =>
@@ -98,7 +94,7 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
             <TableHead>Model</TableHead>
             <TableHead>{isRanked ? "Score" : "Answer (excerpt)"}</TableHead>
             <TableHead className="text-center">
-              {isRanked ? "Score" : "Sentiment"}
+              {isRanked ? "Value" : "Sentiment"}
             </TableHead>
             <TableHead className="text-center">Divergence</TableHead>
           </TableRow>
@@ -113,7 +109,6 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
               sentimentMean !== null &&
               resp.sentimentScore !== null
             ) {
-              const sentStd = sentiments.length > 1 ? stddev(sentiments) : 0;
               sigmas =
                 sentStd > 0
                   ? Math.abs(resp.sentimentScore - sentimentMean) / sentStd
@@ -151,10 +146,8 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
                     ) : (
                       <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
                     )
-                  ) : resp.sentimentScore !== null ? (
-                    <SentimentLabel score={resp.sentimentScore} />
                   ) : (
-                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+                    <SentimentBadge score={resp.sentimentScore} />
                   )}
                 </TableCell>
                 <TableCell className="text-center">
@@ -191,26 +184,4 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
       </div>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function SentimentLabel({ score }: { score: number }) {
-  let color: string;
-  let label: string;
-
-  if (score > 0.3) {
-    color = "text-green-600 dark:text-green-400";
-    label = `Positive (${score.toFixed(2)})`;
-  } else if (score < -0.3) {
-    color = "text-red-600 dark:text-red-400";
-    label = `Negative (${score.toFixed(2)})`;
-  } else {
-    color = "text-[hsl(var(--muted-foreground))]";
-    label = `Neutral (${score.toFixed(2)})`;
-  }
-
-  return <span className={`text-xs font-medium ${color}`}>{label}</span>;
 }

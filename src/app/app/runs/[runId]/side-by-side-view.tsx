@@ -2,28 +2,12 @@
 
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { SentimentBadge } from "./shared-components";
+import type { ResponseData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface ResponseData {
-  id: string;
-  modelName: string;
-  provider: string;
-  answerText: string;
-  score: number | null;
-  questionConfig: { scaleMin: number; scaleMax: number } | null;
-  sentimentScore: number | null;
-  verificationStatus: string;
-  brandMentions: string[];
-  institutionMentions: string[];
-  entities: {
-    people: string[];
-    places: string[];
-    organizations: string[];
-  } | null;
-}
 
 interface SideBySideViewProps {
   responses: ResponseData[];
@@ -34,7 +18,7 @@ interface SideBySideViewProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function SideBySideView({ responses, questionType }: SideBySideViewProps) {
+export function SideBySideView({ responses, questionType }: SideBySideViewProps): React.JSX.Element {
   const isRanked = questionType === "RANKED";
 
   // Compute common and unique entities across all responses
@@ -151,7 +135,7 @@ function ModelCard({
 }: {
   response: ResponseData;
   isRanked: boolean;
-}) {
+}): React.JSX.Element {
   const borderColor =
     response.verificationStatus === "VERIFIED"
       ? "border-green-500/50"
@@ -241,22 +225,4 @@ function scoreColor(score: number, min: number, max: number): string {
   if (pct >= 70) return "bg-green-500";
   if (pct >= 40) return "bg-yellow-500";
   return "bg-red-500";
-}
-
-function SentimentBadge({ score }: { score: number }) {
-  let variant: "default" | "secondary" | "destructive";
-  let label: string;
-
-  if (score > 0.3) {
-    variant = "default";
-    label = `Positive (${score.toFixed(2)})`;
-  } else if (score < -0.3) {
-    variant = "destructive";
-    label = `Negative (${score.toFixed(2)})`;
-  } else {
-    variant = "secondary";
-    label = `Neutral (${score.toFixed(2)})`;
-  }
-
-  return <Badge variant={variant}>{label}</Badge>;
 }

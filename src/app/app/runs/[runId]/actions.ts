@@ -239,11 +239,7 @@ export async function setVerificationStatusAction(
     return { success: false, error: "Access denied" };
   }
 
-  // Toggle: if already set to this status, revert to UNREVIEWED
-  const newStatus =
-    parsed.data.status === "UNREVIEWED"
-      ? "UNREVIEWED"
-      : parsed.data.status;
+  const newStatus = parsed.data.status;
 
   await prisma.llmResponse.update({
     where: { id: parsed.data.responseId },
