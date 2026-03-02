@@ -35,9 +35,16 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">AI Survey Platform</CardTitle>
-          <CardDescription>
-            Sign in to your account to continue
+          <CardTitle className="text-2xl">ModelTrust</CardTitle>
+          <CardDescription className="space-y-2">
+            <span className="block font-medium text-foreground">
+              Evaluate which AI models can be trusted in real decision-making.
+            </span>
+            <span className="block">
+              ModelTrust compares responses across models, measures reliability,
+              detects disagreement, and helps teams decide when human review is
+              needed.
+            </span>
           </CardDescription>
         </CardHeader>
         <form action={formAction}>

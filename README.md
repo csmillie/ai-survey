@@ -1,6 +1,8 @@
-# LLM Survey Platform (v1)
+# ModelTrust
 
-A SurveyMonkey-style platform for running structured prompt surveys against multiple LLM chat APIs, with **ModelTrust** — a post-run analytics layer that scores model reliability, measures cross-model agreement, recommends models, and tracks quality drift over time.
+**Evaluate which AI models can be trusted in real decision-making.**
+
+ModelTrust compares responses across models, measures reliability, detects disagreement, and helps teams decide when human review is needed.
 
 **Tech:** Next.js 16 (App Router), TypeScript (strict), Tailwind CSS, shadcn/ui, Prisma + MySQL, custom MySQL-backed job queue, SSE for live progress, Recharts for drift visualization.
 

@@ -38,9 +38,11 @@ export default async function SurveysPage() {
       {surveys.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>No surveys yet</CardTitle>
+            <CardTitle>Evaluate which AI models can be trusted in real decision-making.</CardTitle>
             <CardDescription>
-              Create your first survey to get started.
+              ModelTrust compares responses across models, measures reliability,
+              detects disagreement, and helps teams decide when human review is
+              needed. Create your first survey to get started.
             </CardDescription>
           </CardHeader>
         </Card>
