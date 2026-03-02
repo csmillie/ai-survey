@@ -117,6 +117,15 @@ export async function cancelRunAction(runId: string): Promise<ActionResult> {
 // getResponseDebugData
 // ---------------------------------------------------------------------------
 
+const requestMessagesSchema = z.array(
+  z.object({ role: z.string(), content: z.string() })
+);
+
+const usageJsonSchema = z.object({
+  inputTokens: z.number(),
+  outputTokens: z.number(),
+});
+
 interface DebugDataResult {
   success: true;
   rawText: string;
@@ -148,19 +157,14 @@ export async function getResponseDebugData(
     return { success: false, error: "Access denied" };
   }
 
+  const msgResult = requestMessagesSchema.safeParse(resp.requestMessagesJson);
+  const usageResult = usageJsonSchema.safeParse(resp.usageJson);
+
   return {
     success: true,
     rawText: resp.rawText,
-    requestMessages:
-      (resp.requestMessagesJson as unknown as Array<{
-        role: string;
-        content: string;
-      }>) ?? null,
-    usageJson:
-      (resp.usageJson as unknown as {
-        inputTokens: number;
-        outputTokens: number;
-      }) ?? null,
+    requestMessages: msgResult.success ? msgResult.data : null,
+    usageJson: usageResult.success ? usageResult.data : null,
   };
 }
 

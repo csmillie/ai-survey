@@ -59,9 +59,11 @@ Do NOT commit if any of these fail. Fix issues first.
 
 - Strict mode is enabled (`strict: true` in tsconfig.json). Do not weaken it.
 - Never use `any`. Use `unknown` with type narrowing, or define proper types.
+- Never use non-null assertions (`!`). Use type-narrowing predicates instead: `.filter((r): r is T & { field: Type } => r.field !== null)`.
 - Explicit return types on all exported functions.
 - Use `satisfies` for type checking object literals where appropriate.
 - Path alias: `@/*` maps to `src/*`. Always use `@/` imports, never relative paths that go above the current directory.
+- When accumulating conditional values (e.g., averaging latencies where some are null), use separate counters for each metric — never divide by a count that includes null observations.
 
 ### Next.js Patterns
 
@@ -83,9 +85,12 @@ Do NOT commit if any of these fail. Fix issues first.
 ### Error Handling
 
 - Validate all external input (user input, API responses, env vars) with Zod at system boundaries.
+- Prisma `Json` columns must be validated with Zod `.safeParse()` before use — never cast with `as unknown as T`.
+- SSE and WebSocket payloads from the server must be validated with Zod, not cast with `as`.
 - Use `src/lib/env.ts` typed accessors for all environment variables. Never read `process.env` directly. Exception: `src/worker/index.ts` runs as a standalone `tsx` process outside Next.js and cannot use `@/` path aliases.
 - Server Actions return `{ success: boolean; error?: string }` patterns.
 - LLM responses go through `src/lib/json-repair.ts` for resilient parsing.
+- Async loading states (`setLoading(true)` / `setLoading(false)`) must use `try/finally` to prevent leaked loading states on exceptions.
 
 ### Security
 
@@ -94,6 +99,13 @@ Do NOT commit if any of these fail. Fix issues first.
 - Sessions are httpOnly JWT cookies (HS256, signed with `JWT_SECRET`).
 - Audit logging for sensitive operations via `src/lib/audit.ts`.
 - All protected routes guarded by `src/middleware.ts` (checks session cookie).
+- LLM-sourced URLs (citations, links from parsed responses) must be validated against `https?://` before rendering in `<a href>`. Reject `javascript:`, `data:`, and other non-HTTP schemes.
+
+### Accessibility
+
+- Never use `role="button"` on `<tr>` elements — it is not a permitted ARIA role on table rows. Use a dedicated `<button>` in a cell as the interactive trigger instead.
+- Expandable/collapsible elements must include `aria-expanded` on the toggle control and a descriptive `aria-label` identifying which item is being toggled.
+- Use `toLocaleString()` (not `toLocaleDateString()`) when formatting dates with time options (`hour`, `minute`).
 
 ## Architecture
 
