@@ -24,7 +24,7 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import { ScoreBar, AgreementBadge, PenaltyItem } from "./shared-components";
+import { ScoreBar, AgreementBadge, PenaltyItem, ModelLabel } from "./shared-components";
 import { POOR_CALIBRATION_SCORE_THRESHOLD } from "@/lib/analysis/calibration";
 import type { ModelMetricData, QuestionAgreementData } from "./types";
 
@@ -106,12 +106,7 @@ function ReliabilityRow({
         onClick={handleToggle}
       >
         <TableCell>
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium">{metric.modelName}</span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              {metric.provider}
-            </span>
-          </div>
+          <ModelLabel modelName={metric.modelName} provider={metric.provider} />
         </TableCell>
         <TableCell>
           <ScoreBar score={metric.reliabilityScore} min={0} max={10} />
@@ -237,48 +232,66 @@ export function ModelTrustPanel({
                 <TableRow>
                   <TableHead>Question</TableHead>
                   <TableHead>Agreement</TableHead>
-                  <TableHead>Outliers</TableHead>
+                  <TableHead>Models</TableHead>
                   <TableHead className="text-center">Overconfidence</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {questionAgreements.map((a) => (
-                  <TableRow key={a.questionId}>
-                    <TableCell className="max-w-xs truncate font-medium">
-                      {a.questionTitle}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <AgreementBadge percent={a.agreementPercent} />
-                        <span className="text-sm">
-                          {Math.round(a.agreementPercent * 100)}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-[hsl(var(--muted-foreground))]">
-                      {a.outlierModels.length > 0
-                        ? a.outlierModels.join(", ")
-                        : "None"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {a.overconfidentModels.length > 0 ? (
-                        <Badge variant="destructive">
-                          {a.overconfidentModels.length} overconfident
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">OK</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {a.humanReviewFlag ? (
-                        <Badge variant="destructive">Needs Review</Badge>
-                      ) : (
-                        <Badge variant="secondary">OK</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {questionAgreements.map((a) => {
+                  const outlierSet = new Set(a.outlierModels);
+                  return (
+                    <TableRow key={a.questionId}>
+                      <TableCell className="max-w-xs font-medium">
+                        <span className="text-[hsl(var(--muted-foreground))]">
+                          Q{a.questionOrder + 1}:
+                        </span>{" "}
+                        <span className="truncate">{a.questionTitle}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <AgreementBadge percent={a.agreementPercent} />
+                          <span className="text-sm">
+                            {Math.round(a.agreementPercent * 100)}%
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {modelMetrics.map((m) => {
+                            const isOutlier = outlierSet.has(m.modelName);
+                            return (
+                              <Badge
+                                key={m.modelTargetId}
+                                variant={isOutlier ? "destructive" : "secondary"}
+                                className="text-xs"
+                                title={`${m.modelName} (${m.provider})${isOutlier ? " — disagrees" : " — agrees"}`}
+                              >
+                                {isOutlier ? "✗" : "✓"} {m.provider}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {a.overconfidentModels.length > 0 ? (
+                          <Badge variant="destructive">
+                            {a.overconfidentModels.length} overconfident
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">OK</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {a.humanReviewFlag ? (
+                          <Badge variant="destructive">Needs Review</Badge>
+                        ) : (
+                          <Badge variant="secondary">OK</Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TabsContent>

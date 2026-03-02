@@ -58,6 +58,7 @@ export function NeedsReview({
               onClick={() => onScrollToQuestion(q.questionId)}
             >
               <span className="mr-3 min-w-0 truncate text-sm font-medium">
+                <span className="text-[hsl(var(--muted-foreground))]">Q{q.questionOrder + 1}:</span>{" "}
                 {q.questionTitle}
               </span>
               <div className="flex flex-shrink-0 items-center gap-2">

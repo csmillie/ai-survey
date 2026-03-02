@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, SentimentBadge, AgreementBadge } from "./shared-components";
+import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { SideBySideView } from "./side-by-side-view";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
@@ -226,10 +226,7 @@ function ResponseRow({
       >
         <TableCell>
           <div className="flex items-center gap-1.5">
-            <span className="font-medium">{response.modelName}</span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              {response.provider}
-            </span>
+            <ModelLabel modelName={response.modelName} provider={response.provider} />
             <VerificationButton
               responseId={response.id}
               currentStatus={response.verificationStatus}
@@ -485,6 +482,52 @@ function ResponseRow({
 }
 
 // ---------------------------------------------------------------------------
+// QuestionTitle — truncates long titles with expand/collapse
+// ---------------------------------------------------------------------------
+
+const TITLE_TRUNCATE_LENGTH = 100;
+
+function QuestionTitle({
+  order,
+  title,
+  questionId,
+  isExpanded,
+  onToggle,
+}: {
+  order: number;
+  title: string;
+  questionId: string;
+  isExpanded: boolean;
+  onToggle: (questionId: string) => void;
+}): React.JSX.Element {
+  const isTruncatable = title.length > TITLE_TRUNCATE_LENGTH;
+  const displayText =
+    isTruncatable && !isExpanded
+      ? title.slice(0, TITLE_TRUNCATE_LENGTH) + "…"
+      : title;
+
+  return (
+    <CardTitle className="text-lg">
+      Q{order}: {displayText}
+      {isTruncatable && (
+        <button
+          type="button"
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Collapse" : "Expand"} question ${order}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(questionId);
+          }}
+          className="ml-1 text-sm font-normal text-[hsl(var(--primary))] hover:underline"
+        >
+          {isExpanded ? "show less" : "show more"}
+        </button>
+      )}
+    </CardTitle>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // QuestionResults
 // ---------------------------------------------------------------------------
 
@@ -495,6 +538,20 @@ export const QuestionResults = memo(function QuestionResults({
   onToggleRow,
   questionRefs,
 }: QuestionResultsProps): React.JSX.Element {
+  const [expandedTitles, setExpandedTitles] = useState<Set<string>>(new Set());
+
+  const toggleTitle = useCallback((questionId: string) => {
+    setExpandedTitles((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <>
       {questionGroups.map((group) => {
@@ -509,7 +566,13 @@ export const QuestionResults = memo(function QuestionResults({
             }}
           >
             <CardHeader>
-              <CardTitle className="text-lg">Q{group.questionOrder}: {group.questionTitle}</CardTitle>
+              <QuestionTitle
+                order={group.questionOrder + 1}
+                title={group.questionTitle}
+                questionId={group.questionId}
+                isExpanded={expandedTitles.has(group.questionId)}
+                onToggle={toggleTitle}
+              />
               <CardDescription>
                 {group.responses.length} response
                 {group.responses.length === 1 ? "" : "s"}

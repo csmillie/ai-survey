@@ -9,7 +9,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { SentimentBadge } from "./shared-components";
+import { SentimentBadge, ModelLabel } from "./shared-components";
 import type { ResponseData } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -123,12 +123,7 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
             return (
               <TableRow key={resp.id} className={divergenceBg(sigmas)}>
                 <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium">{resp.modelName}</span>
-                    <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                      {resp.provider}
-                    </span>
-                  </div>
+                  <ModelLabel modelName={resp.modelName} provider={resp.provider} />
                 </TableCell>
                 <TableCell className="max-w-xs">
                   {isRanked && resp.score !== null && resp.questionConfig ? (

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import { SentimentBadge } from "./shared-components";
+import { SentimentBadge, ModelLabel } from "./shared-components";
 import type { ResponseData } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -149,12 +149,7 @@ function ModelCard({
     >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <span className="font-medium text-sm">{response.modelName}</span>
-          <span className="ml-1.5 text-xs text-[hsl(var(--muted-foreground))]">
-            {response.provider}
-          </span>
-        </div>
+        <ModelLabel modelName={response.modelName} provider={response.provider} />
         {response.verificationStatus !== "UNREVIEWED" && (
           <Badge
             variant={
