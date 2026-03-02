@@ -291,3 +291,72 @@ export const confidenceFromJsonSchema = z
   .object({ confidence: z.number().min(0).max(100).optional() })
   .nullable()
   .catch(null);
+
+// ---------------------------------------------------------------------------
+// Truth Engine JSON fields
+// ---------------------------------------------------------------------------
+
+export const truthBreakdownSchema = z.object({
+  baseScore: z.number(),
+  consensusBonus: z.number(),
+  citationBonus: z.number(),
+  citationPenalty: z.number(),
+  numericDisagreementPenalty: z.number(),
+  assertionDisagreementPenalty: z.number(),
+  emptyShortPenalty: z.number(),
+  finalScore: z.number(),
+});
+
+export type TruthBreakdownPayload = z.infer<typeof truthBreakdownSchema>;
+
+export const truthNumericDisagreementSchema = z.object({
+  claimText: z.string(),
+  values: z.array(
+    z.object({
+      modelKey: z.string(),
+      value: z.number(),
+      unit: z.string().optional(),
+    })
+  ),
+  maxDelta: z.number(),
+});
+
+export const numericDisagreementsJsonSchema = z
+  .array(truthNumericDisagreementSchema)
+  .catch([]);
+
+export const claimClusterSchema = z.object({
+  clusterId: z.number(),
+  kind: z.enum(["numeric", "assertion"]),
+  claims: z.array(
+    z.object({
+      kind: z.enum(["numeric", "assertion"]),
+      text: z.string(),
+      modelKey: z.string(),
+    })
+  ),
+  models: z.array(z.string()),
+});
+
+export const claimClustersJsonSchema = z.array(claimClusterSchema).catch([]);
+
+export const refereeDisagreementSchema = z.object({
+  type: z.enum(["numeric", "factual", "assumption"]),
+  description: z.string(),
+  models: z.array(z.string()),
+  severity: z.enum(["low", "medium", "high"]),
+});
+
+export const refereeChecklistItemSchema = z.object({
+  item: z.string(),
+  why: z.string(),
+  suggested_source: z.string(),
+});
+
+export const refereeDisagreementsJsonSchema = z
+  .array(refereeDisagreementSchema)
+  .catch([]);
+
+export const refereeChecklistJsonSchema = z
+  .array(refereeChecklistItemSchema)
+  .catch([]);
