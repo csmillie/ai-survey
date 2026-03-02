@@ -275,14 +275,14 @@ function ResponseRow({
           {response.confidence !== null ? (
             <span
               className={`text-sm font-medium ${
-                response.confidence >= 0.8
+                response.confidence >= 80
                   ? "text-green-600 dark:text-green-400"
-                  : response.confidence >= 0.5
+                  : response.confidence >= 50
                     ? "text-amber-600 dark:text-amber-400"
                     : "text-red-600 dark:text-red-400"
               }`}
             >
-              {Math.round(response.confidence * 100)}%
+              {Math.round(response.confidence)}%
             </span>
           ) : (
             <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
