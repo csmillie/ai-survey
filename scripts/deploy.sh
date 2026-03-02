@@ -107,6 +107,15 @@ pnpm build
 
 # ── 6. Restart PM2 processes ───────────────────────────────────────────────
 
+# Source .env so variables like PORT are available when PM2 evaluates
+# ecosystem.config.js (which reads process.env.PORT for the web server port).
+if [[ -f "${DEPLOY_DIR}/.env" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "${DEPLOY_DIR}/.env"
+  set +a
+fi
+
 log "Restarting PM2 processes..."
 pm2 reload ecosystem.config.js
 

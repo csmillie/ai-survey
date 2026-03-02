@@ -3,15 +3,16 @@ const path = require("path");
 // Resolve project root from this file's location, so the config works
 // regardless of where the repo is cloned on the server.
 const cwd = path.resolve(__dirname);
+const port = process.env.PORT || "3000";
 
 module.exports = {
   apps: [
     {
       name: "ai-survey-web",
       script: "node_modules/.bin/next",
-      args: "start -p 3000",
+      args: `start -p ${port}`,
       cwd,
-      env: { NODE_ENV: "production" },
+      env: { NODE_ENV: "production", PORT: port },
     },
     {
       name: "ai-survey-worker",
