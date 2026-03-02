@@ -346,6 +346,7 @@ export function RunProgressView({
               questionAgreements={questionAgreements}
               runId={runId}
               modelStats={modelStats}
+              onScrollToQuestion={handleScrollToQuestion}
             />
           )}
 

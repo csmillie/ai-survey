@@ -46,6 +46,7 @@ interface ModelTrustPanelProps {
   questionAgreements: QuestionAgreementData[];
   runId: string;
   modelStats?: Map<string, { avgLatencyMs: number; avgCostUsd: number }>;
+  onScrollToQuestion?: (questionId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +178,7 @@ export function ModelTrustPanel({
   questionAgreements,
   runId,
   modelStats,
+  onScrollToQuestion,
 }: ModelTrustPanelProps): React.JSX.Element {
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
 
@@ -249,6 +251,7 @@ export function ModelTrustPanel({
                   <TableHead>Models</TableHead>
                   <TableHead className="text-center">Overconfidence</TableHead>
                   <TableHead className="text-center">Status</TableHead>
+                  {onScrollToQuestion && <TableHead />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -325,6 +328,18 @@ export function ModelTrustPanel({
                           <Badge variant="secondary">OK</Badge>
                         )}
                       </TableCell>
+                      {onScrollToQuestion && (
+                        <TableCell className="text-right">
+                          <button
+                            type="button"
+                            aria-label={`Jump to question ${a.questionOrder + 1}`}
+                            onClick={() => onScrollToQuestion(a.questionId)}
+                            className="text-xs text-[hsl(var(--primary))] hover:underline"
+                          >
+                            View ↓
+                          </button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   );
                 })}
