@@ -290,15 +290,20 @@ export function ModelTrustPanel({
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {modelMetrics.map((m) => {
-                            const isOutlier = outlierSet.has(m.modelName);
+                            // When outlierModels is empty but agreement < 100%,
+                            // all clusters tied for largest — no consensus exists.
+                            const noConsensus =
+                              outlierSet.size === 0 && a.agreementPercent < 1.0;
+                            const disagrees =
+                              noConsensus || outlierSet.has(m.modelName);
                             return (
                               <Badge
                                 key={m.modelTargetId}
-                                variant={isOutlier ? "destructive" : "secondary"}
+                                variant={disagrees ? "destructive" : "secondary"}
                                 className="text-xs"
-                                title={`${m.modelName} (${m.provider})${isOutlier ? " — disagrees" : " — agrees"}`}
+                                title={`${m.modelName} (${m.provider})${disagrees ? " — disagrees" : " — agrees"}`}
                               >
-                                {isOutlier ? "✗" : "✓"} {m.provider}
+                                {disagrees ? "✗" : "✓"} {m.modelName}
                               </Badge>
                             );
                           })}
