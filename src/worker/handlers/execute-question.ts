@@ -4,7 +4,7 @@ import type { ExecuteQuestionPayload } from "@/lib/queue";
 import { enqueueAnalyzeJob, enqueueComputeMetricsJob } from "@/lib/queue";
 import { getProvider } from "@/providers/registry";
 import type { LlmMessage } from "@/providers/types";
-import { JSON_ENFORCEMENT_BLOCK } from "@/providers/types";
+import { JSON_ENFORCEMENT_BLOCK, FORMATTING_SYSTEM_PROMPT } from "@/providers/types";
 import { repairAndParseJson } from "@/lib/json-repair";
 import { createAuditEvent, RUN_COMPLETED, RUN_FAILED } from "@/lib/audit";
 import {
@@ -67,6 +67,11 @@ export async function handleExecuteQuestion(
       },
     ];
 
+    messages.push({
+      role: "system",
+      content: FORMATTING_SYSTEM_PROMPT,
+    });
+
     // For THREADED mode, prepend existing conversation history
     if (questionMode === "THREADED") {
       const existingThread = await prisma.conversationThread.findUnique({
@@ -98,6 +103,8 @@ export async function handleExecuteQuestion(
     const response = await provider.sendRequest({
       model: modelTarget.modelName,
       messages,
+      temperature: 0,
+      topP: 1,
     });
 
     // 4. Parse response

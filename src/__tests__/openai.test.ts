@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { LlmRequestOptions } from "@/providers/types";
 
 // ---------------------------------------------------------------------------
-// Mock the openai SDK (Grok uses it with a custom baseURL)
+// Mock the openai SDK
 // ---------------------------------------------------------------------------
 
 const mockCreate = vi.fn();
@@ -14,7 +14,7 @@ vi.mock("openai", () => ({
 }));
 
 // Import AFTER mock is set up
-import { GrokProvider } from "@/providers/grok";
+import { OpenAIProvider } from "@/providers/openai";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,7 +31,7 @@ function makeResponse(overrides: {
         message: {
           content: Object.hasOwn(overrides, "content")
             ? overrides.content
-            : "Hello from Grok",
+            : "Hello from OpenAI",
         },
       },
     ],
@@ -46,19 +46,19 @@ function makeResponse(overrides: {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("GrokProvider", () => {
-  let provider: GrokProvider;
+describe("OpenAIProvider", () => {
+  let provider: OpenAIProvider;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    provider = new GrokProvider("test-api-key");
+    provider = new OpenAIProvider("test-api-key");
   });
 
   it("sends messages with correct role mapping", async () => {
     mockCreate.mockResolvedValue(makeResponse());
 
     const options: LlmRequestOptions = {
-      model: "grok-3-mini",
+      model: "gpt-4o",
       messages: [
         { role: "system", content: "You are helpful." },
         { role: "user", content: "Hello" },
@@ -78,14 +78,14 @@ describe("GrokProvider", () => {
     mockCreate.mockResolvedValue(makeResponse());
 
     await provider.sendRequest({
-      model: "grok-3",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
       maxTokens: 2048,
       temperature: 0.5,
     });
 
     const call = mockCreate.mock.calls[0][0];
-    expect(call.model).toBe("grok-3");
+    expect(call.model).toBe("gpt-4o");
     expect(call.max_tokens).toBe(2048);
     expect(call.temperature).toBe(0.5);
   });
@@ -96,7 +96,7 @@ describe("GrokProvider", () => {
     );
 
     const result = await provider.sendRequest({
-      model: "grok-3-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -111,7 +111,7 @@ describe("GrokProvider", () => {
     });
 
     const result = await provider.sendRequest({
-      model: "grok-3-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -124,10 +124,10 @@ describe("GrokProvider", () => {
 
     await expect(
       provider.sendRequest({
-        model: "grok-3-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: "Hello" }],
       })
-    ).rejects.toThrow("Grok returned an empty response");
+    ).rejects.toThrow("OpenAI returned an empty response");
   });
 
   it("throws when response content is an empty string", async () => {
@@ -135,10 +135,10 @@ describe("GrokProvider", () => {
 
     await expect(
       provider.sendRequest({
-        model: "grok-3-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: "Hello" }],
       })
-    ).rejects.toThrow("Grok returned an empty response");
+    ).rejects.toThrow("OpenAI returned an empty response");
   });
 
   it("throws when choices array is empty", async () => {
@@ -146,21 +146,21 @@ describe("GrokProvider", () => {
 
     await expect(
       provider.sendRequest({
-        model: "grok-3-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: "Hello" }],
       })
-    ).rejects.toThrow("Grok returned an empty response");
+    ).rejects.toThrow("OpenAI returned an empty response");
   });
 
   it("returns text and latency for successful response", async () => {
     mockCreate.mockResolvedValue(makeResponse());
 
     const result = await provider.sendRequest({
-      model: "grok-3-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
     });
 
-    expect(result.text).toBe("Hello from Grok");
+    expect(result.text).toBe("Hello from OpenAI");
     expect(result.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -168,7 +168,7 @@ describe("GrokProvider", () => {
     mockCreate.mockResolvedValue(makeResponse());
 
     await provider.sendRequest({
-      model: "grok-3-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
     });
 
@@ -180,7 +180,7 @@ describe("GrokProvider", () => {
   it("passes topP to the API call", async () => {
     mockCreate.mockResolvedValue(makeResponse());
     await provider.sendRequest({
-      model: "grok-2",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
       topP: 0.5,
     });
@@ -191,7 +191,7 @@ describe("GrokProvider", () => {
   it("defaults topP to 1 when not provided", async () => {
     mockCreate.mockResolvedValue(makeResponse());
     await provider.sendRequest({
-      model: "grok-2",
+      model: "gpt-4o",
       messages: [{ role: "user", content: "Hello" }],
     });
     const call = mockCreate.mock.calls[0][0];

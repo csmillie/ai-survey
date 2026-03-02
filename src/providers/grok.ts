@@ -26,6 +26,7 @@ export class GrokProvider implements LlmProvider {
       })),
       max_tokens: options.maxTokens ?? 4096,
       temperature: options.temperature ?? 0.7,
+      top_p: options.topP ?? 1,
     });
 
     const latencyMs = Date.now() - start;
