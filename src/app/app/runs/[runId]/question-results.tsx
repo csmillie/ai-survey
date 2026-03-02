@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
+import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
 import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
@@ -694,6 +695,9 @@ export const QuestionResults = memo(function QuestionResults({
                     responses={group.responses}
                     questionType={group.responses[0]?.questionType ?? "OPEN_ENDED"}
                   />
+                  {group.responses.length >= 2 && (
+                    <CommonalitiesView responses={group.responses} />
+                  )}
                 </TabsContent>
 
                 <TabsContent value="side-by-side">
