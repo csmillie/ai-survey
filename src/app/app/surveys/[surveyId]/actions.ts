@@ -215,8 +215,23 @@ export async function deleteQuestionAction(
   const session = await requireSession();
   await requireSurveyAccess(session.userId, surveyId, "EDIT");
 
-  await prisma.question.delete({
-    where: { id: questionId, surveyId },
+  await prisma.$transaction(async (tx) => {
+    await tx.question.delete({
+      where: { id: questionId, surveyId },
+    });
+
+    // Resequence remaining questions so order is always 0, 1, 2, ...
+    const remaining = await tx.question.findMany({
+      where: { surveyId },
+      orderBy: { order: "asc" },
+      select: { id: true },
+    });
+
+    await Promise.all(
+      remaining.map((q, idx) =>
+        tx.question.update({ where: { id: q.id }, data: { order: idx } })
+      )
+    );
   });
 
   await createAuditEvent({
