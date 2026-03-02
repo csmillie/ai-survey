@@ -34,6 +34,7 @@ export class AnthropicProvider implements LlmProvider {
       model: options.model,
       max_tokens: options.maxTokens ?? 4096,
       temperature: options.temperature ?? 0.7,
+      top_p: options.topP ?? 1,
       ...(systemText.length > 0 ? { system: systemText } : {}),
       messages: conversationMessages.map((m) => ({
         role: m.role as "user" | "assistant",
