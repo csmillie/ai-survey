@@ -147,7 +147,7 @@ export default async function RunPage({ params }: RunPageProps) {
       where: { runId },
       include: {
         question: {
-          select: { title: true },
+          select: { title: true, order: true },
         },
       },
       orderBy: { agreementPercent: "asc" },
@@ -184,6 +184,7 @@ export default async function RunPage({ params }: RunPageProps) {
       {
         questionId: a.questionId,
         questionTitle: a.question.title,
+        questionOrder: a.question.order,
         agreementPercent: a.agreementPercent,
         outlierModels: outliers.data,
         humanReviewFlag: a.humanReviewFlag,

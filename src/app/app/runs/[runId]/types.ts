@@ -43,6 +43,7 @@ export interface DriftPoint {
 export interface QuestionAgreementData {
   questionId: string;
   questionTitle: string;
+  questionOrder: number;
   agreementPercent: number;
   outlierModels: string[];
   humanReviewFlag: boolean;

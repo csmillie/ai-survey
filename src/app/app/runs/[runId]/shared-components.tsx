@@ -151,6 +151,24 @@ export function AgreementBadge({
 }
 
 // ---------------------------------------------------------------------------
+// ModelLabel — shows provider as primary text, model name on hover
+// ---------------------------------------------------------------------------
+
+export function ModelLabel({
+  modelName,
+  provider,
+}: {
+  modelName: string;
+  provider: string;
+}): React.JSX.Element {
+  return (
+    <span className="font-medium" title={modelName}>
+      {provider}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // PenaltyItem
 // ---------------------------------------------------------------------------
 

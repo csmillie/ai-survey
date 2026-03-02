@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, SentimentBadge, AgreementBadge } from "./shared-components";
+import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { SideBySideView } from "./side-by-side-view";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
@@ -226,10 +226,7 @@ function ResponseRow({
       >
         <TableCell>
           <div className="flex items-center gap-1.5">
-            <span className="font-medium">{response.modelName}</span>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              {response.provider}
-            </span>
+            <ModelLabel modelName={response.modelName} provider={response.provider} />
             <VerificationButton
               responseId={response.id}
               currentStatus={response.verificationStatus}
