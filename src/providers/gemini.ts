@@ -42,6 +42,7 @@ export class GeminiProvider implements LlmProvider {
       config: {
         maxOutputTokens: options.maxTokens ?? 4096,
         temperature: options.temperature ?? 0.7,
+        topP: options.topP ?? 1,
         ...(systemText.length > 0 ? { systemInstruction: systemText } : {}),
       },
     });

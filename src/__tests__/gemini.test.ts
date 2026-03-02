@@ -219,4 +219,25 @@ describe("GeminiProvider", () => {
     expect(call.config.maxOutputTokens).toBe(2048);
     expect(call.config.temperature).toBe(0.5);
   });
+
+  it("passes topP to the config", async () => {
+    mockGenerateContent.mockResolvedValue(makeResponse());
+    await provider.sendRequest({
+      model: "gemini-2.5-flash",
+      messages: [{ role: "user", content: "Hello" }],
+      topP: 0.5,
+    });
+    const call = mockGenerateContent.mock.calls[0][0];
+    expect(call.config.topP).toBe(0.5);
+  });
+
+  it("defaults topP to 1 when not provided", async () => {
+    mockGenerateContent.mockResolvedValue(makeResponse());
+    await provider.sendRequest({
+      model: "gemini-2.5-flash",
+      messages: [{ role: "user", content: "Hello" }],
+    });
+    const call = mockGenerateContent.mock.calls[0][0];
+    expect(call.config.topP).toBe(1);
+  });
 });
