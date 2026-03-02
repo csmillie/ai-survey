@@ -139,8 +139,14 @@ export async function handleComputeMetrics(
     for (const [modelTargetId, data] of byModel) {
       const metrics: ResponseMetrics[] = data.responses.map((r) => {
         const flags = flagsJsonSchema.parse(r.analysis?.flagsJson) ?? [];
-        const parsed = r.parsedJson as Record<string, unknown> | null;
-        const citations = r.citationsJson as unknown[] | null;
+        const rawParsed: unknown = r.parsedJson;
+        const parsed = (rawParsed === null || rawParsed === Prisma.JsonNull)
+          ? null
+          : rawParsed as Record<string, unknown>;
+        const rawCitations: unknown = r.citationsJson;
+        const citations = (rawCitations === null || rawCitations === Prisma.JsonNull)
+          ? null
+          : rawCitations as unknown[];
         const isRanked = r.question.type === "RANKED";
 
         return {

@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { AnalyzeResponsePayload } from "@/lib/queue";
 import { analyzeSentiment } from "@/lib/analysis/sentiment";
@@ -40,7 +40,10 @@ export async function handleAnalyzeResponse(
     }
 
     // 2. If parsedJson is null, flag as invalid
-    if (llmResponse.parsedJson === null) {
+    // Check both SQL NULL (null) and JSON null (Prisma.JsonNull) since either
+    // may be returned depending on how the value was stored.
+    const parsedJsonRaw: unknown = llmResponse.parsedJson;
+    if (parsedJsonRaw === null || parsedJsonRaw === Prisma.JsonNull) {
       await prisma.analysisResult.create({
         data: {
           responseId,
