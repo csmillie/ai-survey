@@ -94,7 +94,7 @@ pnpm build
 # ── 6. Restart PM2 processes ───────────────────────────────────────────────
 
 log "Restarting PM2 processes..."
-pm2 reload ecosystem.config.cjs
+pm2 reload ecosystem.config.js
 
 # ── Done ────────────────────────────────────────────────────────────────────
 

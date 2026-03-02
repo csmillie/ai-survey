@@ -62,11 +62,11 @@ DEPLOY_BRANCH=main
 
 #### 2. Start all processes with PM2
 
-The `ecosystem.config.cjs` in the repo root includes the web app, worker, and
+The `ecosystem.config.js` in the repo root includes the web app, worker, and
 webhook listener. Edit the `cwd` paths to match your server layout, then:
 
 ```bash
-pm2 start ecosystem.config.cjs
+pm2 start ecosystem.config.js
 pm2 save
 ```
 
