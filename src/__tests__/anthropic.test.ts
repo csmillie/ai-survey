@@ -48,7 +48,7 @@ describe("AnthropicProvider", () => {
     provider = new AnthropicProvider("test-api-key");
   });
 
-  it("passes top_p to the API call", async () => {
+  it("passes top_p to the API call when temperature is not provided", async () => {
     mockCreate.mockResolvedValue(makeResponse());
     await provider.sendRequest({
       model: "claude-sonnet-4-6",
@@ -59,14 +59,16 @@ describe("AnthropicProvider", () => {
     expect(call.top_p).toBe(0.5);
   });
 
-  it("defaults top_p to 1 when not provided", async () => {
+  it("omits top_p when temperature is explicitly provided", async () => {
     mockCreate.mockResolvedValue(makeResponse());
     await provider.sendRequest({
       model: "claude-sonnet-4-6",
       messages: [{ role: "user", content: "Hello" }],
+      temperature: 0,
+      topP: 1,
     });
     const call = mockCreate.mock.calls[0][0];
-    expect(call.top_p).toBe(1);
+    expect(call).not.toHaveProperty("top_p");
   });
 
   it("extracts system messages into system field", async () => {
