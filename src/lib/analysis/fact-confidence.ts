@@ -58,19 +58,40 @@ export function computeFactConfidence(
     signals.push("low agreement across models");
   }
 
-  // --- Numeric consistency ---
+  // --- Numeric consistency (category-aware) ---
   const { numericDisagreements } = factors.comparison;
   if (numericDisagreements.length === 0) {
-    const hasNumericClaims = factors.comparison.agreementSignals.includes(
-      "consistent numeric claims"
+    // Check for any category-specific or general consistency signal
+    const hasConsistentClaims = factors.comparison.agreementSignals.some(
+      (s) => s.startsWith("consistent ") && s.endsWith(" claims")
     );
-    if (hasNumericClaims) {
+    if (hasConsistentClaims) {
       score += 10;
-      // Signal already added by comparison
+      // Signals already added by comparison
     }
   } else {
     score -= 10 * Math.min(numericDisagreements.length, 3);
-    signals.push("numeric disagreement detected");
+    // Add category-specific disagreement signals
+    const categories = new Set(
+      numericDisagreements.map((d) => d.category).filter(Boolean)
+    );
+    if (categories.size > 0) {
+      for (const cat of categories) {
+        const label =
+          cat === "percentage"
+            ? "percentage"
+            : cat === "currency"
+              ? "dollar amount"
+              : cat === "year"
+                ? "year"
+                : cat === "rating"
+                  ? "rating"
+                  : "numeric";
+        signals.push(`${label} disagreement detected`);
+      }
+    } else {
+      signals.push("numeric disagreement detected");
+    }
   }
 
   // --- Citation quality ---

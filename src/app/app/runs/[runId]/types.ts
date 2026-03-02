@@ -40,8 +40,11 @@ export interface DriftPoint {
   models: Record<string, number | undefined>;
 }
 
+export type ClaimCategory = "percentage" | "currency" | "year" | "rating";
+
 export interface NumericDisagreementData {
   claim: string;
+  category?: ClaimCategory;
   values: Array<{ modelName: string; value: number; raw: string }>;
   maxDelta: number;
   meanValue: number;

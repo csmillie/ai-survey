@@ -212,11 +212,16 @@ export const overconfidentModelsSchema = z.array(z.string());
 // Fact-check JSON column schemas
 // ---------------------------------------------------------------------------
 
+export const claimCategorySchema = z.enum(["percentage", "currency", "year", "rating"]);
+
 export const extractedClaimSchema = z.object({
-  type: z.enum(["number", "percentage", "date", "assertion"]),
+  type: z.enum(["number", "percentage", "date", "assertion", "rating"]),
+  category: claimCategorySchema.optional(),
   raw: z.string(),
   normalized: z.string(),
   value: z.number().optional(),
+  scaleMax: z.number().optional(),
+  normalizedScore: z.number().optional(),
 });
 
 export const citationAnalysisSchema = z.object({
@@ -233,6 +238,7 @@ export const factConfidenceSignalsSchema = z.array(z.string()).nullable().catch(
 
 export const numericDisagreementSchema = z.object({
   claim: z.string(),
+  category: claimCategorySchema.optional(),
   values: z.array(z.object({
     modelName: z.string(),
     value: z.number(),
