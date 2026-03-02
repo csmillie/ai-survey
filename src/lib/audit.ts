@@ -32,6 +32,8 @@ export const RUN_FAILED = "RUN_FAILED" as const;
 
 export const EXPORT_CREATED = "EXPORT_CREATED" as const;
 
+export const RESPONSE_VERIFIED = "RESPONSE_VERIFIED" as const;
+
 export const PROFILE_UPDATED = "PROFILE_UPDATED" as const;
 export const PASSWORD_CHANGED = "PASSWORD_CHANGED" as const;
 export const ACCOUNT_DISABLED = "ACCOUNT_DISABLED" as const;
@@ -57,6 +59,7 @@ export type AuditAction =
   | typeof RUN_COMPLETED
   | typeof RUN_FAILED
   | typeof EXPORT_CREATED
+  | typeof RESPONSE_VERIFIED
   | typeof PROFILE_UPDATED
   | typeof PASSWORD_CHANGED
   | typeof ACCOUNT_DISABLED;

@@ -221,6 +221,25 @@ export const parsedOpenEndedSchema = z
   .nullable()
   .catch(null);
 
+// ---------------------------------------------------------------------------
+// Verification
+// ---------------------------------------------------------------------------
+
+export const verificationStatusSchema = z.enum([
+  "UNREVIEWED",
+  "VERIFIED",
+  "INACCURATE",
+]);
+
+export type VerificationStatusInput = z.infer<typeof verificationStatusSchema>;
+
+export const setVerificationSchema = z.object({
+  responseId: z.string().uuid(),
+  status: verificationStatusSchema,
+});
+
+export type SetVerificationInput = z.infer<typeof setVerificationSchema>;
+
 // Extracts an optional confidence field from a parsedJson blob.
 // Open-ended parsedJson may contain { answerText, citations, confidence, ... }.
 // Ranked parsedJson only contains { score }, so this returns undefined for ranked.

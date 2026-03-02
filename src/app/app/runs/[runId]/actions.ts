@@ -6,7 +6,8 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 import { enqueueExportJob } from "@/lib/queue";
-import { createAuditEvent, RUN_CANCELLED } from "@/lib/audit";
+import { createAuditEvent, RUN_CANCELLED, RESPONSE_VERIFIED } from "@/lib/audit";
+import { setVerificationSchema } from "@/lib/schemas";
 import type { DriftPoint } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +206,64 @@ export async function exportRunAction(runId: string): Promise<ActionResult> {
     runId,
     modelTargetId: runModel.modelTargetId,
   });
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// setVerificationStatusAction
+// ---------------------------------------------------------------------------
+
+export async function setVerificationStatusAction(
+  responseId: string,
+  status: string
+): Promise<ActionResult> {
+  const parsed = setVerificationSchema.safeParse({ responseId, status });
+  if (!parsed.success) {
+    return { success: false, error: "Invalid input" };
+  }
+
+  const session = await requireSession();
+
+  const resp = await prisma.llmResponse.findUnique({
+    where: { id: parsed.data.responseId },
+    select: { id: true, runId: true, run: { select: { surveyId: true } } },
+  });
+
+  if (!resp) {
+    return { success: false, error: "Response not found" };
+  }
+
+  const hasAccess = await canAccessSurvey(session.userId, resp.run.surveyId, "EDIT");
+  if (!hasAccess) {
+    return { success: false, error: "Access denied" };
+  }
+
+  // Toggle: if already set to this status, revert to UNREVIEWED
+  const newStatus =
+    parsed.data.status === "UNREVIEWED"
+      ? "UNREVIEWED"
+      : parsed.data.status;
+
+  await prisma.llmResponse.update({
+    where: { id: parsed.data.responseId },
+    data: {
+      verificationStatus: newStatus,
+      verifiedAt: newStatus === "UNREVIEWED" ? null : new Date(),
+      verifiedByUserId: newStatus === "UNREVIEWED" ? null : session.userId,
+    },
+  });
+
+  await createAuditEvent({
+    actorUserId: session.userId,
+    action: RESPONSE_VERIFIED,
+    targetType: "LlmResponse",
+    targetId: parsed.data.responseId,
+    meta: { status: newStatus },
+    runTargetId: resp.runId,
+  });
+
+  revalidatePath(`/app/runs/${resp.runId}`);
 
   return { success: true };
 }
