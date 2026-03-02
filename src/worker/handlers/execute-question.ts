@@ -103,6 +103,12 @@ export async function handleExecuteQuestion(
     // 4. Parse response
     const { parsed, error: parseError } = repairAndParseJson(response.text);
 
+    if (parseError) {
+      console.warn(
+        `[execute-question] JSON error from ${modelTarget.provider}/${modelTarget.modelName} (job ${jobId}): ${parseError}`
+      );
+    }
+
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
     let confidence: number | null = null;
