@@ -138,7 +138,7 @@ export function RunProgressView({
       es.close();
       eventSourceRef.current = null;
     };
-  }, [runId, isLive]);
+  }, [runId, isLive, router]);
 
   // Handlers
   const handleCancel = useCallback(() => {
