@@ -5,6 +5,7 @@ import {
   computeTfIdf,
   computeOpenEndedAgreement,
   computeRankedAgreement,
+  extractPredictionDirection,
 } from "@/lib/analysis/agreement";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,123 @@ describe("computeTfIdf", () => {
 });
 
 // ---------------------------------------------------------------------------
+// extractPredictionDirection
+// ---------------------------------------------------------------------------
+
+describe("extractPredictionDirection", () => {
+  it("detects 'Yes' at the start as positive", () => {
+    expect(
+      extractPredictionDirection("Yes, the Bank of Canada will cut rates.")
+    ).toBe("positive");
+  });
+
+  it("detects 'No' at the start as negative", () => {
+    expect(
+      extractPredictionDirection("No, the Bank of Canada will not cut rates.")
+    ).toBe("negative");
+  });
+
+  it("detects 'unlikely' in first sentence as negative", () => {
+    expect(
+      extractPredictionDirection(
+        "It is unlikely that the central bank will ease policy."
+      )
+    ).toBe("negative");
+  });
+
+  it("detects 'not likely' as negative", () => {
+    expect(
+      extractPredictionDirection(
+        "A rate cut is not likely given current inflation."
+      )
+    ).toBe("negative");
+  });
+
+  it("detects 'probably not' as negative", () => {
+    expect(
+      extractPredictionDirection("Probably not. Inflation remains sticky.")
+    ).toBe("negative");
+  });
+
+  it("detects 'uncertain' as uncertain", () => {
+    expect(
+      extractPredictionDirection(
+        "It is uncertain whether the Bank of Canada will act."
+      )
+    ).toBe("uncertain");
+  });
+
+  it("detects 'hard to predict' as uncertain", () => {
+    expect(
+      extractPredictionDirection(
+        "It is hard to predict what the central bank will do."
+      )
+    ).toBe("uncertain");
+  });
+
+  it("detects 'too early to say' as uncertain", () => {
+    expect(
+      extractPredictionDirection("It is too early to say definitively.")
+    ).toBe("uncertain");
+  });
+
+  it("detects 'remains to be seen' as uncertain", () => {
+    expect(
+      extractPredictionDirection("It remains to be seen whether rates move.")
+    ).toBe("uncertain");
+  });
+
+  it("detects 'likely' in first sentence as positive", () => {
+    expect(
+      extractPredictionDirection(
+        "The Bank of Canada will likely cut interest rates."
+      )
+    ).toBe("positive");
+  });
+
+  it("detects 'probably' as positive", () => {
+    expect(
+      extractPredictionDirection(
+        "The central bank will probably reduce rates."
+      )
+    ).toBe("positive");
+  });
+
+  it("returns null for factual answers without prediction signals", () => {
+    expect(
+      extractPredictionDirection(
+        "The capital of France is Paris, a city known for its culture."
+      )
+    ).toBeNull();
+  });
+
+  it("returns null for empty text", () => {
+    expect(extractPredictionDirection("")).toBeNull();
+  });
+
+  it("only examines the first sentence", () => {
+    // "likely" appears in the second sentence, not the first
+    expect(
+      extractPredictionDirection(
+        "The economic outlook is mixed. A rate cut is likely."
+      )
+    ).toBeNull();
+  });
+
+  it("handles 'won't' as negative", () => {
+    expect(
+      extractPredictionDirection("The Bank of Canada won't cut rates soon.")
+    ).toBe("negative");
+  });
+
+  it("handles 'could go either way' as uncertain", () => {
+    expect(
+      extractPredictionDirection("This one could go either way.")
+    ).toBe("uncertain");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // computeOpenEndedAgreement
 // ---------------------------------------------------------------------------
 
@@ -123,6 +241,53 @@ describe("computeOpenEndedAgreement", () => {
     const result = computeOpenEndedAgreement([]);
     expect(result.agreementPercent).toBe(0);
     expect(result.humanReviewFlag).toBe(true);
+  });
+
+  it("clusters prediction-style responses by direction despite different explanations", () => {
+    const responses = [
+      {
+        modelName: "gemini",
+        text: "Yes, the Bank of Canada will likely cut interest rates. Economic indicators show declining inflation and GDP growth has slowed significantly this quarter.",
+      },
+      {
+        modelName: "openai",
+        text: "It is uncertain whether the Bank of Canada will adjust rates. While some data points toward easing, other factors complicate the outlook.",
+      },
+      {
+        modelName: "grok",
+        text: "Yes, there is a strong likelihood that the Bank of Canada will reduce its policy rate. The labor market has softened and commodity prices have fallen.",
+      },
+      {
+        modelName: "claude",
+        text: "The outlook for Bank of Canada rate cuts is uncertain, and may lean toward no change. The central bank faces a complex environment.",
+      },
+    ];
+    const result = computeOpenEndedAgreement(responses);
+    // Gemini + Grok both say "Yes" → cluster of 2
+    // OpenAI + Claude both say "uncertain" → cluster of 2
+    // Largest cluster = 2 → agreement = 50%
+    expect(result.agreementPercent).toBe(0.5);
+    expect(result.humanReviewFlag).toBe(true);
+  });
+
+  it("does not use prediction clustering for factual answers without signals", () => {
+    const responses = [
+      {
+        modelName: "gpt-4",
+        text: "The capital of France is Paris, a beautiful city in Europe.",
+      },
+      {
+        modelName: "claude-3",
+        text: "Quantum computing uses qubits for parallel processing power.",
+      },
+      {
+        modelName: "gemini",
+        text: "Football is the most popular sport in the world today.",
+      },
+    ];
+    const result = computeOpenEndedAgreement(responses);
+    // No prediction signals → falls through to TF-IDF → all different topics
+    expect(result.agreementPercent).toBeLessThan(0.67);
   });
 });
 

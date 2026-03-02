@@ -179,6 +179,60 @@ class UnionFind {
 }
 
 // ---------------------------------------------------------------------------
+// Prediction direction extraction
+// ---------------------------------------------------------------------------
+
+export type PredictionDirection = "positive" | "negative" | "uncertain";
+
+/**
+ * Extract a directional prediction from the opening of a response.
+ * Only examines the first sentence to avoid matching stray words in
+ * explanatory text.  Returns null when no clear signal is found,
+ * which causes the caller to fall through to TF-IDF similarity.
+ */
+export function extractPredictionDirection(
+  text: string
+): PredictionDirection | null {
+  const lead = text.trim().toLowerCase();
+  if (!lead) return null;
+
+  // Unambiguous opening word
+  if (/^yes\b/.test(lead)) return "positive";
+  if (/^no\b/.test(lead)) return "negative";
+
+  // First sentence (up to first sentence-ending punctuation)
+  const sentenceMatch = lead.match(/^([\s\S]+?[.!?])(?:\s|$)/);
+  const firstSentence = sentenceMatch ? sentenceMatch[1] : lead.slice(0, 200);
+
+  // Negative patterns — check before positive so "unlikely" isn't caught by "likely"
+  if (/\bunlikely\b/.test(firstSentence)) return "negative";
+  if (/\bnot\s+likely\b/.test(firstSentence)) return "negative";
+  if (/\bwill\s+not\b/.test(firstSentence)) return "negative";
+  if (/\bwon'?t\b/.test(firstSentence)) return "negative";
+  if (/\bprobably\s+not\b/.test(firstSentence)) return "negative";
+  if (/\bimprobable\b/.test(firstSentence)) return "negative";
+
+  // Uncertain patterns
+  if (/\buncertain\b/.test(firstSentence)) return "uncertain";
+  if (/\bunsure\b/.test(firstSentence)) return "uncertain";
+  if (/\bunclear\b/.test(firstSentence)) return "uncertain";
+  if (/\bhard to\s+(say|tell|predict|determine)\b/.test(firstSentence))
+    return "uncertain";
+  if (/\bdifficult to\s+(say|tell|predict|determine)\b/.test(firstSentence))
+    return "uncertain";
+  if (/\btoo early to\s+(say|tell)\b/.test(firstSentence)) return "uncertain";
+  if (/\bremains to be seen\b/.test(firstSentence)) return "uncertain";
+  if (/\bcould go either way\b/.test(firstSentence)) return "uncertain";
+
+  // Positive patterns
+  if (/\blikely\b/.test(firstSentence)) return "positive";
+  if (/\bprobably\b/.test(firstSentence)) return "positive";
+  if (/\bhighly probable\b/.test(firstSentence)) return "positive";
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Open-ended agreement
 // ---------------------------------------------------------------------------
 
@@ -215,9 +269,23 @@ export function computeOpenEndedAgreement(
   // Pre-cluster identical tokenized texts (TF-IDF produces zero vectors for
   // terms that appear in every document, so identical docs won't cluster)
   const tokenKeys = tokenized.map((t) => t.join(" "));
+
+  // Pre-cluster responses that share the same prediction direction.
+  // TF-IDF zeros out terms shared across all documents (IDF = log(N/N) = 0),
+  // so when all models answer the same question their topic vocabulary
+  // vanishes and only unique explanation terms remain — producing near-zero
+  // cosine similarity even when two models reach the same conclusion.
+  // Prediction extraction fixes this by detecting directional signals
+  // (yes/no/uncertain) in the first sentence.
+  const predictions = responses.map((r) => extractPredictionDirection(r.text));
+
   for (let i = 0; i < responses.length; i++) {
     for (let j = i + 1; j < responses.length; j++) {
       if (tokenKeys[i] === tokenKeys[j]) {
+        uf.union(i, j);
+        continue;
+      }
+      if (predictions[i] !== null && predictions[i] === predictions[j]) {
         uf.union(i, j);
         continue;
       }
