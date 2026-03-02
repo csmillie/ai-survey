@@ -37,7 +37,7 @@ import { SideBySideView } from "./side-by-side-view";
 import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
 import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData, QuestionTruthData, QuestionRefereeData } from "./types";
-import { TruthConfidenceBadge, TruthConfidencePanel } from "./truth-confidence-panel";
+import { TruthConfidencePanel } from "./truth-confidence-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -273,23 +273,6 @@ function ResponseRow({
             />
           ) : (
             <p className="truncate text-sm">{truncatedAnswer}</p>
-          )}
-        </TableCell>
-        <TableCell className="text-center">
-          {response.confidence !== null ? (
-            <span
-              className={`text-sm font-medium ${
-                response.confidence >= 80
-                  ? "text-green-600 dark:text-green-400"
-                  : response.confidence >= 50
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {Math.round(response.confidence)}%
-            </span>
-          ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
           )}
         </TableCell>
         <TableCell className="text-center">
@@ -632,9 +615,6 @@ export const QuestionResults = memo(function QuestionResults({
                     )}
                   </>
                 )}
-                {truth && (
-                  <TruthConfidenceBadge truth={truth} className="ml-2" />
-                )}
                 {varianceBadge && (
                   <Badge variant={varianceBadge.variant} className="ml-2">
                     {varianceBadge.label}
@@ -666,10 +646,9 @@ export const QuestionResults = memo(function QuestionResults({
                       <TableRow>
                         <TableHead>Model</TableHead>
                         <TableHead>Output</TableHead>
-                        <TableHead className="text-center">AI Confidence</TableHead>
                         <TableHead className="text-center">Sentiment</TableHead>
                         <TableHead className="text-center">Citations</TableHead>
-                        <TableHead className="text-center">FCA</TableHead>
+                        <TableHead className="text-center">Consistency</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
@@ -710,7 +689,7 @@ export const QuestionResults = memo(function QuestionResults({
 
               {/* Truth Confidence Panel */}
               {truth && (
-                <TruthConfidencePanel truth={truth} referee={referee} />
+                <TruthConfidencePanel truth={truth} referee={referee} questionPrompt={group.questionPrompt} />
               )}
             </CardContent>
           </Card>

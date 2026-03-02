@@ -613,7 +613,7 @@ function QuestionsTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {questions.map((q) =>
+              {questions.map((q, qIdx) =>
                 editingId === q.id ? (
                   <QuestionEditRow
                     key={q.id}
@@ -625,7 +625,7 @@ function QuestionsTab({
                 ) : (
                   <TableRow key={q.id}>
                     <TableCell className="text-[hsl(var(--muted-foreground))]">
-                      {q.order + 1}
+                      {qIdx + 1}
                     </TableCell>
                     <TableCell className="font-medium">{q.title}</TableCell>
                     <TableCell className="max-w-[300px]">

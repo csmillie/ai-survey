@@ -15,6 +15,7 @@ interface RunStatusEvent {
   failed: number;
   running: number;
   progress: number;
+  analysisComplete: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +106,21 @@ export async function GET(
 
             const progress = total > 0 ? (completed + failed) / total : 0;
 
+            // After run completes, track COMPUTE_METRICS job so the client
+            // knows when trust scores and agreement analysis are ready.
+            let analysisComplete = currentRun.status !== "COMPLETED";
+            if (currentRun.status === "COMPLETED") {
+              const metricsJob = await prisma.job.findFirst({
+                where: { runId, type: "COMPUTE_METRICS" },
+                select: { status: true },
+                orderBy: { createdAt: "desc" },
+              });
+              analysisComplete =
+                !metricsJob ||
+                metricsJob.status === "SUCCEEDED" ||
+                metricsJob.status === "FAILED";
+            }
+
             const event: RunStatusEvent = {
               runId,
               status: currentRun.status,
@@ -113,12 +129,15 @@ export async function GET(
               failed,
               running,
               progress,
+              analysisComplete,
             };
 
             sendEvent(event);
 
-            // If terminal, send final event and close
-            if (TERMINAL_STATUSES.has(currentRun.status)) {
+            // Close only when the run is terminal AND analysis is done (or
+            // the run failed/cancelled, in which case no analysis will run).
+            const runTerminal = TERMINAL_STATUSES.has(currentRun.status);
+            if (runTerminal && (analysisComplete || currentRun.status !== "COMPLETED")) {
               try {
                 controller.close();
               } catch {

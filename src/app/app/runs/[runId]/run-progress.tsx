@@ -12,7 +12,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cancelRunAction } from "./actions";
+import { cancelRunAction, reRunAnalysisAction } from "./actions";
 import { StatusBadge, StatCard } from "./shared-components";
 import { DecisionHeader } from "./decision-header";
 import { NeedsReview } from "./needs-review";
@@ -35,6 +35,7 @@ import type {
 interface RunProgressViewProps {
   runId: string;
   initialStatus: string;
+  initialAnalysisComplete: boolean;
   surveyTitle: string;
   totalJobs: number;
   completedJobs: number;
@@ -58,6 +59,7 @@ const sseEventSchema = z.object({
   failed: z.number(),
   running: z.number(),
   progress: z.number(),
+  analysisComplete: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,7 @@ const sseEventSchema = z.object({
 export function RunProgressView({
   runId,
   initialStatus,
+  initialAnalysisComplete,
   surveyTitle,
   totalJobs: initialTotal,
   completedJobs: initialCompleted,
@@ -86,16 +89,21 @@ export function RunProgressView({
   const [completed, setCompleted] = useState(initialCompleted);
   const [failed, setFailed] = useState(initialFailed);
   const [running, setRunning] = useState(0);
+  const [analysisComplete, setAnalysisComplete] = useState(initialAnalysisComplete);
   const [error, setError] = useState<string | null>(null);
 
   const [isCancelling, startCancelTransition] = useTransition();
+  const [isReRunning, startReRunTransition] = useTransition();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const router = useRouter();
   const eventSourceRef = useRef<EventSource | null>(null);
   const questionRefsRef = useRef<Map<string, HTMLDivElement | null>>(new Map());
-  const isLive = status === "QUEUED" || status === "RUNNING";
+  const isLive =
+    status === "QUEUED" ||
+    status === "RUNNING" ||
+    (status === "COMPLETED" && !analysisComplete);
 
   // SSE connection
   useEffect(() => {
@@ -111,20 +119,23 @@ export function RunProgressView({
         if (!result.success) return;
         const data = result.data;
 
-        const terminal = data.status === "COMPLETED" || data.status === "FAILED" || data.status === "CANCELLED";
-        if (terminal) {
-          es.close();
-          eventSourceRef.current = null;
-          setStatus(data.status);
-          router.refresh();
-          return;
-        }
-
         setStatus(data.status);
         setTotal(data.total);
         setCompleted(data.completed);
         setFailed(data.failed);
         setRunning(data.running);
+        if (data.analysisComplete !== undefined) {
+          setAnalysisComplete(data.analysisComplete);
+        }
+
+        const runTerminal = data.status === "COMPLETED" || data.status === "FAILED" || data.status === "CANCELLED";
+        const fullyDone = runTerminal && ((data.analysisComplete ?? true) || data.status !== "COMPLETED");
+        if (fullyDone) {
+          es.close();
+          eventSourceRef.current = null;
+          router.refresh();
+          return;
+        }
       } catch {
         // Ignore malformed events
       }
@@ -150,6 +161,18 @@ export function RunProgressView({
         setError(result.error);
       } else {
         setStatus("CANCELLED");
+      }
+    });
+  }, [runId]);
+
+  const handleReRunAnalysis = useCallback(() => {
+    startReRunTransition(async () => {
+      setError(null);
+      const result = await reRunAnalysisAction(runId);
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setAnalysisComplete(false);
       }
     });
   }, [runId]);
@@ -323,6 +346,14 @@ export function RunProgressView({
         </>
       )}
 
+      {/* --- Analysis in progress banner --- */}
+      {status === "COMPLETED" && !analysisComplete && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+          <span>Calculating trust scores, fact confidence, and agreement analysis&hellip;</span>
+        </div>
+      )}
+
       {/* --- Decision Dashboard (terminal runs) --- */}
       {isTerminal && responses.length > 0 && (
         <>
@@ -335,6 +366,19 @@ export function RunProgressView({
             avgLatencyMs={avgLatencyMs}
             status={status}
           />
+
+          {status === "COMPLETED" && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReRunAnalysis}
+                disabled={isReRunning || !analysisComplete}
+              >
+                {isReRunning ? "Starting..." : "Re-Run Analysis"}
+              </Button>
+            </div>
+          )}
 
           <NeedsReview
             questionAgreements={questionAgreements}

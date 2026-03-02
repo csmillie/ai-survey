@@ -49,12 +49,9 @@ export function computeTruthScore(answers: ModelAnswer[]): TruthResult {
   const numericDisagreements = detectNumericDisagreements(allClaims);
   const numericDisagreementDetected = numericDisagreements.length > 0;
 
-  // 3. Cluster assertions
+  // 3. Cluster by full response text (TF-IDF + cosine similarity across whole responses)
   const totalModels = answers.length;
-  const { clusters, consensusPercent } = clusterAssertions(
-    allClaims,
-    totalModels
-  );
+  const { clusters, consensusPercent } = clusterAssertions(answers, totalModels);
 
   // 4. Compute citation rate
   const answersWithCitations = answers.filter(
@@ -85,9 +82,10 @@ export function computeTruthScore(answers: ModelAnswer[]): TruthResult {
   }
   score += citationBonus;
 
-  // Citation penalty
+  // Citation penalty — only apply when consensus is low, to avoid penalising
+  // factual questions where citations aren't expected but models still agree.
   let citationPenalty = 0;
-  if (citationRate === 0) {
+  if (citationRate === 0 && consensusPercent < 0.6) {
     citationPenalty = -10;
     score -= 10;
   }

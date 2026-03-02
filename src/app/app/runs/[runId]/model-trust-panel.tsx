@@ -129,13 +129,7 @@ function ReliabilityRow({
           )}
         </TableCell>
         <TableCell className="text-right text-sm">
-          {stats ? `${Math.round(stats.avgLatencyMs)}ms` : "-"}
-        </TableCell>
-        <TableCell className="text-right text-sm">
-          {stats ? `$${stats.avgCostUsd.toFixed(6)}` : "-"}
-        </TableCell>
-        <TableCell className="text-right text-sm">
-          {metric.totalResponses}
+          {stats ? `$${(stats.avgCostUsd * 1_000_000).toFixed(2)}` : "-"}
         </TableCell>
         <TableCell className="text-right">
           <button
@@ -150,7 +144,7 @@ function ReliabilityRow({
       </TableRow>
       {expanded && (
         <TableRow>
-          <TableCell colSpan={10} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
+          <TableCell colSpan={8} className="bg-[hsl(var(--muted))]/30 px-6 py-4">
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Penalty Breakdown</h4>
               <div className="grid grid-cols-3 gap-3 text-sm sm:grid-cols-6">
@@ -197,7 +191,7 @@ export function ModelTrustPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ModelTrust</CardTitle>
+        <CardTitle>Analysis</CardTitle>
         <CardDescription>
           Model reliability, cross-model agreement, and performance trends
         </CardDescription>
@@ -224,9 +218,7 @@ export function ModelTrustPanel({
                   <TableHead className="text-center">Empty / Short</TableHead>
                   <TableHead className="text-center">Citations</TableHead>
                   <TableHead className="text-center">Calibration</TableHead>
-                  <TableHead className="text-right">Avg Latency</TableHead>
-                  <TableHead className="text-right">Avg Cost</TableHead>
-                  <TableHead className="text-right">Outputs</TableHead>
+                  <TableHead className="text-right">Avg Cost / 1M</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>

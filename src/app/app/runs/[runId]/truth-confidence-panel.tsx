@@ -38,20 +38,47 @@ export function TruthConfidenceBadge({
 // TruthConfidencePanel (expandable)
 // ---------------------------------------------------------------------------
 
+const STOPWORDS = new Set([
+  "a","an","the","is","are","was","were","be","been","being","have","has","had",
+  "do","does","did","will","would","could","should","may","might","shall","can",
+  "in","on","at","to","for","of","with","by","from","and","or","but","if",
+  "when","where","what","which","who","how","that","this","these","those",
+  "it","its","i","you","he","she","we","they",
+]);
+
+function significantWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w))
+  );
+}
+
+function repeatsQuestion(claimText: string, questionText: string): boolean {
+  const qWords = significantWords(questionText);
+  if (qWords.size === 0) return false;
+  const cWords = significantWords(claimText);
+  const intersection = [...qWords].filter((w) => cWords.has(w)).length;
+  const union = new Set([...qWords, ...cWords]).size;
+  return intersection / union > 0.4;
+}
+
 export function TruthConfidencePanel({
   truth,
   referee,
+  questionPrompt,
 }: {
   truth: QuestionTruthData;
   referee?: QuestionRefereeData;
+  questionPrompt?: string;
 }): React.JSX.Element {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toggle = useCallback(() => {
     setIsExpanded((prev) => !prev);
   }, []);
-
-  const bd = truth.breakdown;
 
   return (
     <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
@@ -61,10 +88,10 @@ export function TruthConfidencePanel({
         className="flex w-full items-center justify-between p-3 text-left hover:bg-[hsl(var(--muted))]/30"
         onClick={toggle}
         aria-expanded={isExpanded}
-        aria-label={`Truth confidence details — ${isExpanded ? "collapse" : "expand"}`}
+        aria-label={`Analysis details — ${isExpanded ? "collapse" : "expand"}`}
       >
         <div className="flex items-center gap-2">
-          <TruthConfidenceBadge truth={truth} />
+          <span className="text-xs font-semibold">Analysis</span>
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
             Consensus: {Math.round(truth.consensusPercent * 100)}% |
             Citations: {Math.round(truth.citationRate * 100)}%
@@ -83,24 +110,6 @@ export function TruthConfidencePanel({
       {/* Expandable content */}
       {isExpanded && (
         <div className="border-t border-[hsl(var(--border))] p-4 space-y-4">
-          {/* Score Breakdown */}
-          <div>
-            <h4 className="mb-2 text-sm font-semibold">Score Breakdown</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-              <BreakdownItem label="Base" value={bd.baseScore} />
-              <BreakdownItem label="Consensus" value={bd.consensusBonus} positive />
-              <BreakdownItem label="Citation Bonus" value={bd.citationBonus} positive />
-              <BreakdownItem label="Citation Penalty" value={bd.citationPenalty} />
-              <BreakdownItem label="Numeric Disagree" value={bd.numericDisagreementPenalty} />
-              <BreakdownItem label="Assertion Disagree" value={bd.assertionDisagreementPenalty} />
-              <BreakdownItem label="Empty/Short" value={bd.emptyShortPenalty} />
-              <div className="rounded border border-[hsl(var(--border))] p-2">
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">Final Score</p>
-                <p className="font-bold">{bd.finalScore}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Numeric Disagreements */}
           {truth.numericDisagreements.length > 0 && (
             <div>
@@ -128,38 +137,39 @@ export function TruthConfidencePanel({
           )}
 
           {/* Claim Clusters */}
-          {truth.claimClusters.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold">
-                Claim Clusters ({truth.claimClusters.length})
-              </h4>
-              <div className="space-y-2">
-                {truth.claimClusters.map((cluster) => (
-                  <div
-                    key={`cc-${cluster.clusterId}`}
-                    className="rounded border border-[hsl(var(--border))] p-2 text-sm"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="secondary">
-                        {cluster.kind}
-                      </Badge>
-                      <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                        Models: {cluster.models.join(", ")}
+          {(() => {
+            const filteredClusters = truth.claimClusters
+              .map((cluster) => ({
+                ...cluster,
+                claims: cluster.claims.filter(
+                  (c) => !questionPrompt || !repeatsQuestion(c.text, questionPrompt)
+                ),
+              }))
+              .filter((cluster) => cluster.claims.length > 0);
+
+            return filteredClusters.length > 0 ? (
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">
+                  Claim Clusters ({filteredClusters.length})
+                </h4>
+                <div className="space-y-1">
+                  {filteredClusters.map((cluster) => (
+                    <p
+                      key={`cc-${cluster.clusterId}`}
+                      className="truncate text-xs text-[hsl(var(--muted-foreground))]"
+                    >
+                      <span className="font-medium text-[hsl(var(--foreground))]">
+                        {cluster.models.join(", ")}
                       </span>
-                    </div>
-                    {cluster.claims.slice(0, 2).map((claim, ci) => (
-                      <p
-                        key={`cc-${cluster.clusterId}-${ci}`}
-                        className="text-xs text-[hsl(var(--muted-foreground))] truncate"
-                      >
-                        [{claim.modelKey}] {claim.text}
-                      </p>
-                    ))}
-                  </div>
-                ))}
+                      {cluster.claims[0] && (
+                        <> — {cluster.claims[0].text}</>
+                      )}
+                    </p>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
 
           {/* Referee Summary */}
           {referee && (
@@ -247,37 +257,3 @@ export function TruthConfidencePanel({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Internal: BreakdownItem
-// ---------------------------------------------------------------------------
-
-function BreakdownItem({
-  label,
-  value,
-  positive = false,
-}: {
-  label: string;
-  value: number;
-  positive?: boolean;
-}): React.JSX.Element {
-  let color: string;
-  if (value === 0) {
-    color = "text-[hsl(var(--muted-foreground))]";
-  } else if (positive) {
-    color = "text-green-600 dark:text-green-400";
-  } else if (value < 0) {
-    color = "text-red-600 dark:text-red-400";
-  } else {
-    color = "text-[hsl(var(--foreground))]";
-  }
-
-  return (
-    <div className="rounded border border-[hsl(var(--border))] p-2">
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">{label}</p>
-      <p className={`font-semibold ${color}`}>
-        {value > 0 && positive ? "+" : ""}
-        {value}
-      </p>
-    </div>
-  );
-}
