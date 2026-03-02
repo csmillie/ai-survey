@@ -53,7 +53,7 @@ export function DecisionHeader({
             </h1>
             <StatusBadge status={status} />
           </div>
-          <p className="mt-0.5 text-sm text-[hsl(var(--muted-foreground))]">
+          <p className="mt-0.5 text-sm text-[hsl(var(--muted-foreground))]" suppressHydrationWarning>
             {completedAt ? formatTimestamp(completedAt) : "In progress"}
             {" \u00b7 "}
             {modelCount} model{modelCount === 1 ? "" : "s"}

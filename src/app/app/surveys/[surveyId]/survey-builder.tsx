@@ -87,8 +87,7 @@ interface RunData {
   createdAt: string;
   completedAt: string | null;
   createdByEmail: string;
-  succeededJobs: number;
-  totalJobs: number;
+  responseCount: number;
 }
 
 interface SurveyBuilderProps {
@@ -159,7 +158,7 @@ export function SurveyBuilder({
                   <TableHead>Status</TableHead>
                   <TableHead>Completed</TableHead>
                   <TableHead>Created By</TableHead>
-                  <TableHead className="text-right">Jobs</TableHead>
+                  <TableHead className="text-right">Responses</TableHead>
                   <TableHead className="w-[80px]" />
                 </TableRow>
               </TableHeader>
@@ -181,7 +180,7 @@ export function SurveyBuilder({
                         {run.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-[hsl(var(--muted-foreground))]">
+                    <TableCell className="text-sm text-[hsl(var(--muted-foreground))]" suppressHydrationWarning>
                       {run.completedAt
                         ? new Date(run.completedAt).toLocaleString()
                         : run.status === "QUEUED" || run.status === "RUNNING"
@@ -192,7 +191,7 @@ export function SurveyBuilder({
                       {run.createdByEmail}
                     </TableCell>
                     <TableCell className="text-right text-sm">
-                      {run.succeededJobs}/{run.totalJobs}
+                      {run.responseCount}
                     </TableCell>
                     <TableCell>
                       <Link
@@ -641,8 +640,8 @@ function QuestionsTab({
                 <TableHead className="w-[50px]">#</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Prompt Preview</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Mode</TableHead>
+                <TableHead className="text-center">Type</TableHead>
+                <TableHead className="text-center">Mode</TableHead>
                 <TableHead className="w-[140px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -667,14 +666,14 @@ function QuestionsTab({
                         {q.promptTemplate}
                       </p>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="outline">
                         {q.type === "RANKED" && q.configJson
                           ? `Ranked ${q.configJson.scaleMin}-${q.configJson.scaleMax}`
                           : "Open Ended"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge
                         variant={
                           q.mode === "THREADED" ? "default" : "secondary"
