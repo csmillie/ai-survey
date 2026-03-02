@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { getProvider } from "@/providers/registry";
+import { FORMATTING_SYSTEM_PROMPT } from "@/providers/types";
 import { repairAndParseJson } from "@/lib/json-repair";
 import type { ExtractedClaim, NumericDisagreement } from "./types";
 
@@ -165,10 +166,12 @@ export async function runReferee(params: {
         model: REFEREE_MODEL,
         messages: [
           { role: "system", content: "You are an impartial AI referee." },
+          { role: "system", content: FORMATTING_SYSTEM_PROMPT },
           { role: "user", content: prompt },
         ],
         maxTokens: REFEREE_MAX_TOKENS,
-        temperature: 0.3,
+        temperature: 0,
+        topP: 1,
       });
     } finally {
       clearTimeout(timeoutId);
