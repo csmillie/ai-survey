@@ -430,7 +430,7 @@ function ResponseRow({
 
       {/* Debug Dialog */}
       <Dialog open={debugOpen} onOpenChange={setDebugOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               API Call — {response.provider} / {response.modelName}

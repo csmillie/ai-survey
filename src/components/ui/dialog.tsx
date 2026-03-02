@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 interface DialogContextValue {
@@ -97,7 +98,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
     if (!open) return null;
 
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-50">
         {/* Backdrop */}
         <div
@@ -137,7 +138,8 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 );

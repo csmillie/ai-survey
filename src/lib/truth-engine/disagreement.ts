@@ -128,7 +128,7 @@ export function detectNumericDisagreements(
 // Unlike TF-IDF cosine, this rewards shared vocabulary rather than penalising
 // it, so models that respond to the same question with similar content cluster
 // correctly even when all topic words are shared across every response.
-const JACCARD_THRESHOLD = 0.35;
+const JACCARD_THRESHOLD = 0.2;
 
 function jaccardSimilarity(a: string[], b: string[]): number {
   const setA = new Set(a);
