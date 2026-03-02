@@ -179,6 +179,49 @@ describe("findSharedEntities", () => {
     const shared = findSharedEntities(responses);
     expect(shared).toHaveLength(0);
   });
+
+  it("does not merge entities with the same name but different types", () => {
+    // "Jordan" appears as a PERSON in model-a and as a PLACE in model-b.
+    // They should be stored as separate entries, each with count 1, so
+    // neither appears in the shared list (requires ≥2 models per entry).
+    const responses: ModelResponse[] = [
+      {
+        modelKey: "model-a",
+        text: "",
+        entities: { people: ["Jordan"], places: [], organizations: [] },
+      },
+      {
+        modelKey: "model-b",
+        text: "",
+        entities: { people: [], places: ["Jordan"], organizations: [] },
+      },
+    ];
+    const shared = findSharedEntities(responses);
+    // "Jordan" as PERSON is only in model-a; "Jordan" as PLACE only in model-b.
+    // Neither should appear as shared.
+    expect(shared.find((e) => e.text.toLowerCase() === "jordan")).toBeUndefined();
+  });
+
+  it("correctly shares an entity when the same name and type appears across models", () => {
+    // Sanity-check alongside the collision test: same name + same type → shared.
+    const responses: ModelResponse[] = [
+      {
+        modelKey: "model-a",
+        text: "",
+        entities: { people: ["Jordan"], places: [], organizations: [] },
+      },
+      {
+        modelKey: "model-b",
+        text: "",
+        entities: { people: ["Jordan"], places: [], organizations: [] },
+      },
+    ];
+    const shared = findSharedEntities(responses);
+    const jordan = shared.find((e) => e.text.toLowerCase() === "jordan");
+    expect(jordan).toBeDefined();
+    expect(jordan?.type).toBe("PERSON");
+    expect(jordan?.count).toBe(2);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -228,15 +271,22 @@ describe("findSharedKeyphrases", () => {
     expect(ml?.count).toBe(2);
   });
 
-  it("returns empty when no phrases are shared", () => {
+  it("returns no shared phrases when texts have no overlapping bigrams or trigrams", () => {
     const responses: ModelResponse[] = [
       { modelKey: "gpt-4", text: "Apples and oranges are delicious fruits." },
       { modelKey: "claude-3", text: "Cats and dogs are popular pets worldwide." },
     ];
 
     const shared = findSharedKeyphrases(responses);
-    // No meaningful overlap expected
-    expect(shared.every((kp) => kp.count >= 2)).toBe(true);
+    // "and are" might share stop-word bigrams, but neither "apples and",
+    // "and oranges", "cats and", "and dogs" etc. appear in both texts.
+    // Neither "apples" nor "oranges" vocabulary overlaps with the pets text.
+    const meaningfulPhrases = shared.filter(
+      (kp) => !["and are", "are and"].includes(kp.phrase)
+    );
+    expect(meaningfulPhrases.find((kp) => kp.phrase.includes("apple"))).toBeUndefined();
+    expect(meaningfulPhrases.find((kp) => kp.phrase.includes("cat"))).toBeUndefined();
+    expect(meaningfulPhrases.find((kp) => kp.phrase.includes("dog"))).toBeUndefined();
   });
 });
 

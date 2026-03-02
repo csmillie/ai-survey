@@ -59,9 +59,29 @@ export interface ModelResponse {
 // Constants
 // ---------------------------------------------------------------------------
 
+// 0.72 is empirically calibrated to catch paraphrase-level matches (same
+// idea, different words) while avoiding over-clustering loosely related
+// sentences. Values below ~0.65 tend to merge unrelated sentences; values
+// above ~0.80 miss most paraphrases.
 const SIMILARITY_THRESHOLD = 0.72;
+
+// Filter out sentence fragments — 20 chars is roughly 3-4 words, below which
+// there is not enough signal for TF-IDF similarity to be meaningful.
 const MIN_SENTENCE_LENGTH = 20;
+
+// Cap the output to the strongest 5 consensus points to keep the UI
+// readable and the analysis focused on the most meaningful agreements.
 const MAX_CLUSTERS = 5;
+
+// Per-model sentence cap: clusterSentences is O(n²), so unbounded inputs from
+// verbose responses would cause a combinatorial blowup. 40 sentences per model
+// covers responses of ~2 000 words while keeping the worst case manageable
+// (e.g. 4 models × 40 = 160 sentences → 12 800 similarity calls).
+const MAX_SENTENCES_PER_MODEL = 40;
+
+// Cap the keyphrase output in the engine layer so callers never silently
+// discard results — the display limit and the analysis limit are explicit.
+const MAX_KEYPHRASES = 15;
 
 // ---------------------------------------------------------------------------
 // Step 1 — Sentence Extraction
@@ -85,6 +105,11 @@ export function normalizeText(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+// ---------------------------------------------------------------------------
+// Step 3 — Tokenize + TF-IDF (handled inline in analyzeCommonalities via
+//           the imported tokenize() / computeTfIdf() utilities)
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Step 4 — Sentence Clustering
@@ -239,15 +264,21 @@ export function findSharedEntities(
   for (const resp of responses) {
     const entities = resp.entities ?? extractEntities(resp.text);
 
+    // Key includes the entity type so that the same word in different type
+    // buckets (e.g. "Jordan" as PERSON in one model, PLACE in another) is
+    // stored as two separate entries rather than silently merging into one.
+    // displayText is first-seen-wins: whichever model's casing appears first
+    // is preserved; subsequent models only add to the model set.
     for (const person of entities.people) {
-      const key = person.toLowerCase().trim();
+      const text = person.trim();
+      const key = `PERSON:${text.toLowerCase()}`;
       if (!key) continue;
       const existing = entityModelMap.get(key);
       if (existing) {
         existing.models.add(resp.modelKey);
       } else {
         entityModelMap.set(key, {
-          displayText: person.trim(),
+          displayText: text,
           type: "PERSON",
           models: new Set([resp.modelKey]),
         });
@@ -255,14 +286,15 @@ export function findSharedEntities(
     }
 
     for (const org of entities.organizations) {
-      const key = org.toLowerCase().trim();
+      const text = org.trim();
+      const key = `ORG:${text.toLowerCase()}`;
       if (!key) continue;
       const existing = entityModelMap.get(key);
       if (existing) {
         existing.models.add(resp.modelKey);
       } else {
         entityModelMap.set(key, {
-          displayText: org.trim(),
+          displayText: text,
           type: "ORG",
           models: new Set([resp.modelKey]),
         });
@@ -270,14 +302,15 @@ export function findSharedEntities(
     }
 
     for (const place of entities.places) {
-      const key = place.toLowerCase().trim();
+      const text = place.trim();
+      const key = `PLACE:${text.toLowerCase()}`;
       if (!key) continue;
       const existing = entityModelMap.get(key);
       if (existing) {
         existing.models.add(resp.modelKey);
       } else {
         entityModelMap.set(key, {
-          displayText: place.trim(),
+          displayText: text,
           type: "PLACE",
           models: new Set([resp.modelKey]),
         });
@@ -345,7 +378,7 @@ export function findSharedKeyphrases(
     }
   }
 
-  return shared.sort((a, b) => b.count - a.count);
+  return shared.sort((a, b) => b.count - a.count).slice(0, MAX_KEYPHRASES);
 }
 
 // ---------------------------------------------------------------------------
@@ -369,6 +402,19 @@ export function computeConsensusStrength(
 // Main — analyzeCommonalities
 // ---------------------------------------------------------------------------
 
+/**
+ * Run the full commonalities analysis pipeline on 2–4 model responses.
+ *
+ * Pipeline:
+ *  1. Extract sentences (capped at MAX_SENTENCES_PER_MODEL per model)
+ *  2–4. Tokenize → TF-IDF → cosine-similarity clustering → consensus points
+ *  5. Find shared named entities across responses
+ *  6. Find shared bigram/trigram keyphrases
+ *  7. Derive overall consensus strength from cluster count + quality
+ *
+ * Returns an empty result (LOW strength, empty arrays) for fewer than 2
+ * responses; never throws.
+ */
 export function analyzeCommonalities(
   responses: ModelResponse[]
 ): CommonalitiesResult {
@@ -383,10 +429,11 @@ export function analyzeCommonalities(
 
   const totalModels = responses.length;
 
-  // Step 1: Extract sentences from all responses
+  // Step 1: Extract sentences from all responses.
+  // Cap per model to bound the O(n²) clustering cost.
   const sentences: SentenceWithModel[] = [];
   for (const resp of responses) {
-    const extracted = extractSentences(resp.text);
+    const extracted = extractSentences(resp.text).slice(0, MAX_SENTENCES_PER_MODEL);
     for (const sentence of extracted) {
       sentences.push({
         modelKey: resp.modelKey,

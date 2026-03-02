@@ -45,13 +45,8 @@ function strengthPercent(strength: number): string {
   return `${Math.round(strength * 100)}%`;
 }
 
-function findProvider(
-  responses: ResponseData[],
-  modelName: string
-): string {
-  const match = responses.find((r) => r.modelName === modelName);
-  return match ? match.provider : modelName;
-}
+// Removed module-level findProvider helper; provider lookup is now done via
+// a Map built once per render inside the component (see providerByModel below).
 
 // ---------------------------------------------------------------------------
 // Component
@@ -64,10 +59,18 @@ export function CommonalitiesView({
     const modelResponses = responses.map((r) => ({
       modelKey: r.modelName,
       text: r.answerText,
+      // null → undefined: Prisma Json columns return null for absent values,
+      // but ModelResponse.entities expects undefined when not provided.
       entities: r.entities ?? undefined,
     }));
     return analyzeCommonalities(modelResponses);
   }, [responses]);
+
+  // Build once per render; avoids O(n) linear scan inside the cluster loop.
+  const providerByModel = useMemo(
+    () => new Map(responses.map((r) => [r.modelName, r.provider])),
+    [responses]
+  );
 
   const hasContent =
     result.consensusPoints.length > 0 ||
@@ -117,7 +120,7 @@ export function CommonalitiesView({
                       >
                         <ModelLabel
                           modelName={modelKey}
-                          provider={findProvider(responses, modelKey)}
+                          provider={providerByModel.get(modelKey) ?? modelKey}
                         />
                       </span>
                     ))}
@@ -145,11 +148,14 @@ export function CommonalitiesView({
               <Badge
                 key={`${entity.type}-${entity.text}`}
                 variant="outline"
-                title={`${entity.type} — mentioned by ${entity.models.join(", ")}`}
               >
                 {entity.text}
                 <span className="ml-1 text-[hsl(var(--muted-foreground))]">
                   ({entity.type}, {entity.count}/{responses.length})
+                </span>
+                {/* sr-only: title is not reliably announced by screen readers */}
+                <span className="sr-only">
+                  {" "}— mentioned by {entity.models.join(", ")}
                 </span>
               </Badge>
             ))}
@@ -164,15 +170,18 @@ export function CommonalitiesView({
             Shared Keyphrases
           </h4>
           <div className="flex flex-wrap gap-2">
-            {result.sharedKeyphrases.slice(0, 15).map((kp) => (
+            {result.sharedKeyphrases.map((kp) => (
               <Badge
                 key={kp.phrase}
                 variant="secondary"
-                title={`Shared by ${kp.models.join(", ")}`}
               >
                 {kp.phrase}
                 <span className="ml-1 text-[hsl(var(--muted-foreground))]">
                   ({kp.count})
+                </span>
+                {/* sr-only: title is not reliably announced by screen readers */}
+                <span className="sr-only">
+                  {" "}— shared by {kp.models.join(", ")}
                 </span>
               </Badge>
             ))}
