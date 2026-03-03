@@ -11,7 +11,7 @@ import { estimateRun, type RunEstimate } from "@/lib/estimation";
 import { allocateJobs } from "@/lib/allocation";
 import { enqueueRunJobsWithIds } from "@/lib/queue";
 import { createAuditEvent, RUN_STARTED } from "@/lib/audit";
-import { getMaxTokensPerRun, getMaxCostPerRunUsd } from "@/lib/env";
+import { getMaxTokensPerRun, getMaxCostPerRunUsd, getMaxConcurrentRunsPerUser } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
 // Action result types
@@ -180,6 +180,22 @@ export async function startRunAction(
     return {
       success: false,
       error: `Estimated cost ($${estimate.estimatedCostUsd.toFixed(2)}) exceeds the limit of $${maxCostUsd.toFixed(2)}`,
+    };
+  }
+
+  // 2b. Check concurrent run limit
+  const maxConcurrent = getMaxConcurrentRunsPerUser();
+  const activeRuns = await prisma.surveyRun.count({
+    where: {
+      createdById: session.userId,
+      status: { in: ["DRAFT", "QUEUED", "RUNNING"] },
+    },
+  });
+
+  if (activeRuns >= maxConcurrent) {
+    return {
+      success: false,
+      error: `You have ${activeRuns} active run${activeRuns === 1 ? "" : "s"}. Maximum concurrent runs: ${maxConcurrent}. Wait for existing runs to complete.`,
     };
   }
 

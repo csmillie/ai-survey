@@ -93,6 +93,10 @@ export function getEnableLlmAnalysisRepass(): boolean {
   return optionalEnvBool("ENABLE_LLM_ANALYSIS_REPASS", false);
 }
 
+export function getMaxConcurrentRunsPerUser(): number {
+  return optionalEnvInt("MAX_CONCURRENT_RUNS_PER_USER", 5);
+}
+
 export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
