@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loginSchema } from "@/lib/schemas";
@@ -38,6 +38,13 @@ export async function loginAction(
 
   const { email, password } = parsed.data;
 
+  const headerStore = await headers();
+  const ip =
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headerStore.get("x-real-ip") ??
+    undefined;
+  const userAgent = headerStore.get("user-agent") ?? undefined;
+
   // Look up user by email (select only needed fields)
   const user = await prisma.user.findUnique({
     where: { email },
@@ -68,6 +75,8 @@ export async function loginAction(
       targetType: "User",
       targetId: user.id,
       meta: { email },
+      ip,
+      userAgent,
     });
     return { error: "Invalid credentials." };
   }
@@ -101,6 +110,8 @@ export async function loginAction(
     targetType: "User",
     targetId: user.id,
     meta: { email },
+    ip,
+    userAgent,
   });
 
   // Update lastLoginAt
