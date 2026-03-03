@@ -6,6 +6,7 @@ vi.mock("@/lib/db", () => ({
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }));
@@ -19,9 +20,11 @@ import {
 
 const mockFindUnique = vi.mocked(prisma.user.findUnique);
 const mockUpdate = vi.mocked(prisma.user.update);
+const mockUpdateMany = vi.mocked(prisma.user.updateMany);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUpdateMany.mockResolvedValue({ count: 0 } as never);
 });
 
 describe("checkLoginRateLimit", () => {
@@ -67,52 +70,56 @@ describe("checkLoginRateLimit", () => {
 });
 
 describe("recordFailedLogin", () => {
-  it("increments failedLoginAttempts", async () => {
-    mockFindUnique.mockResolvedValue({
-      failedLoginAttempts: 2,
-      lockedUntil: null,
-    } as never);
-    mockUpdate.mockResolvedValue({} as never);
+  it("atomically increments failedLoginAttempts", async () => {
+    mockUpdate.mockResolvedValue({ failedLoginAttempts: 3 } as never);
 
     await recordFailedLogin("user-1");
 
     expect(mockUpdate).toHaveBeenCalledWith({
       where: { id: "user-1" },
-      data: { failedLoginAttempts: 3 },
+      data: { failedLoginAttempts: { increment: 1 } },
+      select: { failedLoginAttempts: true },
     });
   });
 
-  it("locks account after 5 failed attempts", async () => {
-    mockFindUnique.mockResolvedValue({
-      failedLoginAttempts: 4,
-      lockedUntil: null,
-    } as never);
-    mockUpdate.mockResolvedValue({} as never);
+  it("locks account when increment reaches threshold", async () => {
+    mockUpdate
+      .mockResolvedValueOnce({ failedLoginAttempts: 5 } as never)
+      .mockResolvedValueOnce({} as never);
 
     await recordFailedLogin("user-1");
 
-    const call = mockUpdate.mock.calls[0]![0] as {
-      data: { failedLoginAttempts: number; lockedUntil?: Date | null };
+    // Second call should set lockedUntil
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
+    const lockCall = mockUpdate.mock.calls[1]![0] as {
+      data: { lockedUntil: Date };
     };
-    expect(call.data.failedLoginAttempts).toBe(5);
-    expect(call.data.lockedUntil).toBeInstanceOf(Date);
-    expect(call.data.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    expect(lockCall.data.lockedUntil).toBeInstanceOf(Date);
+    expect(lockCall.data.lockedUntil.getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("resets counter when lock has expired before incrementing", async () => {
-    const past = new Date(Date.now() - 1000);
-    mockFindUnique.mockResolvedValue({
-      failedLoginAttempts: 5,
-      lockedUntil: past,
-    } as never);
-    mockUpdate.mockResolvedValue({} as never);
+  it("does not lock when below threshold", async () => {
+    mockUpdate.mockResolvedValue({ failedLoginAttempts: 3 } as never);
 
     await recordFailedLogin("user-1");
 
-    const call = mockUpdate.mock.calls[0]![0] as {
-      data: { failedLoginAttempts: number };
-    };
-    expect(call.data.failedLoginAttempts).toBe(1);
+    // Only the increment call, no lock call
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets expired lock before incrementing", async () => {
+    mockUpdate.mockResolvedValue({ failedLoginAttempts: 1 } as never);
+
+    await recordFailedLogin("user-1");
+
+    // updateMany should be called to clear expired locks
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "user-1",
+        lockedUntil: { not: null, lte: expect.any(Date) },
+      },
+      data: { failedLoginAttempts: 0, lockedUntil: null },
+    });
   });
 });
 

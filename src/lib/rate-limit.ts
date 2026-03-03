@@ -31,35 +31,29 @@ export async function checkLoginRateLimit(userId: string): Promise<RateLimitChec
 
 /**
  * Record a failed login attempt. If threshold is exceeded, lock the account.
+ * Uses atomic increment to avoid lost updates under concurrent requests.
  */
 export async function recordFailedLogin(userId: string): Promise<void> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { failedLoginAttempts: true, lockedUntil: true },
+  // Reset counter atomically if lock has expired, then increment
+  await prisma.user.updateMany({
+    where: { id: userId, lockedUntil: { not: null, lte: new Date() } },
+    data: { failedLoginAttempts: 0, lockedUntil: null },
   });
 
-  if (!user) return;
+  // Atomic increment
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { failedLoginAttempts: { increment: 1 } },
+    select: { failedLoginAttempts: true },
+  });
 
-  // If lock expired, reset counter before incrementing
-  const currentAttempts =
-    user.lockedUntil && user.lockedUntil <= new Date()
-      ? 0
-      : user.failedLoginAttempts;
-
-  const newAttempts = currentAttempts + 1;
-
-  const data: { failedLoginAttempts: number; lockedUntil?: Date | null } = {
-    failedLoginAttempts: newAttempts,
-  };
-
-  if (newAttempts >= MAX_FAILED_ATTEMPTS) {
-    data.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+  // Lock if threshold reached
+  if (updated.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) },
+    });
   }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data,
-  });
 }
 
 /**

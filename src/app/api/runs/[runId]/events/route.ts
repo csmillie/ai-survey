@@ -197,9 +197,8 @@ export async function GET(
           );
         }
 
-        // Stream cancelled by client
+        // Stream cancelled by client — cancel() already called decrementConnection()
         try {
-          decrementConnection();
           controller.close();
         } catch {
           // Already closed

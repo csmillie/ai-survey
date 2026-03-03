@@ -185,21 +185,8 @@ export async function startRunAction(
 
   // 2b. Check concurrent run limit
   const maxConcurrent = getMaxConcurrentRunsPerUser();
-  const activeRuns = await prisma.surveyRun.count({
-    where: {
-      createdById: session.userId,
-      status: { in: ["DRAFT", "QUEUED", "RUNNING"] },
-    },
-  });
 
-  if (activeRuns >= maxConcurrent) {
-    return {
-      success: false,
-      error: `You have ${activeRuns} active run${activeRuns === 1 ? "" : "s"}. Maximum concurrent runs: ${maxConcurrent}. Wait for existing runs to complete.`,
-    };
-  }
-
-  // 3. Create SurveyRun with DRAFT status
+  // 3. Create SurveyRun with DRAFT status, then verify limit to avoid TOCTOU race
   const run = await prisma.surveyRun.create({
     data: {
       surveyId,
@@ -216,6 +203,22 @@ export async function startRunAction(
       estimatedJson: estimate as unknown as Prisma.InputJsonValue,
     },
   });
+
+  // Recount after creation to close the TOCTOU window — rollback if over limit
+  const activeRuns = await prisma.surveyRun.count({
+    where: {
+      createdById: session.userId,
+      status: { in: ["DRAFT", "QUEUED", "RUNNING"] },
+    },
+  });
+
+  if (activeRuns > maxConcurrent) {
+    await prisma.surveyRun.delete({ where: { id: run.id } });
+    return {
+      success: false,
+      error: `You have ${activeRuns - 1} active run${activeRuns - 1 === 1 ? "" : "s"}. Maximum concurrent runs: ${maxConcurrent}. Wait for existing runs to complete.`,
+    };
+  }
 
   // 4. Create RunModel rows
   await prisma.runModel.createMany({

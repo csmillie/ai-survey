@@ -13,8 +13,10 @@ export async function middleware(request: NextRequest) {
 
   // Verify JWT signature and expiration
   try {
+    // Read JWT_SECRET directly from process.env because middleware runs in
+    // Edge Runtime and cannot import @/lib/env helpers (Node.js only).
     const secret = process.env.JWT_SECRET;
-    if (!secret) {
+    if (!secret || secret.length < 32) {
       const loginUrl = new URL("/login", request.url);
       return NextResponse.redirect(loginUrl);
     }
