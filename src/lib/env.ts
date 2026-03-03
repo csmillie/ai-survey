@@ -45,7 +45,13 @@ export function getDatabaseUrl(): string {
 }
 
 export function getJwtSecret(): string {
-  return requiredEnv("JWT_SECRET");
+  const secret = requiredEnv("JWT_SECRET");
+  if (secret.length < 32) {
+    throw new Error(
+      "JWT_SECRET must be at least 32 characters for HS256 security"
+    );
+  }
+  return secret;
 }
 
 export function getSessionMaxAgeSeconds(): number {
@@ -91,6 +97,10 @@ export function getMaxCostPerRunUsd(): number {
 
 export function getEnableLlmAnalysisRepass(): boolean {
   return optionalEnvBool("ENABLE_LLM_ANALYSIS_REPASS", false);
+}
+
+export function getMaxConcurrentRunsPerUser(): number {
+  return optionalEnvInt("MAX_CONCURRENT_RUNS_PER_USER", 5);
 }
 
 export function isProduction(): boolean {

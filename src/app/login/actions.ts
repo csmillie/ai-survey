@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { loginSchema } from "@/lib/schemas";
@@ -11,6 +11,11 @@ import {
   LOGIN_SUCCESS,
   LOGIN_FAILED,
 } from "@/lib/audit";
+import {
+  checkLoginRateLimit,
+  recordFailedLogin,
+  resetFailedLogins,
+} from "@/lib/rate-limit";
 
 export interface LoginState {
   error?: string;
@@ -33,25 +38,45 @@ export async function loginAction(
 
   const { email, password } = parsed.data;
 
-  // Look up user by email
+  const headerStore = await headers();
+  const ip =
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headerStore.get("x-real-ip") ??
+    undefined;
+  const userAgent = headerStore.get("user-agent") ?? undefined;
+
+  // Look up user by email (select only needed fields)
   const user = await prisma.user.findUnique({
     where: { email },
+    select: { id: true, passwordHash: true, role: true, disabledAt: true },
   });
 
   if (!user) {
     return { error: "Invalid credentials." };
   }
 
+  // Check rate limit
+  const rateLimit = await checkLoginRateLimit(user.id);
+  if (rateLimit.locked) {
+    const minutes = Math.ceil((rateLimit.remainingMs ?? 0) / 60_000);
+    return {
+      error: `Too many failed attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    };
+  }
+
   // Verify password
   const passwordValid = await verifyPassword(password, user.passwordHash);
 
   if (!passwordValid) {
+    await recordFailedLogin(user.id);
     await createAuditEvent({
       actorUserId: user.id,
       action: LOGIN_FAILED,
       targetType: "User",
       targetId: user.id,
       meta: { email },
+      ip,
+      userAgent,
     });
     return { error: "Invalid credentials." };
   }
@@ -60,6 +85,9 @@ export async function loginAction(
   if (user.disabledAt) {
     return { error: "This account has been disabled." };
   }
+
+  // Reset rate limit counters
+  await resetFailedLogins(user.id);
 
   // Create session token
   const token = await createSession(user.id, user.role);
@@ -82,6 +110,8 @@ export async function loginAction(
     targetType: "User",
     targetId: user.id,
     meta: { email },
+    ip,
+    userAgent,
   });
 
   // Update lastLoginAt

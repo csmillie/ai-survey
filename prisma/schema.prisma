@@ -8,20 +8,22 @@ datasource db {
 }
 
 model User {
-  id                String        @id @default(uuid())
-  email             String        @unique
-  passwordHash      String
-  role              UserRole      @default(USER)
-  lastLoginAt       DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  disabledAt        DateTime?
-  name              String?
-  auditEvents       AuditEvent[]  @relation("AuditActor")
-  verifiedResponses LlmResponse[] @relation("ResponseVerifier")
-  surveysOwned      Survey[]      @relation("SurveyOwner")
-  runsCreated       SurveyRun[]   @relation("RunCreator")
-  shares            SurveyShare[]
+  id                  String        @id @default(uuid())
+  email               String        @unique
+  passwordHash        String
+  role                UserRole      @default(USER)
+  lastLoginAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  disabledAt          DateTime?
+  name                String?
+  failedLoginAttempts Int           @default(0)
+  lockedUntil         DateTime?
+  auditEvents         AuditEvent[]  @relation("AuditActor")
+  verifiedResponses   LlmResponse[] @relation("ResponseVerifier")
+  surveysOwned        Survey[]      @relation("SurveyOwner")
+  runsCreated         SurveyRun[]   @relation("RunCreator")
+  shares              SurveyShare[]
 
   @@index([role])
 }

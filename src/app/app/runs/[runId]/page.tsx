@@ -15,6 +15,7 @@ import {
   claimClustersJsonSchema,
   refereeDisagreementsJsonSchema,
   refereeChecklistJsonSchema,
+  llmResponseSchema,
 } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
@@ -24,13 +25,6 @@ import { RunProgressView } from "./run-progress";
 
 interface RunPageProps {
   params: Promise<{ runId: string }>;
-}
-
-interface ParsedLlmResponse {
-  answerText?: string;
-  citations?: Array<{ url: string; title?: string; snippet?: string }>;
-  score?: number;
-  reasoning?: string;
 }
 
 interface AnalysisEntities {
@@ -120,7 +114,8 @@ export default async function RunPage({ params }: RunPageProps) {
 
   // Transform responses for the client component
   const responses = run.responses.map((resp) => {
-    const parsed = resp.parsedJson as unknown as ParsedLlmResponse | null;
+    const parsedResult = llmResponseSchema.safeParse(resp.parsedJson);
+    const parsed = parsedResult.success ? parsedResult.data : null;
 
     return {
       id: resp.id,

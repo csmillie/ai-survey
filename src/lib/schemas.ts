@@ -15,6 +15,8 @@ export const llmResponseSchema = z.object({
   citations: z.array(citationSchema),
   confidence: z.number().min(0).max(100).optional(),
   notes: z.string().optional(),
+  score: z.number().optional(),
+  reasoning: z.string().optional(),
 });
 
 export type LlmResponsePayload = z.infer<typeof llmResponseSchema>;
