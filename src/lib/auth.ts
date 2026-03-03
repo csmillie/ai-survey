@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getJwtSecret, getSessionMaxAgeSeconds } from "@/lib/env";
+import { prisma } from "@/lib/db";
 
 const HASH_ROUNDS = 12;
 const ALGORITHM = "HS256";
@@ -89,7 +90,22 @@ export async function getSession(): Promise<SessionPayload | null> {
     return null;
   }
 
-  return verifySession(sessionCookie.value);
+  const session = await verifySession(sessionCookie.value);
+  if (!session) {
+    return null;
+  }
+
+  // Check if account has been disabled since token was issued
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { disabledAt: true },
+  });
+
+  if (!user || user.disabledAt) {
+    return null;
+  }
+
+  return session;
 }
 
 /**

@@ -42,6 +42,15 @@ export async function GET(
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Check account is not disabled
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { disabledAt: true },
+  });
+  if (!user || user.disabledAt) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   // 2. Load run and verify access
   const run = await prisma.surveyRun.findUnique({
     where: { id: runId },
