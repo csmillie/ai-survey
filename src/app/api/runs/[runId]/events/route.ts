@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 import { verifySession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 
+// Per-user SSE connection tracking (in-process only; sufficient for single-server deployment)
+const connectionCounts = new Map<string, number>();
+const MAX_SSE_CONNECTIONS_PER_USER = 10;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -66,9 +70,25 @@ export async function GET(
     return new Response("Forbidden", { status: 403 });
   }
 
+  // Check SSE connection limit
+  const currentConnections = connectionCounts.get(session.userId) ?? 0;
+  if (currentConnections >= MAX_SSE_CONNECTIONS_PER_USER) {
+    return new Response("Too many connections", { status: 429 });
+  }
+  connectionCounts.set(session.userId, currentConnections + 1);
+
   // 3. Create SSE stream
   const encoder = new TextEncoder();
   let cancelled = false;
+
+  const decrementConnection = (): void => {
+    const count = connectionCounts.get(session.userId) ?? 1;
+    if (count <= 1) {
+      connectionCounts.delete(session.userId);
+    } else {
+      connectionCounts.set(session.userId, count - 1);
+    }
+  };
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -152,6 +172,7 @@ export async function GET(
             const runTerminal = TERMINAL_STATUSES.has(currentRun.status);
             if (runTerminal && (analysisComplete || currentRun.status !== "COMPLETED")) {
               try {
+                decrementConnection();
                 controller.close();
               } catch {
                 // Already closed
@@ -162,6 +183,7 @@ export async function GET(
             console.error(`[SSE] Error polling run ${runId}:`, err);
             cancelled = true;
             try {
+              decrementConnection();
               controller.close();
             } catch {
               // Already closed
@@ -177,6 +199,7 @@ export async function GET(
 
         // Stream cancelled by client
         try {
+          decrementConnection();
           controller.close();
         } catch {
           // Already closed
@@ -188,6 +211,7 @@ export async function GET(
 
     cancel() {
       cancelled = true;
+      decrementConnection();
     },
   });
 
