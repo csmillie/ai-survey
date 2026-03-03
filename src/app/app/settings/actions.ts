@@ -103,7 +103,10 @@ export async function changePasswordAction(
     targetId: session.userId,
   });
 
-  return { success: true };
+  // Force re-authentication with new password
+  const cookieStore = await cookies();
+  cookieStore.delete("session");
+  redirect("/login");
 }
 
 export async function disableAccountAction(
