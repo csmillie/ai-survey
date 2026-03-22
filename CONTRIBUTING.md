@@ -22,7 +22,7 @@ pnpm seed
 pnpm dev
 ```
 
-The web app runs on http://localhost:5001. The worker starts automatically alongside via `concurrently`.
+The web app runs on http://localhost:3088. The worker starts automatically alongside via `concurrently`.
 
 ## Development Workflow
 

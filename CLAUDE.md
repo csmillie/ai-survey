@@ -181,10 +181,10 @@ cp .env.example .env        # Configure environment
 pnpm prisma:generate        # Generate Prisma client
 pnpm prisma:migrate         # Run migrations
 pnpm seed                   # Seed admin user + model targets
-pnpm dev                    # Start web (port 5001) + worker concurrently
+pnpm dev                    # Start web (port 3088) + worker concurrently
 ```
 
-Web: http://localhost:5001 | Worker: runs alongside via `concurrently`
+Web: http://localhost:3088 | Worker: runs alongside via `concurrently`
 
 ## Port Registry (Production Server)
 

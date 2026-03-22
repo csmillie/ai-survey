@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n web,worker -c cyan,yellow \"next dev -p 5001\" \"tsx src/worker/index.ts\"",
-    "dev:web": "next dev -p 5001",
+    "dev": "concurrently -n web,worker -c cyan,yellow \"next dev -p 3088\" \"tsx src/worker/index.ts\"",
+    "dev:web": "next dev -p 3088",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
