@@ -8,6 +8,9 @@ vi.mock("@/lib/db", () => ({
     variable: {
       findMany: vi.fn(),
     },
+    matrixRow: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -48,6 +51,27 @@ const makeQuestion = (
   sourceVariable: null,
   benchmarkNotes: null,
   isBenchmarkAnchor: false,
+  matrixRows: [] as Array<{
+    id: string;
+    questionId: string;
+    rowKey: string;
+    label: string;
+    order: number;
+    sourceVariable: string | null;
+    constructKey: string | null;
+    createdAt: Date;
+  }>,
+});
+
+const makeMatrixRow = (questionId: string, rowKey: string, label: string, order: number) => ({
+  id: `row-${questionId}-${rowKey}`,
+  questionId,
+  rowKey,
+  label,
+  order,
+  sourceVariable: null,
+  constructKey: null,
+  createdAt: new Date(),
 });
 
 const makeVariable = (key: string, defaultValue: string | null) => ({
@@ -237,6 +261,85 @@ describe("allocateJobs", () => {
       questionType: "OPEN_ENDED",
     });
     expect(result.jobs[0].payloadJson).not.toHaveProperty("questionConfig");
+  });
+
+  it("expands MATRIX_LIKERT rows into separate jobs", async () => {
+    const matrixQuestion = {
+      ...makeQuestion("q-matrix", 1, "Rate institutions"),
+      type: "MATRIX_LIKERT" as const,
+      configJson: {
+        type: "MATRIX_LIKERT",
+        stem: "How much confidence?",
+        options: [
+          { label: "A great deal", value: "great_deal" },
+          { label: "Hardly any", value: "hardly_any" },
+        ],
+      },
+      matrixRows: [
+        makeMatrixRow("q-matrix", "govt", "Government", 0),
+        makeMatrixRow("q-matrix", "banks", "Banks", 1),
+        makeMatrixRow("q-matrix", "media", "Media", 2),
+      ],
+    };
+
+    vi.mocked(prisma.question.findMany).mockResolvedValue([matrixQuestion]);
+    vi.mocked(prisma.variable.findMany).mockResolvedValue([]);
+
+    const result = await allocateJobs({
+      runId: RUN_ID,
+      surveyId: SURVEY_ID,
+      modelTargetIds: [MODEL_A, MODEL_B],
+    });
+
+    // 3 rows × 2 models = 6 jobs
+    expect(result.totalJobs).toBe(6);
+
+    // Each job has unique idempotency key including rowKey
+    const keys = result.jobs.map((j) => j.idempotencyKey);
+    expect(new Set(keys).size).toBe(6);
+
+    // Check first model's jobs have correct row data
+    const modelAJobs = result.jobs.filter((j) => j.modelTargetId === MODEL_A);
+    expect(modelAJobs).toHaveLength(3);
+    expect(modelAJobs[0].payloadJson.matrixRowKey).toBe("govt");
+    expect(modelAJobs[0].payloadJson.matrixRowLabel).toBe("Government");
+    expect(modelAJobs[1].payloadJson.matrixRowKey).toBe("banks");
+    expect(modelAJobs[2].payloadJson.matrixRowKey).toBe("media");
+
+    // Idempotency keys include rowKey
+    expect(modelAJobs[0].idempotencyKey).toContain("govt");
+    expect(modelAJobs[1].idempotencyKey).toContain("banks");
+  });
+
+  it("mixes matrix and non-matrix questions correctly", async () => {
+    const normalQ = makeQuestion("q1", 0, "Open question");
+    const matrixQ = {
+      ...makeQuestion("q2", 1, "Rate items"),
+      type: "MATRIX_LIKERT" as const,
+      configJson: { type: "MATRIX_LIKERT", stem: "Rate:", options: [{ label: "A", value: "a" }] },
+      matrixRows: [
+        makeMatrixRow("q2", "row1", "Row 1", 0),
+        makeMatrixRow("q2", "row2", "Row 2", 1),
+      ],
+    };
+
+    vi.mocked(prisma.question.findMany).mockResolvedValue([normalQ, matrixQ]);
+    vi.mocked(prisma.variable.findMany).mockResolvedValue([]);
+
+    const result = await allocateJobs({
+      runId: RUN_ID,
+      surveyId: SURVEY_ID,
+      modelTargetIds: [MODEL_A],
+    });
+
+    // 1 normal + 2 matrix rows = 3 jobs for 1 model
+    expect(result.totalJobs).toBe(3);
+
+    // First job is normal question (no matrixRowKey)
+    expect(result.jobs[0].payloadJson.matrixRowKey).toBeUndefined();
+    // Second and third are matrix rows
+    expect(result.jobs[1].payloadJson.matrixRowKey).toBe("row1");
+    expect(result.jobs[2].payloadJson.matrixRowKey).toBe("row2");
   });
 
   it("resolves variables in prompt templates", async () => {

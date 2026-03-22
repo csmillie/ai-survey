@@ -15,11 +15,19 @@ import {
 import {
   rankedResponseSchema,
   rankedConfigSchema,
+  benchmarkQuestionConfigSchema,
+  categoricalResponseSchema,
+  numericScaleResponseSchema,
   llmResponseSchema,
 } from "@/lib/schemas";
 import type { RankedConfig } from "@/lib/schemas";
-import { ALL_QUESTION_TYPES } from "@/lib/benchmark-types";
-import type { QuestionTypeValue } from "@/lib/benchmark-types";
+import { ALL_QUESTION_TYPES, isBenchmarkType, isCategoricalType } from "@/lib/benchmark-types";
+import type { QuestionTypeValue, BenchmarkQuestionConfig } from "@/lib/benchmark-types";
+import {
+  buildBenchmarkSystemPrompt,
+  buildBenchmarkEnforcementBlock,
+} from "@/lib/benchmark-prompts";
+import { normalizeToZeroOne } from "@/lib/benchmark-scoring";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +61,8 @@ export async function handleExecuteQuestion(
     questionMode,
     questionType,
     questionConfig,
+    matrixRowKey,
+    matrixRowLabel,
   } = payload;
 
   try {
@@ -63,6 +73,8 @@ export async function handleExecuteQuestion(
         : "OPEN_ENDED";
 
     let rankedConfig: RankedConfig | null = null;
+    let benchmarkConfig: BenchmarkQuestionConfig | null = null;
+
     if (validatedType === "RANKED" && questionConfig) {
       const parsed = rankedConfigSchema.safeParse(questionConfig);
       if (parsed.success) {
@@ -72,27 +84,39 @@ export async function handleExecuteQuestion(
           `[execute-question] Invalid ranked config for job ${jobId}: ${parsed.error.message}`
         );
       }
+    } else if (isBenchmarkType(validatedType) && questionConfig) {
+      const parsed = benchmarkQuestionConfigSchema.safeParse(questionConfig);
+      if (parsed.success) {
+        benchmarkConfig = parsed.data;
+      } else {
+        console.warn(
+          `[execute-question] Invalid benchmark config for job ${jobId}: ${parsed.error.message}`
+        );
+      }
     }
+
     const isRanked = validatedType === "RANKED" && rankedConfig !== null;
+    const isBenchmark = isBenchmarkType(validatedType) && benchmarkConfig !== null;
 
     // 2. Load ModelTarget
     const modelTarget = await prisma.modelTarget.findUniqueOrThrow({
       where: { id: modelTargetId },
     });
 
+    // 3. Build messages — system prompt varies by type
+    const systemPrompt = isRanked
+      ? buildRankedSystemPrompt()
+      : isBenchmark
+        ? buildBenchmarkSystemPrompt()
+        : "You are a research assistant. Answer questions accurately with citations.";
+
     const messages: LlmMessage[] = [
-      {
-        role: "system",
-        content: isRanked
-          ? buildRankedSystemPrompt()
-          : "You are a research assistant. Answer questions accurately with citations.",
-      },
+      { role: "system", content: systemPrompt },
     ];
 
-    messages.push({
-      role: "system",
-      content: FORMATTING_SYSTEM_PROMPT,
-    });
+    if (!isBenchmark) {
+      messages.push({ role: "system", content: FORMATTING_SYSTEM_PROMPT });
+    }
 
     // For THREADED mode, prepend existing conversation history
     if (questionMode === "THREADED") {
@@ -110,14 +134,22 @@ export async function handleExecuteQuestion(
       }
     }
 
-    // Add the user message
-    const userContent = isRanked && rankedConfig
-      ? renderedPrompt + buildRankedEnforcementBlock({
-          scaleMin: rankedConfig.scaleMin,
-          scaleMax: rankedConfig.scaleMax,
-          includeReasoning: rankedConfig.includeReasoning,
-        })
-      : renderedPrompt + JSON_ENFORCEMENT_BLOCK;
+    // Build user message with type-appropriate enforcement block
+    let userContent: string;
+    if (isRanked && rankedConfig) {
+      userContent = renderedPrompt + buildRankedEnforcementBlock({
+        scaleMin: rankedConfig.scaleMin,
+        scaleMax: rankedConfig.scaleMax,
+        includeReasoning: rankedConfig.includeReasoning,
+      });
+    } else if (isBenchmark && benchmarkConfig) {
+      const matrixRow = matrixRowKey && matrixRowLabel
+        ? { rowKey: matrixRowKey, label: matrixRowLabel }
+        : undefined;
+      userContent = renderedPrompt + buildBenchmarkEnforcementBlock(benchmarkConfig, matrixRow);
+    } else {
+      userContent = renderedPrompt + JSON_ENFORCEMENT_BLOCK;
+    }
     messages.push({ role: "user", content: userContent });
 
     // 3. Call LLM provider
@@ -141,6 +173,8 @@ export async function handleExecuteQuestion(
     let reasoningText: string | null = null;
     let finalParsed = parsed as Record<string, unknown> | null;
     let confidence: number | null = null;
+    let normalizedScore: number | null = null;
+    let selectedOptionValue: string | null = null;
 
     if (isRanked && rankedConfig && parsed) {
       const rankedResult = rankedResponseSchema.safeParse(parsed);
@@ -160,6 +194,45 @@ export async function handleExecuteQuestion(
           `Ranked response parse failed for job ${jobId}: ${rankedResult.error.message}`
         );
         finalParsed = null;
+      }
+    } else if (isBenchmark && benchmarkConfig && parsed) {
+      // Benchmark types: parse by categorical vs numeric
+      if (isCategoricalType(validatedType)) {
+        const catResult = categoricalResponseSchema.safeParse(parsed);
+        if (catResult.success) {
+          selectedOptionValue = catResult.data.selectedValue;
+          confidence = Math.round(catResult.data.confidence);
+          // Validate selectedValue is in the config's option list
+          if ("options" in benchmarkConfig) {
+            const validValues = benchmarkConfig.options.map((o) => o.value);
+            if (!validValues.includes(selectedOptionValue)) {
+              console.warn(
+                `[execute-question] Invalid selectedValue "${selectedOptionValue}" for job ${jobId}, valid: ${validValues.join(", ")}`
+              );
+            }
+          }
+          normalizedScore = normalizeToZeroOne(validatedType, selectedOptionValue, benchmarkConfig);
+          finalParsed = { selectedValue: selectedOptionValue, confidence };
+        } else {
+          console.warn(
+            `[execute-question] Categorical response parse failed for job ${jobId}: ${catResult.error.message}`
+          );
+          finalParsed = null;
+        }
+      } else if (validatedType === "NUMERIC_SCALE" && benchmarkConfig.type === "NUMERIC_SCALE") {
+        const numResult = numericScaleResponseSchema.safeParse(parsed);
+        if (numResult.success) {
+          // Clamp score to configured range
+          const score = Math.max(benchmarkConfig.min, Math.min(benchmarkConfig.max, numResult.data.score));
+          confidence = Math.round(numResult.data.confidence);
+          normalizedScore = normalizeToZeroOne(validatedType, score, benchmarkConfig);
+          finalParsed = { score, confidence };
+        } else {
+          console.warn(
+            `[execute-question] Numeric scale response parse failed for job ${jobId}: ${numResult.error.message}`
+          );
+          finalParsed = null;
+        }
       }
     } else if (parsed) {
       // Open-ended: extract confidence via Zod (validates 0-100 range)
@@ -190,11 +263,14 @@ export async function handleExecuteQuestion(
         parsedJson: finalParsed
           ? (finalParsed as unknown as Prisma.InputJsonValue)
           : Prisma.DbNull,
-        citationsJson: !isRanked && finalParsed && "citations" in finalParsed
+        citationsJson: !isRanked && !isBenchmark && finalParsed && "citations" in finalParsed
           ? ((finalParsed as unknown as ParsedLlmResponse).citations as unknown as Prisma.InputJsonValue)
           : Prisma.DbNull,
         reasoningText,
         confidence,
+        normalizedScore,
+        selectedOptionValue,
+        matrixRowKey: matrixRowKey ?? null,
         usageJson: response.usage as unknown as Prisma.InputJsonValue,
         costUsd,
         latencyMs: response.latencyMs,
@@ -249,8 +325,8 @@ export async function handleExecuteQuestion(
       },
     });
 
-    // 9. Enqueue ANALYZE_RESPONSE job (skip for ranked without reasoning)
-    const shouldAnalyze = !isRanked || rankedConfig?.includeReasoning === true;
+    // 9. Enqueue ANALYZE_RESPONSE job (skip for benchmark types and ranked without reasoning)
+    const shouldAnalyze = !isBenchmark && (!isRanked || rankedConfig?.includeReasoning === true);
     if (shouldAnalyze) {
       await enqueueAnalyzeJob({
         runId,

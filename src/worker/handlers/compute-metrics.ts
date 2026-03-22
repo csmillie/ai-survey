@@ -26,10 +26,13 @@ import {
   flagsJsonSchema,
   parsedRankedSchema,
   parsedOpenEndedSchema,
+  parsedCategoricalSchema,
+  parsedNumericScaleSchema,
   claimsJsonSchema,
   citationAnalysisJsonSchema,
   keySentencesJsonSchema,
 } from "@/lib/schemas";
+import { isBenchmarkType, isCategoricalType } from "@/lib/benchmark-types";
 import type { AgreementResult } from "@/lib/analysis/agreement";
 import {
   compareAcrossModels,
@@ -165,13 +168,14 @@ export async function handleComputeMetrics(
           ? null
           : rawCitations as unknown[];
         const isRanked = r.question.type === "RANKED";
+        const isBenchmark = isBenchmarkType(r.question.type);
 
         return {
           hasValidJson: parsed !== null && !flags.includes("invalid_json"),
           isEmpty: flags.includes("empty_answer") || !r.rawText.trim(),
           isShort: flags.includes("short_answer"),
-          hasCitations: isRanked
-            ? true // RANKED questions don't require citations; exclude from penalty
+          hasCitations: isRanked || isBenchmark
+            ? true // RANKED and benchmark questions don't require citations; exclude from penalty
             : citations !== null && Array.isArray(citations) && citations.length > 0,
           latencyMs: r.latencyMs ?? 0,
           costUsd: r.costUsd ? Number(r.costUsd) : 0,
@@ -245,6 +249,72 @@ export async function handleComputeMetrics(
           config.success ? config.data.scaleMin : 0,
           config.success ? config.data.scaleMax : 10
         );
+      } else if (isCategoricalType(data.questionType)) {
+        // Categorical benchmark types: agreement = % selecting the mode
+        const selections: string[] = data.responses
+          .map((r) => {
+            const parsed = parsedCategoricalSchema.parse(r.parsedJson);
+            return parsed?.selectedValue ?? null;
+          })
+          .filter((v): v is string => v !== null);
+
+        if (selections.length === 0) {
+          agreement = { agreementPercent: 0, outlierModels: [], humanReviewFlag: true, clusterDetails: null };
+        } else {
+          // Count occurrences per value, find mode
+          const counts = new Map<string, string[]>();
+          for (let i = 0; i < selections.length; i++) {
+            const val = selections[i];
+            const modelName = data.responses[i].modelTarget.modelName;
+            const existing = counts.get(val);
+            if (existing) {
+              existing.push(modelName);
+            } else {
+              counts.set(val, [modelName]);
+            }
+          }
+
+          let modeValue = "";
+          let modeCount = 0;
+          for (const [val, models] of counts) {
+            if (models.length > modeCount) {
+              modeCount = models.length;
+              modeValue = val;
+            }
+          }
+
+          const agreementPercent = (modeCount / selections.length) * 100;
+          const outlierModels = data.responses
+            .filter((r) => {
+              const parsed = parsedCategoricalSchema.parse(r.parsedJson);
+              return parsed?.selectedValue !== modeValue;
+            })
+            .map((r) => r.modelTarget.modelName);
+
+          agreement = {
+            agreementPercent,
+            outlierModels,
+            humanReviewFlag: agreementPercent < 50,
+            clusterDetails: null,
+          };
+        }
+      } else if (data.questionType === "NUMERIC_SCALE") {
+        // Numeric scale: treat like ranked with min/max from config
+        const numResponses: RankedResponse[] = data.responses
+          .map((r) => {
+            const parsed = parsedNumericScaleSchema.parse(r.parsedJson);
+            return parsed?.score != null
+              ? { modelName: r.modelTarget.modelName, score: parsed.score }
+              : null;
+          })
+          .filter((r): r is RankedResponse => r !== null);
+
+        // Extract min/max from config or use defaults
+        const configParsed = data.configJson as { min?: number; max?: number } | null;
+        const scaleMin = configParsed?.min ?? 0;
+        const scaleMax = configParsed?.max ?? 10;
+
+        agreement = computeRankedAgreement(numResponses, scaleMin, scaleMax);
       } else {
         const openEndedResponses: OpenEndedResponse[] = data.responses.map(
           (r) => {
@@ -460,8 +530,8 @@ export async function handleComputeMetrics(
     let refereeCount = 0;
 
     for (const [questionId, data] of byQuestion) {
-      // Skip ranked questions — truth engine is designed for open-ended
-      if (data.questionType === "RANKED") continue;
+      // Skip ranked and benchmark questions — truth engine is designed for open-ended
+      if (data.questionType === "RANKED" || isBenchmarkType(data.questionType)) continue;
 
       try {
         // Build ModelAnswer inputs
