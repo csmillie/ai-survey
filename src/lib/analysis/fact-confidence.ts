@@ -42,9 +42,12 @@ export function computeFactConfidence(
   const signals: string[] = [];
 
   // --- Agreement contribution (strongest signal) ---
-  // Full agreement (+30), strong agreement (+20), moderate (+10),
-  // weak (-10), very weak (-20)
-  if (factors.agreementPercent >= 0.95) {
+  // Unanimous (+50), strong agreement (+30), moderate consensus (+20),
+  // partial agreement (+5), low agreement (-20)
+  if (factors.totalModels > 1 && factors.agreementPercent >= 1.0) {
+    score += 50;
+    signals.push("unanimous agreement");
+  } else if (factors.agreementPercent >= 0.95) {
     score += 30;
     signals.push("strong agreement");
   } else if (factors.agreementPercent >= 0.75) {
