@@ -10,14 +10,14 @@ module.exports = {
   apps: [
     {
       name: "ai-survey-web",
-      script: "node_modules/.bin/next",
+      script: "node_modules/next/dist/bin/next",
       args: `start -p ${port}`,
       cwd,
       env: { NODE_ENV: "production", PORT: port },
     },
     {
       name: "ai-survey-worker",
-      script: "node_modules/.bin/tsx",
+      script: "node_modules/tsx/dist/cli.mjs",
       args: "src/worker/index.ts",
       cwd,
       env: { NODE_ENV: "production" },
