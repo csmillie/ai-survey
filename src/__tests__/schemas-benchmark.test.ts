@@ -464,6 +464,26 @@ describe("createQuestionSchema with benchmark types", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("rejects mismatched config type (BINARY question with LIKERT config)", () => {
+    const result = createQuestionSchema.safeParse({
+      title: "Mismatch",
+      promptTemplate: "Test",
+      type: "BINARY",
+      configJson: {
+        type: "LIKERT",
+        points: 5,
+        options: [
+          { label: "Strongly agree", value: "5", numericValue: 5 },
+          { label: "Agree", value: "4", numericValue: 4 },
+          { label: "Neither", value: "3", numericValue: 3 },
+          { label: "Disagree", value: "2", numericValue: 2 },
+          { label: "Strongly disagree", value: "1", numericValue: 1 },
+        ],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("updateQuestionSchema with benchmark types", () => {

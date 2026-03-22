@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { AllocationJob } from "@/lib/allocation";
 import type { RankedConfig } from "@/lib/schemas";
-import type { BenchmarkQuestionConfig, QuestionTypeValue } from "@/lib/benchmark-types";
+import type { BenchmarkQuestionConfig } from "@/lib/benchmark-types";
 
 // ---------------------------------------------------------------------------
 // Queue Names (job types, mapped to JobType enum in Prisma)
@@ -26,8 +26,9 @@ export interface ExecuteQuestionPayload {
   threadKey: string;
   renderedPrompt: string;
   questionMode: string;
-  questionType?: QuestionTypeValue;
-  questionConfig?: RankedConfig | BenchmarkQuestionConfig;
+  /** Raw from JSON column — handler validates with Zod before use. */
+  questionType?: string;
+  questionConfig?: RankedConfig | BenchmarkQuestionConfig | Record<string, unknown>;
   matrixRowKey?: string;
   matrixRowLabel?: string;
 }

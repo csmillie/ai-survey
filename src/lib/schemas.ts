@@ -238,7 +238,13 @@ function validateQuestionConfig(data: { type?: string; configJson?: unknown }): 
   if (type === "OPEN_ENDED") return true;
   // RANKED and all benchmark types require configJson
   if (type === "RANKED" || (BENCHMARK_QUESTION_TYPES as readonly string[]).includes(type)) {
-    return data.configJson !== undefined;
+    if (data.configJson === undefined) return false;
+    // Cross-check: benchmark config type must match question type
+    if (type !== "RANKED") {
+      const config = data.configJson as { type?: string };
+      if (config.type !== type) return false;
+    }
+    return true;
   }
   return true;
 }

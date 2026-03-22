@@ -89,8 +89,7 @@ async function processJob(job: Job): Promise<void> {
 
     switch (job.type) {
       case "EXECUTE_QUESTION":
-        // Fields from payloadJson are deserialized from raw JSON; the handler
-        // narrows types internally, so we forward them with minimal casting.
+        // Raw JSON values — the handler validates with Zod before use.
         await handleExecuteQuestion({
           jobId: job.id,
           runId: job.runId,
@@ -99,8 +98,8 @@ async function processJob(job: Job): Promise<void> {
           threadKey: job.threadKey,
           renderedPrompt: (payload.renderedPrompt as string) ?? "",
           questionMode: (payload.questionMode as string) ?? "STATELESS",
-          questionType: (payload.questionType ?? "OPEN_ENDED") as Parameters<typeof handleExecuteQuestion>[0]["questionType"],
-          questionConfig: payload.questionConfig as Parameters<typeof handleExecuteQuestion>[0]["questionConfig"],
+          questionType: (payload.questionType as string | undefined) ?? "OPEN_ENDED",
+          questionConfig: payload.questionConfig as Record<string, unknown> | undefined,
           matrixRowKey: payload.matrixRowKey as string | undefined,
           matrixRowLabel: payload.matrixRowLabel as string | undefined,
         });
