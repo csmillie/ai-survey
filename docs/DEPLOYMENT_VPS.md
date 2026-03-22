@@ -56,7 +56,7 @@ Add the result to your `.env` file:
 
 ```
 WEBHOOK_SECRET="<generated-secret>"
-WEBHOOK_PORT=9000
+WEBHOOK_PORT=9088
 DEPLOY_BRANCH=main
 ```
 
@@ -73,7 +73,7 @@ pm2 save
 Verify the webhook listener is running:
 
 ```bash
-curl http://localhost:9000/health
+curl http://localhost:9088/health
 # → {"status":"ok"}
 ```
 
@@ -93,16 +93,16 @@ In your GitHub repo → **Settings** → **Webhooks** → **Add webhook**:
 Add to your Apache Directives in ISPConfig (alongside your existing proxy rules):
 
 ```apache
-# Webhook endpoint → webhook listener on port 9000
-ProxyPass /webhook http://127.0.0.1:9000/webhook
-ProxyPassReverse /webhook http://127.0.0.1:9000/webhook
+# Webhook endpoint → webhook listener on port 9088
+ProxyPass /webhook http://127.0.0.1:9088/webhook
+ProxyPassReverse /webhook http://127.0.0.1:9088/webhook
 ```
 
 This routes `https://survey.yourdomain.com/webhook` through your existing
 SSL-terminated Apache vhost to the webhook listener.
 
 Alternatively, if you prefer to expose the webhook port directly, use the direct
-URL in GitHub (`http://your-server-ip:9000/webhook`) and ensure port 9000 is
+URL in GitHub (`http://your-server-ip:9088/webhook`) and ensure port 9088 is
 open in your firewall.
 
 #### 5. Test it

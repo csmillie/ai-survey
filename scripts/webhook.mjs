@@ -8,7 +8,7 @@
  *
  * Environment variables (loaded from ../.env automatically):
  *   WEBHOOK_SECRET   GitHub webhook secret (required)
- *   WEBHOOK_PORT     Port to listen on (default: 9000)
+ *   WEBHOOK_PORT     Port to listen on (default: 9088)
  *   DEPLOY_BRANCH    Branch to deploy on push (default: main)
  *
  * Setup:
@@ -16,7 +16,7 @@
  *   2. Add WEBHOOK_SECRET to your .env
  *   3. In GitHub → repo Settings → Webhooks → Add webhook:
  *        Payload URL:  https://survey.yourdomain.com/webhook  (proxied) or
- *                      http://your-server-ip:9000/webhook     (direct)
+ *                      http://your-server-ip:9088/webhook     (direct)
  *        Content type: application/json
  *        Secret:       <same value as WEBHOOK_SECRET>
  *        Events:       Just the push event
@@ -69,7 +69,7 @@ if (!WEBHOOK_SECRET) {
   process.exit(1);
 }
 
-const PORT = parseInt(process.env.WEBHOOK_PORT || "9000", 10);
+const PORT = parseInt(process.env.WEBHOOK_PORT || "9088", 10);
 const DEPLOY_BRANCH = process.env.DEPLOY_BRANCH || "main";
 const DEPLOY_SCRIPT = join(__dirname, "deploy.sh");
 

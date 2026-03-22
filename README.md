@@ -37,7 +37,7 @@ pnpm seed
 pnpm dev
 ```
 
-The web app runs on http://localhost:5001. The worker runs concurrently in the same terminal.
+The web app runs on http://localhost:3088. The worker runs concurrently in the same terminal.
 
 To run the worker separately: `pnpm worker` in a second terminal with `pnpm dev:web` for the web server alone.
 
@@ -45,8 +45,8 @@ To run the worker separately: `pnpm worker` in a second terminal with `pnpm dev:
 
 | Script | Description |
 |--------|-------------|
-| `pnpm dev` | Start web server (port 5001) + worker concurrently |
-| `pnpm dev:web` | Start Next.js dev server only (port 5001) |
+| `pnpm dev` | Start web server (port 3088) + worker concurrently |
+| `pnpm dev:web` | Start Next.js dev server only (port 3088) |
 | `pnpm build` | Production build |
 | `pnpm start` | Start production server |
 | `pnpm lint` | Run ESLint |
@@ -74,8 +74,7 @@ Refer to [docs/DEPLOYMENT_VPS.md](docs/DEPLOYMENT_VPS.md) for full details.
 8. Configure Nginx as reverse proxy with SSE support:
    ```nginx
    location /api/runs/ {
-     # Production: next start defaults to port 3000 (dev uses 5001)
-     proxy_pass http://localhost:3000;
+     proxy_pass http://localhost:3088;
      proxy_http_version 1.1;
      proxy_set_header Connection '';
      proxy_buffering off;
