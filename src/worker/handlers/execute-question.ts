@@ -12,7 +12,14 @@ import {
   buildRankedEnforcementBlock,
   clampScore,
 } from "@/lib/ranked-prompt";
-import { rankedResponseSchema, llmResponseSchema } from "@/lib/schemas";
+import {
+  rankedResponseSchema,
+  rankedConfigSchema,
+  llmResponseSchema,
+} from "@/lib/schemas";
+import type { RankedConfig } from "@/lib/schemas";
+import { ALL_QUESTION_TYPES } from "@/lib/benchmark-types";
+import type { QuestionTypeValue } from "@/lib/benchmark-types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,14 +56,29 @@ export async function handleExecuteQuestion(
   } = payload;
 
   try {
-    // 1. Load ModelTarget
+    // 1. Validate questionType and questionConfig from deserialized JSON
+    const validatedType: QuestionTypeValue =
+      (ALL_QUESTION_TYPES as readonly string[]).includes(questionType ?? "")
+        ? (questionType as QuestionTypeValue)
+        : "OPEN_ENDED";
+
+    let rankedConfig: RankedConfig | null = null;
+    if (validatedType === "RANKED" && questionConfig) {
+      const parsed = rankedConfigSchema.safeParse(questionConfig);
+      if (parsed.success) {
+        rankedConfig = parsed.data;
+      } else {
+        console.warn(
+          `[execute-question] Invalid ranked config for job ${jobId}: ${parsed.error.message}`
+        );
+      }
+    }
+    const isRanked = validatedType === "RANKED" && rankedConfig !== null;
+
+    // 2. Load ModelTarget
     const modelTarget = await prisma.modelTarget.findUniqueOrThrow({
       where: { id: modelTargetId },
     });
-
-    // 2. Build messages
-    const isRanked = questionType === "RANKED" && !!questionConfig;
-    const rankedConfig = isRanked ? questionConfig : null;
 
     const messages: LlmMessage[] = [
       {

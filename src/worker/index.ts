@@ -89,6 +89,7 @@ async function processJob(job: Job): Promise<void> {
 
     switch (job.type) {
       case "EXECUTE_QUESTION":
+        // Raw JSON values — the handler validates with Zod before use.
         await handleExecuteQuestion({
           jobId: job.id,
           runId: job.runId,
@@ -97,6 +98,10 @@ async function processJob(job: Job): Promise<void> {
           threadKey: job.threadKey,
           renderedPrompt: (payload.renderedPrompt as string) ?? "",
           questionMode: (payload.questionMode as string) ?? "STATELESS",
+          questionType: (payload.questionType as string | undefined) ?? "OPEN_ENDED",
+          questionConfig: payload.questionConfig as Record<string, unknown> | undefined,
+          matrixRowKey: payload.matrixRowKey as string | undefined,
+          matrixRowLabel: payload.matrixRowLabel as string | undefined,
         });
         break;
 
