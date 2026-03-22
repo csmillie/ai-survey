@@ -13,6 +13,7 @@ import {
   clampScore,
 } from "@/lib/ranked-prompt";
 import { rankedResponseSchema, llmResponseSchema } from "@/lib/schemas";
+import type { RankedConfig } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,7 +57,9 @@ export async function handleExecuteQuestion(
 
     // 2. Build messages
     const isRanked = questionType === "RANKED" && !!questionConfig;
-    const rankedConfig = isRanked ? questionConfig : null;
+    const rankedConfig: RankedConfig | null = isRanked
+      ? (questionConfig as RankedConfig)
+      : null;
 
     const messages: LlmMessage[] = [
       {

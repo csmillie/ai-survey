@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { AllocationJob } from "@/lib/allocation";
 import type { RankedConfig } from "@/lib/schemas";
+import type { BenchmarkQuestionConfig, QuestionTypeValue } from "@/lib/benchmark-types";
 
 // ---------------------------------------------------------------------------
 // Queue Names (job types, mapped to JobType enum in Prisma)
@@ -25,8 +26,10 @@ export interface ExecuteQuestionPayload {
   threadKey: string;
   renderedPrompt: string;
   questionMode: string;
-  questionType?: "OPEN_ENDED" | "RANKED";
-  questionConfig?: RankedConfig;
+  questionType?: QuestionTypeValue;
+  questionConfig?: RankedConfig | BenchmarkQuestionConfig;
+  matrixRowKey?: string;
+  matrixRowLabel?: string;
 }
 
 export interface AnalyzeResponsePayload {

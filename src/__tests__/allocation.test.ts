@@ -41,6 +41,13 @@ const makeQuestion = (
   threadKey,
   createdAt: new Date(),
   updatedAt: new Date(),
+  code: null,
+  helpText: null,
+  constructKey: null,
+  sourceSurvey: null,
+  sourceVariable: null,
+  benchmarkNotes: null,
+  isBenchmarkAnchor: false,
 });
 
 const makeVariable = (key: string, defaultValue: string | null) => ({

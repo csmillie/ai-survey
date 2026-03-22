@@ -111,8 +111,125 @@ export const rankedResponseSchema = z.object({
 export type RankedResponsePayload = z.infer<typeof rankedResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// Benchmark Question Config Schemas
+// ---------------------------------------------------------------------------
+
+export const benchmarkOptionSchema = z.object({
+  label: z.string().min(1),
+  value: z.string().min(1),
+  numericValue: z.number().optional(),
+  isReversed: z.boolean().optional(),
+});
+
+export type BenchmarkOptionInput = z.infer<typeof benchmarkOptionSchema>;
+
+export const singleSelectConfigSchema = z.object({
+  type: z.literal("SINGLE_SELECT"),
+  options: z.array(benchmarkOptionSchema).min(2),
+  allowDontKnow: z.boolean().optional(),
+});
+
+export const binaryConfigSchema = z.object({
+  type: z.literal("BINARY"),
+  options: z.tuple([benchmarkOptionSchema, benchmarkOptionSchema]),
+  reverseScored: z.boolean().optional(),
+});
+
+export const forcedChoiceConfigSchema = z.object({
+  type: z.literal("FORCED_CHOICE"),
+  options: z.tuple([benchmarkOptionSchema, benchmarkOptionSchema]),
+  poleALabel: z.string().optional(),
+  poleBLabel: z.string().optional(),
+});
+
+export const likertConfigSchema = z.object({
+  type: z.literal("LIKERT"),
+  points: z.union([z.literal(4), z.literal(5), z.literal(7)]),
+  options: z.array(benchmarkOptionSchema).min(4).max(7),
+  reverseScored: z.boolean().optional(),
+}).refine(
+  (data) => data.options.length === data.points,
+  { message: "Number of options must match points", path: ["options"] },
+);
+
+export const numericScaleConfigSchema = z.object({
+  type: z.literal("NUMERIC_SCALE"),
+  min: z.number().int(),
+  max: z.number().int(),
+  minLabel: z.string().optional(),
+  maxLabel: z.string().optional(),
+}).refine(
+  (data) => data.min < data.max,
+  { message: "min must be less than max", path: ["min"] },
+);
+
+export const matrixLikertConfigSchema = z.object({
+  type: z.literal("MATRIX_LIKERT"),
+  stem: z.string().min(1),
+  options: z.array(benchmarkOptionSchema).min(2),
+});
+
+export const benchmarkQuestionConfigSchema = z.discriminatedUnion("type", [
+  singleSelectConfigSchema,
+  binaryConfigSchema,
+  forcedChoiceConfigSchema,
+  likertConfigSchema,
+  numericScaleConfigSchema,
+  matrixLikertConfigSchema,
+]);
+
+export type BenchmarkQuestionConfigInput = z.infer<typeof benchmarkQuestionConfigSchema>;
+
+// ---------------------------------------------------------------------------
+// Benchmark Response Schemas
+// ---------------------------------------------------------------------------
+
+export const categoricalResponseSchema = z.object({
+  selectedValue: z.string(),
+  confidence: z.number().min(0).max(100),
+});
+
+export type CategoricalResponseInput = z.infer<typeof categoricalResponseSchema>;
+
+export const numericScaleResponseSchema = z.object({
+  score: z.number(),
+  confidence: z.number().min(0).max(100),
+});
+
+export type NumericScaleResponseInput = z.infer<typeof numericScaleResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Question Config Union (ranked + benchmark)
+// ---------------------------------------------------------------------------
+
+export const questionConfigSchema = z.union([
+  rankedConfigSchema,
+  benchmarkQuestionConfigSchema,
+]);
+
+// ---------------------------------------------------------------------------
 // Question
 // ---------------------------------------------------------------------------
+
+const ALL_QUESTION_TYPES = [
+  "OPEN_ENDED",
+  "RANKED",
+  "SINGLE_SELECT",
+  "BINARY",
+  "FORCED_CHOICE",
+  "LIKERT",
+  "NUMERIC_SCALE",
+  "MATRIX_LIKERT",
+] as const;
+
+const BENCHMARK_TYPES_REQUIRING_CONFIG = [
+  "SINGLE_SELECT",
+  "BINARY",
+  "FORCED_CHOICE",
+  "LIKERT",
+  "NUMERIC_SCALE",
+  "MATRIX_LIKERT",
+] as const;
 
 const questionSchemaBase = z.object({
   title: z.string(),
@@ -120,20 +237,39 @@ const questionSchemaBase = z.object({
   mode: z.enum(["STATELESS", "THREADED"]).optional(),
   threadKey: z.string().optional(),
   order: z.number().int().optional(),
-  type: z.enum(["OPEN_ENDED", "RANKED"]).optional(),
-  configJson: rankedConfigSchema.optional(),
+  type: z.enum(ALL_QUESTION_TYPES).optional(),
+  configJson: questionConfigSchema.optional(),
+  // Benchmark metadata fields
+  code: z.string().optional(),
+  helpText: z.string().optional(),
+  constructKey: z.string().optional(),
+  sourceSurvey: z.string().optional(),
+  sourceVariable: z.string().optional(),
+  benchmarkNotes: z.string().optional(),
+  isBenchmarkAnchor: z.boolean().optional(),
 });
 
+function validateQuestionConfig(data: { type?: string; configJson?: unknown }): boolean {
+  const type = data.type;
+  if (!type) return true;
+  if (type === "OPEN_ENDED") return true;
+  // RANKED and all benchmark types require configJson
+  if (type === "RANKED" || (BENCHMARK_TYPES_REQUIRING_CONFIG as readonly string[]).includes(type)) {
+    return data.configJson !== undefined;
+  }
+  return true;
+}
+
 export const createQuestionSchema = questionSchemaBase.refine(
-  (data) => data.type !== "RANKED" || data.configJson !== undefined,
-  { message: "configJson is required for RANKED questions", path: ["configJson"] },
+  validateQuestionConfig,
+  { message: "configJson is required for this question type", path: ["configJson"] },
 );
 
 export type CreateQuestionInput = z.infer<typeof createQuestionSchema>;
 
 export const updateQuestionSchema = questionSchemaBase.partial().refine(
-  (data) => data.type !== "RANKED" || data.configJson !== undefined,
-  { message: "configJson is required for RANKED questions", path: ["configJson"] },
+  validateQuestionConfig,
+  { message: "configJson is required for this question type", path: ["configJson"] },
 );
 
 export type UpdateQuestionInput = z.infer<typeof updateQuestionSchema>;
@@ -270,6 +406,16 @@ export const parsedRankedSchema = z
 
 export const parsedOpenEndedSchema = z
   .object({ answerText: z.string().optional() })
+  .nullable()
+  .catch(null);
+
+export const parsedCategoricalSchema = z
+  .object({ selectedValue: z.string() })
+  .nullable()
+  .catch(null);
+
+export const parsedNumericScaleSchema = z
+  .object({ score: z.number() })
   .nullable()
   .catch(null);
 
