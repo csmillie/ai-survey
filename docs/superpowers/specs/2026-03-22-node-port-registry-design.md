@@ -27,9 +27,9 @@ A plain-text registry file at `/etc/node-ports.conf` on the production server, e
 #
 # ── Web Apps ──────────────────────────────────────────────────
 3000 | other-site          | example.com      | Next.js web
-3001 | ai-survey           | modeltrust.app   | Next.js web
+3088 | ai-survey           | modeltrust.app   | Next.js web
 # ── Webhooks / Internal ──────────────────────────────────────
-9000 | ai-survey-webhook   | modeltrust.app   | GitHub deploy webhook
+9088 | ai-survey-webhook   | modeltrust.app   | GitHub deploy webhook
 ```
 
 ### Rules
@@ -41,7 +41,7 @@ A plain-text registry file at `/etc/node-ports.conf` on the production server, e
 - Comments and blank lines are allowed for organization.
 - When removing a site, delete its line (do not comment it out — commented-out lines risk being mistaken for active reservations).
 - If a range fills up, extend to the next hundred (`3100-3199` or `9100-9199`) and update the reserved ranges comment in the file header.
-- This registry is for the production server only. Local development does not use this file.
+- Local development uses `~/.node-ports.conf` with the same format. Local and production ports must match.
 
 ## CLAUDE.md Instructions
 

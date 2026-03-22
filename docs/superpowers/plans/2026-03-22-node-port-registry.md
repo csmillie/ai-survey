@@ -95,9 +95,9 @@ cat > /etc/node-ports.conf << 'EOF'
 #
 # ── Web Apps ──────────────────────────────────────────────────
 3000 | <site-name>         | <domain>         | <description>
-3001 | ai-survey           | modeltrust.app   | Next.js web
+3088 | ai-survey           | modeltrust.app   | Next.js web
 # ── Webhooks / Internal ──────────────────────────────────────
-9000 | ai-survey-webhook   | modeltrust.app   | GitHub deploy webhook
+9088 | ai-survey-webhook   | modeltrust.app   | GitHub deploy webhook
 EOF
 ```
 
@@ -117,7 +117,7 @@ If the ai-survey `.env` already has an explicit `PORT` matching its registry ent
 
 ```bash
 # In /var/www/.../ai-survey/.env
-PORT=3001
+PORT=3088
 ```
 
 Then restart:
@@ -129,7 +129,7 @@ pm2 restart ai-survey-web
 - [ ] **Step 5: Verify the site is back online**
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3088
 ```
 
 Expected: `200` (or `302` redirect to login)
