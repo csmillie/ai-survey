@@ -4,6 +4,12 @@ import type {
 } from "@/lib/benchmark-types";
 import { isCategoricalType } from "@/lib/benchmark-types";
 
+function hasOptions(
+  config: BenchmarkQuestionConfig,
+): config is Extract<BenchmarkQuestionConfig, { options: BenchmarkOption[] }> {
+  return "options" in config;
+}
+
 // ---------------------------------------------------------------------------
 // Normalization — maps any benchmark answer to a 0–1 float
 // ---------------------------------------------------------------------------
@@ -28,9 +34,9 @@ export function normalizeToZeroOne(
     return Math.max(0, Math.min(1, (score - config.min) / range));
   }
 
-  if (isCategoricalType(questionType) && "options" in config) {
+  if (isCategoricalType(questionType) && hasOptions(config)) {
     const selectedValue = String(value);
-    const options = config.options as BenchmarkOption[];
+    const options = config.options;
     const selectedOption = options.find((o) => o.value === selectedValue);
     if (!selectedOption) return null;
 
@@ -62,6 +68,13 @@ export function applyReverseScoring(score: number, isReversed: boolean): number 
 // Construct Score Aggregation
 // ---------------------------------------------------------------------------
 
+/**
+ * Reverse scoring contract: `isReversed` is a per-question flag, derived from
+ * `BinaryConfig.reverseScored` or `LikertConfig.reverseScored`. The per-option
+ * `BenchmarkOption.isReversed` field is not used here — it exists for UI display
+ * and import/export metadata. Phase 2 callers should map from the question-level
+ * flag, not the option-level one.
+ */
 export interface ConstructScoreInput {
   constructKey: string;
   normalizedScore: number;

@@ -164,6 +164,8 @@ export function buildBenchmarkEnforcementBlock(
     case "NUMERIC_SCALE":
       return buildNumericScaleEnforcement(config);
     case "MATRIX_LIKERT":
+      // TODO: Phase 2 — consider a separate typed entry point for matrix rows
+      // to make the matrixRow requirement visible at compile time.
       if (!matrixRow) {
         throw new Error("matrixRow is required for MATRIX_LIKERT enforcement blocks");
       }

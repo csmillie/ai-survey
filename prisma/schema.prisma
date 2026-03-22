@@ -36,7 +36,7 @@ model Survey {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
   deletedAt             DateTime?
-  executionMode         String?       @default("standard")
+  executionMode         String        @default("standard")
   benchmarkSource       String?
   benchmarkVersion      String?
   isBenchmarkInstrument Boolean       @default(false)

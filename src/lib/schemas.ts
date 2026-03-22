@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ALL_QUESTION_TYPES, BENCHMARK_QUESTION_TYPES } from "@/lib/benchmark-types";
 
 // ---------------------------------------------------------------------------
 // LLM Response
@@ -211,25 +212,7 @@ export const questionConfigSchema = z.union([
 // Question
 // ---------------------------------------------------------------------------
 
-const ALL_QUESTION_TYPES = [
-  "OPEN_ENDED",
-  "RANKED",
-  "SINGLE_SELECT",
-  "BINARY",
-  "FORCED_CHOICE",
-  "LIKERT",
-  "NUMERIC_SCALE",
-  "MATRIX_LIKERT",
-] as const;
-
-const BENCHMARK_TYPES_REQUIRING_CONFIG = [
-  "SINGLE_SELECT",
-  "BINARY",
-  "FORCED_CHOICE",
-  "LIKERT",
-  "NUMERIC_SCALE",
-  "MATRIX_LIKERT",
-] as const;
+// ALL_QUESTION_TYPES and BENCHMARK_QUESTION_TYPES imported from benchmark-types.ts
 
 const questionSchemaBase = z.object({
   title: z.string(),
@@ -254,7 +237,7 @@ function validateQuestionConfig(data: { type?: string; configJson?: unknown }): 
   if (!type) return true;
   if (type === "OPEN_ENDED") return true;
   // RANKED and all benchmark types require configJson
-  if (type === "RANKED" || (BENCHMARK_TYPES_REQUIRING_CONFIG as readonly string[]).includes(type)) {
+  if (type === "RANKED" || (BENCHMARK_QUESTION_TYPES as readonly string[]).includes(type)) {
     return data.configJson !== undefined;
   }
   return true;
