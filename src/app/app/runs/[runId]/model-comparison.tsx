@@ -48,10 +48,6 @@ function divergenceBg(sigmas: number): string {
   return "bg-red-500/5";
 }
 
-function hasScore(r: ResponseData): r is ResponseData & { score: number } {
-  return r.score !== null;
-}
-
 /** Extract a display string for the response value */
 function getResponseDisplay(resp: ResponseData): string {
   if (resp.score !== null) {
@@ -64,7 +60,6 @@ function getResponseDisplay(resp: ResponseData): string {
     return max !== null ? `${resp.score} / ${max}` : String(resp.score);
   }
 
-  // Try parsing benchmark JSON response
   try {
     const parsed = JSON.parse(resp.answerText);
     if (parsed && typeof parsed === "object" && "selectedValue" in parsed) {
@@ -84,16 +79,64 @@ function getResponseDisplay(resp: ResponseData): string {
     : resp.answerText;
 }
 
+/**
+ * Extract a numeric value from any response for divergence calculation.
+ * - RANKED: uses resp.score directly
+ * - NUMERIC_SCALE: parses score from JSON
+ * - Categorical (SINGLE_SELECT, BINARY, FORCED_CHOICE, LIKERT): looks up
+ *   numericValue/score from config options matching the selectedValue
+ */
+function getNumericValue(resp: ResponseData): number | null {
+  // Direct score (RANKED)
+  if (resp.score !== null) return resp.score;
+
+  try {
+    const parsed = JSON.parse(resp.answerText);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    // Numeric scale score
+    if ("score" in parsed && typeof parsed.score === "number") {
+      return parsed.score;
+    }
+
+    // Categorical — look up numericValue from config options
+    if ("selectedValue" in parsed && typeof parsed.selectedValue === "string") {
+      const options = (resp.questionConfig?.options ?? []) as Array<{
+        value: string;
+        numericValue?: number;
+        score?: number;
+      }>;
+      if (!Array.isArray(options)) return null;
+      const match = options.find((o) => o.value === parsed.selectedValue);
+      if (match) {
+        return match.numericValue ?? match.score ?? null;
+      }
+    }
+  } catch {
+    // Not JSON
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function ModelComparison({ responses, questionType }: ModelComparisonProps): React.JSX.Element {
-  const isRanked = questionType === "RANKED";
-  const scores = responses.filter(hasScore).map((r) => r.score);
+export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.Element {
+  // Extract numeric values for all responses
+  const numericPairs = responses.map((r) => ({
+    response: r,
+    numericValue: getNumericValue(r),
+  }));
 
-  const scoreMean = scores.length > 0 ? mean(scores) : null;
-  const scoreStd = scores.length > 1 ? stddev(scores) : 0;
+  const numericValues = numericPairs
+    .map((p) => p.numericValue)
+    .filter((v): v is number => v !== null);
+
+  const valueMean = numericValues.length > 0 ? mean(numericValues) : null;
+  const valueStd = numericValues.length > 1 ? stddev(numericValues) : 0;
+  const hasNumericData = numericValues.length >= 2;
 
   return (
     <div className="space-y-4">
@@ -107,10 +150,10 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
           </TableRow>
         </TableHeader>
         <TableBody>
-          {responses.map((resp) => {
+          {numericPairs.map(({ response: resp, numericValue }) => {
             let sigmas = 0;
-            if (isRanked && scoreMean !== null && scoreStd > 0 && resp.score !== null) {
-              sigmas = Math.abs(resp.score - scoreMean) / scoreStd;
+            if (hasNumericData && valueMean !== null && valueStd > 0 && numericValue !== null) {
+              sigmas = Math.abs(numericValue - valueMean) / valueStd;
             }
 
             return (
@@ -129,7 +172,7 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
                   )}
                 </TableCell>
                 <TableCell className="text-center">
-                  {isRanked && scoreStd > 0 ? (
+                  {hasNumericData && numericValue !== null && valueStd > 0 ? (
                     <span className={`text-sm font-medium ${divergenceColor(sigmas)}`}>
                       {sigmas.toFixed(1)}&sigma;
                     </span>
@@ -144,16 +187,16 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
       </Table>
 
       {/* Summary row */}
-      {isRanked && scoreMean !== null && (
+      {hasNumericData && valueMean !== null && (
         <div className="flex flex-wrap gap-3 text-sm">
           <Badge variant="secondary">
-            Range: {Math.min(...scores)} – {Math.max(...scores)}
+            Range: {Math.min(...numericValues)} – {Math.max(...numericValues)}
           </Badge>
           <Badge variant="secondary">
-            Mean: {scoreMean.toFixed(1)}
+            Mean: {valueMean.toFixed(1)}
           </Badge>
           <Badge variant="secondary">
-            Std Dev: {scoreStd.toFixed(2)}
+            Std Dev: {valueStd.toFixed(2)}
           </Badge>
         </div>
       )}
