@@ -74,6 +74,7 @@ const QUESTION_TYPE_LABELS: Record<string, string> = {
 };
 
 const ALL_TYPES = Object.keys(QUESTION_TYPE_LABELS);
+const BENCHMARK_TYPES = new Set(ALL_TYPES.filter((t) => t !== "OPEN_ENDED" && t !== "RANKED"));
 
 interface VariableData {
   id: string;
@@ -536,7 +537,7 @@ function QuestionsTab({
               )}
 
               {/* Benchmark Configuration (JSON editor for new types) */}
-              {["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIKERT", "NUMERIC_SCALE", "MATRIX_LIKERT"].includes(questionType) && (
+              {BENCHMARK_TYPES.has(questionType) && (
                 <BenchmarkConfigEditor key={questionType} questionType={questionType} onValidChange={setConfigValid} />
               )}
 
@@ -798,7 +799,10 @@ function QuestionEditRow({
             <Label>Question Type</Label>
             <Select
               value={editType}
-              onChange={(e) => setEditType(e.target.value)}
+              onChange={(e) => {
+                setEditType(e.target.value);
+                setEditConfigValid(true);
+              }}
             >
               {ALL_TYPES.map((t) => (
                 <SelectOption key={t} value={t}>
@@ -905,7 +909,7 @@ function QuestionEditRow({
           )}
 
           {/* Benchmark Configuration (edit) */}
-          {["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIKERT", "NUMERIC_SCALE", "MATRIX_LIKERT"].includes(editType) && (
+          {BENCHMARK_TYPES.has(editType) && (
             <BenchmarkConfigEditor
               key={editType}
               questionType={editType}
@@ -1003,8 +1007,8 @@ const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   SINGLE_SELECT: {
     type: "SINGLE_SELECT",
     options: [
-      { label: "Option A", value: "option_a" },
-      { label: "Option B", value: "option_b" },
+      { label: "Option A", value: "option_a", numericValue: 2 },
+      { label: "Option B", value: "option_b", numericValue: 1 },
     ],
   },
   BINARY: {
@@ -1017,8 +1021,8 @@ const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   FORCED_CHOICE: {
     type: "FORCED_CHOICE",
     options: [
-      { label: "Position A", value: "a" },
-      { label: "Position B", value: "b" },
+      { label: "Position A", value: "a", numericValue: 1 },
+      { label: "Position B", value: "b", numericValue: 0 },
     ],
   },
   LIKERT: {
@@ -1047,6 +1051,7 @@ const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
       { label: "Only some", value: "only_some", numericValue: 2 },
       { label: "Hardly any", value: "hardly_any", numericValue: 1 },
     ],
+    _note: "Matrix rows must be added via the seed script or database. This config defines the column scale only.",
   },
 };
 
@@ -1081,6 +1086,20 @@ function BenchmarkConfigEditor({
     }
   }
 
+  // Enforce configJson.type matches the dropdown — the textarea is freeform
+  // but the submitted value always has the correct type field.
+  function getSubmitValue(): string {
+    if (parseError) return "";
+    try {
+      const parsed = JSON.parse(configText);
+      if (typeof parsed === "object" && parsed !== null) {
+        parsed.type = questionType;
+        return JSON.stringify(parsed);
+      }
+    } catch { /* already handled */ }
+    return configText;
+  }
+
   return (
     <div className="space-y-2 rounded-lg border p-3">
       <h4 className="text-sm font-medium">
@@ -1099,7 +1118,7 @@ function BenchmarkConfigEditor({
       <input
         type="hidden"
         name="configJson"
-        value={parseError ? "" : configText}
+        value={getSubmitValue()}
       />
     </div>
   );
