@@ -37,10 +37,13 @@ export async function allocateJobs(params: {
 }): Promise<AllocationResult> {
   const { runId, surveyId, modelTargetIds, variableOverrides } = params;
 
-  // 1. Load questions ordered by `order ASC`
+  // 1. Load questions ordered by `order ASC`, with matrix rows for expansion
   const questions = await prisma.question.findMany({
     where: { surveyId },
     orderBy: { order: "asc" },
+    include: {
+      matrixRows: { orderBy: { order: "asc" } },
+    },
   });
 
   // 2. Load variables for the survey
@@ -66,38 +69,69 @@ export async function allocateJobs(params: {
 
   for (const modelTargetId of modelTargetIds) {
     for (const question of questions) {
-      // a. Generate threadKey
-      const threadKey =
-        question.mode === "THREADED"
-          ? `${runId}-${modelTargetId}-${question.threadKey || question.id}`
-          : `${runId}-${modelTargetId}-${question.id}`;
-
-      // b. Generate idempotencyKey
-      const idempotencyKey = `${runId}:${modelTargetId}:${question.id}`;
-
-      // c. Substitute variables in promptTemplate
+      // Substitute variables in promptTemplate
       const { result: renderedPrompt } = substituteVariables(
         question.promptTemplate,
         variableMap
       );
 
-      // d. Create AllocationJob
-      jobs.push({
-        modelTargetId,
-        questionId: question.id,
-        threadKey,
-        idempotencyKey,
-        type: "EXECUTE_QUESTION",
-        payloadJson: {
-          questionTitle: question.title,
-          renderedPrompt,
-          questionMode: question.mode,
+      const basePayload = {
+        questionTitle: question.title,
+        renderedPrompt,
+        questionMode: question.mode,
+        variableValues: variableMap,
+        questionType: question.type ?? "OPEN_ENDED",
+        ...(question.configJson ? { questionConfig: question.configJson } : {}),
+      };
+
+      // MATRIX_LIKERT: one job per row
+      if (question.type === "MATRIX_LIKERT") {
+        if (question.matrixRows.length === 0) {
+          console.warn(
+            `[allocation] MATRIX_LIKERT question ${question.id} has no rows — skipping`
+          );
+          continue;
+        }
+        // Matrix rows are always independent prompts (STATELESS), even if the
+        // question is configured as THREADED — each row is a separate survey item.
+        for (const row of question.matrixRows) {
+          const threadKey = `${runId}-${modelTargetId}-${question.id}-${row.rowKey}`;
+          const idempotencyKey = `${runId}:${modelTargetId}:${question.id}:${row.rowKey}`;
+
+          jobs.push({
+            modelTargetId,
+            questionId: question.id,
+            threadKey,
+            idempotencyKey,
+            type: "EXECUTE_QUESTION",
+            payloadJson: {
+              ...basePayload,
+              questionMode: "STATELESS",
+              matrixRowKey: row.rowKey,
+              matrixRowLabel: row.label,
+            },
+          });
+        }
+      } else {
+        // All other types: one job per question
+        const threadKey =
+          question.mode === "THREADED"
+            ? `${runId}-${modelTargetId}-${question.threadKey || question.id}`
+            : `${runId}-${modelTargetId}-${question.id}`;
+        const idempotencyKey = `${runId}:${modelTargetId}:${question.id}`;
+
+        jobs.push({
+          modelTargetId,
+          questionId: question.id,
           threadKey,
-          variableValues: variableMap,
-          questionType: question.type ?? "OPEN_ENDED",
-          ...(question.configJson ? { questionConfig: question.configJson } : {}),
-        },
-      });
+          idempotencyKey,
+          type: "EXECUTE_QUESTION",
+          payloadJson: {
+            ...basePayload,
+            threadKey,
+          },
+        });
+      }
     }
   }
 

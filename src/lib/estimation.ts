@@ -72,10 +72,23 @@ export async function estimateRun(params: {
 }): Promise<RunEstimate> {
   const { surveyId, modelTargetIds } = params;
 
-  // 1. Load questions for survey
-  const questionCount = await prisma.question.count({
+  // 1. Load questions with matrix row counts for accurate job estimation
+  const questions = await prisma.question.findMany({
     where: { surveyId },
+    select: {
+      type: true,
+      _count: { select: { matrixRows: true } },
+    },
   });
+
+  // MATRIX_LIKERT questions expand to one job per row
+  let questionCount = 0;
+  for (const q of questions) {
+    if (q.type === "MATRIX_LIKERT" && q._count.matrixRows === 0) {
+      console.warn("[estimation] MATRIX_LIKERT question has no rows — contributes 0 jobs");
+    }
+    questionCount += q.type === "MATRIX_LIKERT" ? q._count.matrixRows : 1;
+  }
 
   // 2. Load model targets by IDs
   const modelTargets = await prisma.modelTarget.findMany({
