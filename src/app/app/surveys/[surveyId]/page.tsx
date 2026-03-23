@@ -28,6 +28,7 @@ export default async function SurveyDetailPage({
     include: {
       questions: {
         orderBy: { order: "asc" },
+        include: { matrixRows: { orderBy: { order: "asc" } } },
       },
       variables: {
         orderBy: { createdAt: "asc" },
@@ -97,12 +98,7 @@ export default async function SurveyDetailPage({
           threadKey: q.threadKey,
           order: q.order,
           type: q.type,
-          configJson: q.configJson as {
-            scalePreset: string;
-            scaleMin: number;
-            scaleMax: number;
-            includeReasoning: boolean;
-          } | null,
+          configJson: q.configJson as Record<string, unknown> | null,
         }))}
         variables={fullSurvey.variables.map((v) => ({
           id: v.id,

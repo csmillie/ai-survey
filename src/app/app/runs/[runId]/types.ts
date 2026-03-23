@@ -90,6 +90,9 @@ export interface ResponseData {
   reasoningText: string | null;
   citations: Array<{ url: string; title?: string; snippet?: string }>;
   confidence: number | null;
+  normalizedScore: number | null;
+  selectedOptionValue: string | null;
+  matrixRowKey: string | null;
   verificationStatus: "UNREVIEWED" | "VERIFIED" | "INACCURATE";
   sentimentScore: number | null;
   costUsd: string | null;

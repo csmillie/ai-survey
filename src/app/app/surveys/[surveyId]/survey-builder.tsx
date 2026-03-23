@@ -59,13 +59,21 @@ interface QuestionData {
   threadKey: string | null;
   order: number;
   type: string;
-  configJson: {
-    scalePreset: string;
-    scaleMin: number;
-    scaleMax: number;
-    includeReasoning: boolean;
-  } | null;
+  configJson: Record<string, unknown> | null;
 }
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  OPEN_ENDED: "Open Ended",
+  RANKED: "Ranked",
+  SINGLE_SELECT: "Single Select",
+  BINARY: "Binary",
+  FORCED_CHOICE: "Forced Choice",
+  LIKERT: "Likert",
+  NUMERIC_SCALE: "Numeric Scale",
+  MATRIX_LIKERT: "Matrix Likert",
+};
+
+const ALL_TYPES = Object.keys(QUESTION_TYPE_LABELS);
 
 interface VariableData {
   id: string;
@@ -358,7 +366,7 @@ function QuestionsTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const addFormRef = useRef<HTMLFormElement>(null);
 
-  const [questionType, setQuestionType] = useState<"OPEN_ENDED" | "RANKED">("OPEN_ENDED");
+  const [questionType, setQuestionType] = useState<string>("OPEN_ENDED");
   const [scalePreset, setScalePreset] = useState<string>("0-5");
   const [scaleMin, setScaleMin] = useState(0);
   const [scaleMax, setScaleMax] = useState(5);
@@ -427,24 +435,16 @@ function QuestionsTab({
               {/* Question Type Selector */}
               <div className="space-y-2">
                 <Label>Prompt Type</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={questionType === "OPEN_ENDED" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setQuestionType("OPEN_ENDED")}
-                  >
-                    Open Ended
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={questionType === "RANKED" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setQuestionType("RANKED")}
-                  >
-                    Ranked
-                  </Button>
-                </div>
+                <Select
+                  value={questionType}
+                  onChange={(e) => setQuestionType(e.target.value)}
+                >
+                  {ALL_TYPES.map((t) => (
+                    <SelectOption key={t} value={t}>
+                      {QUESTION_TYPE_LABELS[t]}
+                    </SelectOption>
+                  ))}
+                </Select>
                 <input type="hidden" name="type" value={questionType} />
               </div>
 
@@ -529,6 +529,11 @@ function QuestionsTab({
                     value={JSON.stringify({ scalePreset, scaleMin, scaleMax, includeReasoning })}
                   />
                 </div>
+              )}
+
+              {/* Benchmark Configuration (JSON editor for new types) */}
+              {["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIKERT", "NUMERIC_SCALE", "MATRIX_LIKERT"].includes(questionType) && (
+                <BenchmarkConfigEditor key={questionType} questionType={questionType} />
               )}
 
               {/* Mode */}
@@ -668,9 +673,7 @@ function QuestionsTab({
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">
-                        {q.type === "RANKED" && q.configJson
-                          ? `Ranked ${q.configJson.scaleMin}-${q.configJson.scaleMax}`
-                          : "Open Ended"}
+                        {QUESTION_TYPE_LABELS[q.type] ?? q.type}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -723,20 +726,19 @@ function QuestionEditRow({
 }) {
   const boundUpdate = updateQuestionAction.bind(null, surveyId, question.id);
 
-  const [editType, setEditType] = useState<"OPEN_ENDED" | "RANKED">(
-    question.type === "RANKED" ? "RANKED" : "OPEN_ENDED"
-  );
+  const [editType, setEditType] = useState<string>(question.type);
+  const rankedConfig = question.type === "RANKED" && question.configJson ? question.configJson as Record<string, unknown> : null;
   const [editScalePreset, setEditScalePreset] = useState<string>(
-    question.configJson?.scalePreset ?? "0-5"
+    (rankedConfig?.scalePreset as string) ?? "0-5"
   );
   const [editScaleMin, setEditScaleMin] = useState(
-    question.configJson?.scaleMin ?? 0
+    (rankedConfig?.scaleMin as number) ?? 0
   );
   const [editScaleMax, setEditScaleMax] = useState(
-    question.configJson?.scaleMax ?? 5
+    (rankedConfig?.scaleMax as number) ?? 5
   );
   const [editIncludeReasoning, setEditIncludeReasoning] = useState(
-    question.configJson?.includeReasoning ?? true
+    (rankedConfig?.includeReasoning as boolean) ?? true
   );
   const [editMode, setEditMode] = useState<"STATELESS" | "THREADED">(
     question.mode === "THREADED" ? "THREADED" : "STATELESS"
@@ -782,24 +784,16 @@ function QuestionEditRow({
           {/* Type Selector */}
           <div className="space-y-1">
             <Label>Question Type</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={editType === "OPEN_ENDED" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setEditType("OPEN_ENDED")}
-              >
-                Open Ended
-              </Button>
-              <Button
-                type="button"
-                variant={editType === "RANKED" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setEditType("RANKED")}
-              >
-                Ranked
-              </Button>
-            </div>
+            <Select
+              value={editType}
+              onChange={(e) => setEditType(e.target.value)}
+            >
+              {ALL_TYPES.map((t) => (
+                <SelectOption key={t} value={t}>
+                  {QUESTION_TYPE_LABELS[t]}
+                </SelectOption>
+              ))}
+            </Select>
             <input type="hidden" name="type" value={editType} />
           </div>
 
@@ -898,6 +892,15 @@ function QuestionEditRow({
             </div>
           )}
 
+          {/* Benchmark Configuration (edit) */}
+          {["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIKERT", "NUMERIC_SCALE", "MATRIX_LIKERT"].includes(editType) && (
+            <BenchmarkConfigEditor
+              key={editType}
+              questionType={editType}
+              initialConfig={question.configJson ?? undefined}
+            />
+          )}
+
           {/* Thread Key (only shown when THREADED) */}
           {editMode === "THREADED" && (
             <div className="space-y-1">
@@ -976,6 +979,112 @@ function QuestionEditRow({
         </form>
       </TableCell>
     </TableRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark Config Editor — JSON-based config for benchmark question types
+// ---------------------------------------------------------------------------
+
+const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
+  SINGLE_SELECT: {
+    type: "SINGLE_SELECT",
+    options: [
+      { label: "Option A", value: "option_a" },
+      { label: "Option B", value: "option_b" },
+    ],
+  },
+  BINARY: {
+    type: "BINARY",
+    options: [
+      { label: "Yes", value: "yes", numericValue: 1 },
+      { label: "No", value: "no", numericValue: 0 },
+    ],
+  },
+  FORCED_CHOICE: {
+    type: "FORCED_CHOICE",
+    options: [
+      { label: "Position A", value: "a" },
+      { label: "Position B", value: "b" },
+    ],
+  },
+  LIKERT: {
+    type: "LIKERT",
+    points: 5,
+    options: [
+      { label: "Strongly agree", value: "5", numericValue: 5 },
+      { label: "Agree", value: "4", numericValue: 4 },
+      { label: "Neither agree nor disagree", value: "3", numericValue: 3 },
+      { label: "Disagree", value: "2", numericValue: 2 },
+      { label: "Strongly disagree", value: "1", numericValue: 1 },
+    ],
+  },
+  NUMERIC_SCALE: {
+    type: "NUMERIC_SCALE",
+    min: 0,
+    max: 10,
+    minLabel: "",
+    maxLabel: "",
+  },
+  MATRIX_LIKERT: {
+    type: "MATRIX_LIKERT",
+    stem: "Rate the following items:",
+    options: [
+      { label: "A great deal", value: "great_deal", numericValue: 3 },
+      { label: "Only some", value: "only_some", numericValue: 2 },
+      { label: "Hardly any", value: "hardly_any", numericValue: 1 },
+    ],
+  },
+};
+
+function BenchmarkConfigEditor({
+  questionType,
+  initialConfig,
+}: {
+  questionType: string;
+  initialConfig?: Record<string, unknown>;
+}) {
+  const defaultConfig = DEFAULT_CONFIGS[questionType];
+  const configToUse = initialConfig && (initialConfig as { type?: string }).type === questionType
+    ? initialConfig
+    : defaultConfig;
+
+  // Key state by questionType so React resets it when type changes
+  const [configText, setConfigText] = useState(
+    JSON.stringify(configToUse, null, 2)
+  );
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  function handleChange(value: string) {
+    setConfigText(value);
+    try {
+      JSON.parse(value);
+      setParseError(null);
+    } catch {
+      setParseError("Invalid JSON");
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <h4 className="text-sm font-medium">
+        {QUESTION_TYPE_LABELS[questionType]} Configuration
+      </h4>
+      <Textarea
+        value={configText}
+        onChange={(e) => handleChange(e.target.value)}
+        rows={8}
+        className="font-mono text-xs"
+      />
+      {parseError && (
+        <p className="text-xs text-[hsl(var(--destructive))]">{parseError}</p>
+      )}
+      <input
+        type="hidden"
+        name="configJson"
+        value={configText}
+      />
+    </div>
   );
 }
 

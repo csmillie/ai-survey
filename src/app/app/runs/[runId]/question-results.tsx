@@ -265,7 +265,21 @@ function ResponseRow({
           </div>
         </TableCell>
         <TableCell className="max-w-md">
-          {response.score !== null && response.questionConfig ? (
+          {response.selectedOptionValue !== null ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{response.selectedOptionValue}</Badge>
+              {response.normalizedScore !== null && (
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  ({(response.normalizedScore * 100).toFixed(0)}%)
+                </span>
+              )}
+              {response.matrixRowKey && (
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  [{response.matrixRowKey}]
+                </span>
+              )}
+            </div>
+          ) : response.score !== null && response.questionConfig ? (
             <ScoreBar
               score={response.score}
               min={response.questionConfig.scaleMin}
