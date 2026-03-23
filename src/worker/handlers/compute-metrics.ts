@@ -105,6 +105,7 @@ export async function handleComputeMetrics(
         id: true,
         modelTargetId: true,
         questionId: true,
+        matrixRowKey: true,
         rawText: true,
         parsedJson: true,
         reasoningText: true,
@@ -201,9 +202,12 @@ export async function handleComputeMetrics(
     }
 
     // 4. Group by question → compute agreement
+    // MATRIX_LIKERT rows use composite key (questionId:matrixRowKey) so each
+    // row is compared independently across models, not mixed together.
     const byQuestion = new Map<
       string,
       {
+        questionId: string;
         questionTitle: string;
         questionType: string;
         configJson: Prisma.JsonValue;
@@ -212,12 +216,18 @@ export async function handleComputeMetrics(
     >();
 
     for (const resp of responses) {
-      const existing = byQuestion.get(resp.questionId);
+      const groupKey = resp.matrixRowKey
+        ? `${resp.questionId}:${resp.matrixRowKey}`
+        : resp.questionId;
+      const existing = byQuestion.get(groupKey);
       if (existing) {
         existing.responses.push(resp);
       } else {
-        byQuestion.set(resp.questionId, {
-          questionTitle: resp.question.title,
+        byQuestion.set(groupKey, {
+          questionId: resp.questionId,
+          questionTitle: resp.matrixRowKey
+            ? `${resp.question.title} [${resp.matrixRowKey}]`
+            : resp.question.title,
           questionType: resp.question.type,
           configJson: resp.question.configJson,
           responses: [resp],
@@ -227,11 +237,12 @@ export async function handleComputeMetrics(
 
     const questionReviews: QuestionReview[] = [];
     const questionUpserts: Array<{
+      groupKey: string;
       questionId: string;
       agreement: ReturnType<typeof computeOpenEndedAgreement>;
     }> = [];
 
-    for (const [questionId, data] of byQuestion) {
+    for (const [groupKey, data] of byQuestion) {
       let agreement: AgreementResult;
 
       if (data.questionType === "RANKED") {
@@ -333,9 +344,9 @@ export async function handleComputeMetrics(
         agreement = computeOpenEndedAgreement(openEndedResponses);
       }
 
-      questionUpserts.push({ questionId, agreement });
+      questionUpserts.push({ groupKey, questionId: data.questionId, agreement });
       questionReviews.push({
-        questionId,
+        questionId: data.questionId,
         humanReviewFlag: agreement.humanReviewFlag,
       });
     }
@@ -347,10 +358,18 @@ export async function handleComputeMetrics(
       confidenceByResponseId.set(r.id, r.confidence ?? null);
     }
 
-    // 4c. Build agreement lookup for calibration computation
-    const agreementByQuestion = new Map<string, number>();
-    for (const { questionId, agreement } of questionUpserts) {
-      agreementByQuestion.set(questionId, agreement.agreementPercent);
+    // 4c. Build agreement lookup for calibration computation (keyed by groupKey)
+    const agreementByGroup = new Map<string, number>();
+    for (const { groupKey, agreement } of questionUpserts) {
+      agreementByGroup.set(groupKey, agreement.agreementPercent);
+    }
+
+    // Map each response to its groupKey for calibration lookup
+    const responseGroupKey = new Map<string, string>();
+    for (const [groupKey, data] of byQuestion) {
+      for (const r of data.responses) {
+        responseGroupKey.set(r.id, groupKey);
+      }
     }
 
     // 4d. Compute per-model calibration scores
@@ -359,7 +378,8 @@ export async function handleComputeMetrics(
       const calibrationInputs: CalibrationInput[] = [];
       for (const r of data.responses) {
         const conf = confidenceByResponseId.get(r.id);
-        const agr = agreementByQuestion.get(r.questionId);
+        const gk = responseGroupKey.get(r.id);
+        const agr = gk ? agreementByGroup.get(gk) : undefined;
         if (conf != null && agr != null) {
           calibrationInputs.push({ confidence: conf, agreementPercent: agr });
         }
@@ -372,10 +392,10 @@ export async function handleComputeMetrics(
       }
     }
 
-    // 4e. Compute per-question overconfident models
-    const overconfidentByQuestion = new Map<string, string[]>();
-    for (const { questionId, agreement } of questionUpserts) {
-      const qData = byQuestion.get(questionId);
+    // 4e. Compute per-group overconfident models
+    const overconfidentByGroup = new Map<string, string[]>();
+    for (const { groupKey, agreement } of questionUpserts) {
+      const qData = byQuestion.get(groupKey);
       if (!qData) continue;
       const overconfident = findOverconfidentModels(
         qData.responses.map((r) => ({
@@ -384,16 +404,16 @@ export async function handleComputeMetrics(
         })),
         agreement.agreementPercent
       );
-      overconfidentByQuestion.set(questionId, overconfident);
+      overconfidentByGroup.set(groupKey, overconfident);
     }
 
-    // 4f. Compute per-question fact confidence
-    const factConfidenceByQuestion = new Map<
+    // 4f. Compute per-group fact confidence
+    const factConfidenceByGroup = new Map<
       string,
       { level: string; score: number; signals: string[]; comparison: ReturnType<typeof compareAcrossModels> }
     >();
-    for (const { questionId, agreement } of questionUpserts) {
-      const qData = byQuestion.get(questionId);
+    for (const { groupKey, agreement } of questionUpserts) {
+      const qData = byQuestion.get(groupKey);
       if (!qData) continue;
 
       // Build per-model fact-check data for comparison
@@ -425,7 +445,7 @@ export async function handleComputeMetrics(
         totalModels: modelFactData.length,
       });
 
-      factConfidenceByQuestion.set(questionId, {
+      factConfidenceByGroup.set(groupKey, {
         level: factConfidence.level,
         score: factConfidence.score,
         signals: factConfidence.signals,
@@ -474,51 +494,75 @@ export async function handleComputeMetrics(
             },
           })
         ),
-        ...questionUpserts.map(({ questionId, agreement }) => {
-          const overconfident = overconfidentByQuestion.get(questionId) ?? [];
-          const factConf = factConfidenceByQuestion.get(questionId);
-          const factConfData = {
-            factConfidenceLevel: factConf?.level ?? null,
-            factConfidenceScore: factConf?.score ?? null,
-            factConfidenceSignals: factConf
-              ? (factConf.signals as unknown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-            factComparisonJson: factConf
-              ? (factConf.comparison as unknown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          };
-          return tx.runQuestionAgreement.upsert({
-            where: {
-              runId_questionId: { runId, questionId },
-            },
-            create: {
-              runId,
-              questionId,
-              agreementPercent: agreement.agreementPercent,
-              outlierModelsJson:
-                agreement.outlierModels as unknown as Prisma.InputJsonValue,
-              humanReviewFlag: agreement.humanReviewFlag,
-              overconfidentModelsJson:
-                overconfident as unknown as Prisma.InputJsonValue,
-              clusterDetailsJson: agreement.clusterDetails
-                ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+        // Aggregate matrix rows: multiple groupKeys may share the same questionId.
+        // Average their agreement percentages for the per-question upsert.
+        ...(() => {
+          const aggregated = new Map<string, {
+            questionId: string;
+            agreements: AgreementResult[];
+            groupKeys: string[];
+          }>();
+          for (const { groupKey, questionId, agreement } of questionUpserts) {
+            const existing = aggregated.get(questionId);
+            if (existing) {
+              existing.agreements.push(agreement);
+              existing.groupKeys.push(groupKey);
+            } else {
+              aggregated.set(questionId, {
+                questionId,
+                agreements: [agreement],
+                groupKeys: [groupKey],
+              });
+            }
+          }
+          return [...aggregated.values()].map(({ questionId, agreements, groupKeys }) => {
+            // Use first group's data for single-row questions; average for matrix
+            const avgAgreement = agreements.reduce((s, a) => s + a.agreementPercent, 0) / agreements.length;
+            const anyHumanReview = agreements.some((a) => a.humanReviewFlag);
+            const allOutliers = agreements.flatMap((a) => a.outlierModels);
+            const uniqueOutliers = [...new Set(allOutliers)];
+            const overconfident = groupKeys.flatMap((gk) => overconfidentByGroup.get(gk) ?? []);
+            const uniqueOverconfident = [...new Set(overconfident)];
+            const factConf = factConfidenceByGroup.get(groupKeys[0]);
+            const factConfData = {
+              factConfidenceLevel: factConf?.level ?? null,
+              factConfidenceScore: factConf?.score ?? null,
+              factConfidenceSignals: factConf
+                ? (factConf.signals as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
-              ...factConfData,
-            },
-            update: {
-              agreementPercent: agreement.agreementPercent,
-              outlierModelsJson:
-                agreement.outlierModels as unknown as Prisma.InputJsonValue,
-              humanReviewFlag: agreement.humanReviewFlag,
-              overconfidentModelsJson:
-                overconfident as unknown as Prisma.InputJsonValue,
-              clusterDetailsJson: agreement.clusterDetails
-                ? (agreement.clusterDetails as unknown as Prisma.InputJsonValue)
+              factComparisonJson: factConf
+                ? (factConf.comparison as unknown as Prisma.InputJsonValue)
                 : Prisma.JsonNull,
-              ...factConfData,
-            },
+            };
+            return tx.runQuestionAgreement.upsert({
+              where: {
+                runId_questionId: { runId, questionId },
+              },
+              create: {
+                runId,
+                questionId,
+                agreementPercent: avgAgreement,
+                outlierModelsJson:
+                  uniqueOutliers as unknown as Prisma.InputJsonValue,
+                humanReviewFlag: anyHumanReview,
+                overconfidentModelsJson:
+                  uniqueOverconfident as unknown as Prisma.InputJsonValue,
+                clusterDetailsJson: Prisma.JsonNull,
+                ...factConfData,
+              },
+              update: {
+                agreementPercent: avgAgreement,
+                outlierModelsJson:
+                  uniqueOutliers as unknown as Prisma.InputJsonValue,
+                humanReviewFlag: anyHumanReview,
+                overconfidentModelsJson:
+                  uniqueOverconfident as unknown as Prisma.InputJsonValue,
+                clusterDetailsJson: Prisma.JsonNull,
+                ...factConfData,
+              },
+            });
           });
-        }),
+        })(),
         tx.surveyRun.update({
           where: { id: runId },
           data: {
@@ -533,7 +577,7 @@ export async function handleComputeMetrics(
     let truthCount = 0;
     let refereeCount = 0;
 
-    for (const [questionId, data] of byQuestion) {
+    for (const [, data] of byQuestion) {
       // Skip ranked and benchmark questions — truth engine is designed for open-ended
       if (data.questionType === "RANKED" || isBenchmarkType(data.questionType)) continue;
 
@@ -580,10 +624,10 @@ export async function handleComputeMetrics(
 
         // Persist RunQuestionTruth
         await prisma.runQuestionTruth.upsert({
-          where: { runId_questionId: { runId, questionId } },
+          where: { runId_questionId: { runId, questionId: data.questionId } },
           create: {
             runId,
-            questionId,
+            questionId: data.questionId,
             truthScore: truthResult.truthScore,
             truthLabel: truthResult.truthLabel,
             consensusPercent: truthResult.consensusPercent,
@@ -626,10 +670,10 @@ export async function handleComputeMetrics(
 
         if (refereeResult) {
           await prisma.runQuestionReferee.upsert({
-            where: { runId_questionId: { runId, questionId } },
+            where: { runId_questionId: { runId, questionId: data.questionId } },
             create: {
               runId,
-              questionId,
+              questionId: data.questionId,
               refereeModelKey: "gpt-4o-mini",
               summary: refereeResult.summary,
               disagreementsJson:
@@ -661,7 +705,7 @@ export async function handleComputeMetrics(
       } catch (truthErr) {
         // Truth engine errors should not fail the entire metrics job
         console.warn(
-          `[compute-metrics] Truth engine error for question ${questionId}:`,
+          `[compute-metrics] Truth engine error for question ${data.questionId}:`,
           truthErr instanceof Error ? truthErr.message : truthErr
         );
       }
