@@ -1,6 +1,6 @@
 "use client";
 
-import { StatusBadge } from "./shared-components";
+import { StatusBadge, formatCost } from "./shared-components";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,7 +86,7 @@ export function DecisionHeader({
             {totalCostUsd > 0 && (
               <div className="text-right">
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Cost</p>
-                <p className="font-semibold">${totalCostUsd < 0.01 ? totalCostUsd.toFixed(4) : totalCostUsd.toFixed(2)}</p>
+                <p className="font-semibold">{formatCost(totalCostUsd)}</p>
               </div>
             )}
           </div>

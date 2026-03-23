@@ -3,6 +3,21 @@
 import { Badge } from "@/components/ui/badge";
 
 // ---------------------------------------------------------------------------
+// Cost formatting
+// ---------------------------------------------------------------------------
+
+/** Format a USD cost in a human-readable way at any scale */
+export function formatCost(usd: number): string {
+  if (usd === 0) return "$0";
+  if (usd >= 1) return `$${usd.toFixed(2)}`;
+  if (usd >= 0.01) return `$${usd.toFixed(3)}`;
+  if (usd >= 0.001) return `$${usd.toFixed(4)}`;
+  // Sub-millicent: show in scientific or fixed
+  if (usd >= 0.000001) return `$${usd.toFixed(6)}`;
+  return `$${usd.toExponential(1)}`;
+}
+
+// ---------------------------------------------------------------------------
 // StatusBadge
 // ---------------------------------------------------------------------------
 

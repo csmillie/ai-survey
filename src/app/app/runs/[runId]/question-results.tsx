@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, ModelLabel } from "./shared-components";
+import { ScoreBar, ModelLabel, formatCost } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
@@ -575,7 +575,7 @@ export const QuestionResults = memo(function QuestionResults({
                       )}
                       {totalCost > 0 && (
                         <span className="ml-2 text-[hsl(var(--muted-foreground))]">
-                          ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
+                          {formatCost(totalCost)}
                         </span>
                       )}
                     </>

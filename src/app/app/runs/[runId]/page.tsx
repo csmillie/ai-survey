@@ -54,7 +54,7 @@ export default async function RunPage({ params }: RunPageProps) {
             select: { id: true, title: true, promptTemplate: true, type: true, configJson: true, order: true },
           },
           modelTarget: {
-            select: { modelName: true, provider: true },
+            select: { modelName: true, provider: true, inputTokenCostUsd: true, outputTokenCostUsd: true },
           },
           analysis: true,
         },
@@ -140,7 +140,19 @@ export default async function RunPage({ params }: RunPageProps) {
       selectedOptionValue: resp.selectedOptionValue ?? null,
       matrixRowKey: resp.matrixRowKey ?? null,
       verificationStatus: resp.verificationStatus,
-      costUsd: resp.costUsd?.toString() ?? null,
+      costUsd: (() => {
+        const stored = resp.costUsd ? Number(resp.costUsd) : 0;
+        if (stored > 0) return stored.toString();
+        // Recompute from tokens and model pricing when stored value is zero
+        const usage = resp.usageJson as { inputTokens?: number; outputTokens?: number } | null;
+        if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
+          const inputCost = (usage.inputTokens * Number(resp.modelTarget.inputTokenCostUsd)) / 1_000_000;
+          const outputCost = (usage.outputTokens * Number(resp.modelTarget.outputTokenCostUsd)) / 1_000_000;
+          const total = inputCost + outputCost;
+          if (total > 0) return total.toString();
+        }
+        return null;
+      })(),
       latencyMs: resp.latencyMs,
       totalTokens: (() => {
         const usage = resp.usageJson as { inputTokens?: number; outputTokens?: number } | null;
