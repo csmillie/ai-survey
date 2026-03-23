@@ -673,7 +673,13 @@ function QuestionsTab({
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">
-                        {QUESTION_TYPE_LABELS[q.type] ?? q.type}
+                        {(() => {
+                          if (q.type === "RANKED" && q.configJson) {
+                            const rc = rankedConfigSchema.safeParse(q.configJson);
+                            if (rc.success) return `Ranked ${rc.data.scaleMin}-${rc.data.scaleMax}`;
+                          }
+                          return QUESTION_TYPE_LABELS[q.type] ?? q.type;
+                        })()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -1046,9 +1052,8 @@ function BenchmarkConfigEditor({
   initialConfig?: Record<string, unknown>;
 }) {
   const defaultConfig = DEFAULT_CONFIGS[questionType];
-  const configToUse = initialConfig && (initialConfig as { type?: string }).type === questionType
-    ? initialConfig
-    : defaultConfig;
+  const existingType = typeof initialConfig?.["type"] === "string" ? initialConfig["type"] : undefined;
+  const configToUse = existingType === questionType ? initialConfig : defaultConfig;
 
   // Key state by questionType so React resets it when type changes
   const [configText, setConfigText] = useState(
@@ -1076,6 +1081,7 @@ function BenchmarkConfigEditor({
         onChange={(e) => handleChange(e.target.value)}
         rows={8}
         className="font-mono text-xs"
+        aria-label={`${QUESTION_TYPE_LABELS[questionType]} configuration JSON`}
       />
       {parseError && (
         <p className="text-xs text-[hsl(var(--destructive))]">{parseError}</p>
