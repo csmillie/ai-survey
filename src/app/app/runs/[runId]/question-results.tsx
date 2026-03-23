@@ -563,6 +563,14 @@ export const QuestionResults = memo(function QuestionResults({
                 {group.responses.length} model output
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
+                {(() => {
+                  const total = group.responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0);
+                  return total > 0 ? (
+                    <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                      {total.toLocaleString()} tokens
+                    </span>
+                  ) : null;
+                })()}
               </CardDescription>
               {formatScaleDescription(group.questionType, group.questionConfig) && (
                 <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">

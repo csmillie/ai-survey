@@ -146,6 +146,7 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
             <TableHead>Model</TableHead>
             <TableHead>Response</TableHead>
             <TableHead className="text-center">Confidence</TableHead>
+            <TableHead className="text-center">Tokens</TableHead>
             <TableHead className="text-center">Divergence</TableHead>
           </TableRow>
         </TableHeader>
@@ -167,6 +168,13 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
                 <TableCell className="text-center">
                   {resp.confidence !== null ? (
                     <Badge variant="secondary">{resp.confidence}%</Badge>
+                  ) : (
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {resp.totalTokens !== null ? (
+                    <span className="text-sm">{resp.totalTokens.toLocaleString()}</span>
                   ) : (
                     <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
                   )}

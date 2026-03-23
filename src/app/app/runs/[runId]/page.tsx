@@ -142,6 +142,13 @@ export default async function RunPage({ params }: RunPageProps) {
       verificationStatus: resp.verificationStatus,
       costUsd: resp.costUsd?.toString() ?? null,
       latencyMs: resp.latencyMs,
+      totalTokens: (() => {
+        const usage = resp.usageJson as { inputTokens?: number; outputTokens?: number } | null;
+        if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
+          return usage.inputTokens + usage.outputTokens;
+        }
+        return null;
+      })(),
       flags: (resp.analysis?.flagsJson as string[] | null) ?? [],
       brandMentions:
         (resp.analysis?.brandMentionsJson as string[] | null) ?? [],

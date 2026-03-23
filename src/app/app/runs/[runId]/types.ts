@@ -97,6 +97,7 @@ export interface ResponseData {
   sentimentScore: number | null;
   costUsd: string | null;
   latencyMs: number | null;
+  totalTokens: number | null;
   flags: string[];
   brandMentions: string[];
   institutionMentions: string[];
