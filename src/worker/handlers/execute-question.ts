@@ -96,6 +96,8 @@ export async function handleExecuteQuestion(
     }
 
     const isRanked = validatedType === "RANKED" && rankedConfig !== null;
+    // If config parse failed, isBenchmark is false and the question degrades to
+    // open-ended processing. This is a data-entry issue (logged above as a warning).
     const isBenchmark = isBenchmarkType(validatedType) && benchmarkConfig !== null;
 
     // 2. Load ModelTarget

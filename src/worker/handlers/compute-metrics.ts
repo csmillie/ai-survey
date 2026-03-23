@@ -522,6 +522,13 @@ export async function handleComputeMetrics(
           const uniqueOutliers = [...new Set(allOutliers)];
           const overconfident = groupKeys.flatMap((gk) => overconfidentByGroup.get(gk) ?? []);
           const uniqueOverconfident = [...new Set(overconfident)];
+          // For single-group questions, preserve cluster details from agreement.
+          // For matrix (multi-group), cluster details don't aggregate meaningfully.
+          const clusterDetails = agreements.length === 1 && agreements[0].clusterDetails
+            ? (agreements[0].clusterDetails as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull;
+          // Matrix rows share a single RunQuestionAgreement record; use the first
+          // row's fact-confidence as a proxy since per-row values don't aggregate.
           const factConf = factConfidenceByGroup.get(groupKeys[0]);
           const factConfData = {
             factConfidenceLevel: factConf?.level ?? null,
@@ -546,7 +553,7 @@ export async function handleComputeMetrics(
               humanReviewFlag: anyHumanReview,
               overconfidentModelsJson:
                 uniqueOverconfident as unknown as Prisma.InputJsonValue,
-              clusterDetailsJson: Prisma.JsonNull,
+              clusterDetailsJson: clusterDetails,
               ...factConfData,
             },
             update: {
@@ -556,7 +563,7 @@ export async function handleComputeMetrics(
               humanReviewFlag: anyHumanReview,
               overconfidentModelsJson:
                 uniqueOverconfident as unknown as Prisma.InputJsonValue,
-              clusterDetailsJson: Prisma.JsonNull,
+              clusterDetailsJson: clusterDetails,
               ...factConfData,
             },
           });
