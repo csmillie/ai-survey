@@ -12,6 +12,8 @@ interface DecisionHeaderProps {
   modelCount: number;
   totalResponses: number;
   avgLatencyMs: number | null;
+  totalTokens: number;
+  totalCostUsd: number;
   status: string;
 }
 
@@ -40,6 +42,8 @@ export function DecisionHeader({
   modelCount,
   totalResponses,
   avgLatencyMs,
+  totalTokens,
+  totalCostUsd,
   status,
 }: DecisionHeaderProps): React.JSX.Element {
   return (
@@ -71,6 +75,18 @@ export function DecisionHeader({
               <div className="text-right">
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">Avg Latency</p>
                 <p className="font-semibold">{Math.round(avgLatencyMs)}ms</p>
+              </div>
+            )}
+            {totalTokens > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Tokens</p>
+                <p className="font-semibold">{totalTokens.toLocaleString()}</p>
+              </div>
+            )}
+            {totalCostUsd > 0 && (
+              <div className="text-right">
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">Total Cost</p>
+                <p className="font-semibold">${totalCostUsd < 0.01 ? totalCostUsd.toFixed(4) : totalCostUsd.toFixed(2)}</p>
               </div>
             )}
           </div>

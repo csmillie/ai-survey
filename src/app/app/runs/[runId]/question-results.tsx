@@ -564,12 +564,22 @@ export const QuestionResults = memo(function QuestionResults({
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
                 {(() => {
-                  const total = group.responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0);
-                  return total > 0 ? (
-                    <span className="ml-2 text-[hsl(var(--muted-foreground))]">
-                      {total.toLocaleString()} tokens
-                    </span>
-                  ) : null;
+                  const totalTok = group.responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0);
+                  const totalCost = group.responses.reduce((sum, r) => sum + (r.costUsd ? parseFloat(r.costUsd) : 0), 0);
+                  return (
+                    <>
+                      {totalTok > 0 && (
+                        <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                          {totalTok.toLocaleString()} tokens
+                        </span>
+                      )}
+                      {totalCost > 0 && (
+                        <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                          ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
+                        </span>
+                      )}
+                    </>
+                  );
                 })()}
               </CardDescription>
               {formatScaleDescription(group.questionType, group.questionConfig) && (

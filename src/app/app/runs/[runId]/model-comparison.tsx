@@ -147,6 +147,7 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
             <TableHead>Response</TableHead>
             <TableHead className="text-center">Confidence</TableHead>
             <TableHead className="text-center">Tokens</TableHead>
+            <TableHead className="text-center">Cost</TableHead>
             <TableHead className="text-center">Divergence</TableHead>
           </TableRow>
         </TableHeader>
@@ -175,6 +176,15 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
                 <TableCell className="text-center">
                   {resp.totalTokens !== null ? (
                     <span className="text-sm">{resp.totalTokens.toLocaleString()}</span>
+                  ) : (
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {resp.costUsd !== null ? (
+                    <span className="text-sm">
+                      ${parseFloat(resp.costUsd) < 0.01 ? parseFloat(resp.costUsd).toFixed(4) : parseFloat(resp.costUsd).toFixed(2)}
+                    </span>
                   ) : (
                     <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
                   )}

@@ -279,6 +279,8 @@ export function RunProgressView({
             modelCount={modelCount}
             totalResponses={responses.length}
             avgLatencyMs={avgLatencyMs}
+            totalTokens={responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0)}
+            totalCostUsd={responses.reduce((sum, r) => sum + (r.costUsd ? parseFloat(r.costUsd) : 0), 0)}
             status={status}
           />
 
