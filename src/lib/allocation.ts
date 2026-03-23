@@ -85,6 +85,12 @@ export async function allocateJobs(params: {
       };
 
       // MATRIX_LIKERT: one job per row
+      if (question.type === "MATRIX_LIKERT" && question.matrixRows.length === 0) {
+        console.warn(
+          `[allocation] MATRIX_LIKERT question ${question.id} has no rows — skipping`
+        );
+        continue;
+      }
       if (question.type === "MATRIX_LIKERT" && question.matrixRows.length > 0) {
         for (const row of question.matrixRows) {
           const threadKey = `${runId}-${modelTargetId}-${question.id}-${row.rowKey}`;

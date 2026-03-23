@@ -23,6 +23,7 @@ import {
 } from "@/lib/analysis/calibration";
 import {
   rankedConfigSchema,
+  numericScaleConfigSchema,
   flagsJsonSchema,
   parsedRankedSchema,
   parsedOpenEndedSchema,
@@ -251,26 +252,27 @@ export async function handleComputeMetrics(
         );
       } else if (isCategoricalType(data.questionType)) {
         // Categorical benchmark types: agreement = % selecting the mode
-        const selections: string[] = data.responses
+        const validPairs = data.responses
           .map((r) => {
             const parsed = parsedCategoricalSchema.parse(r.parsedJson);
-            return parsed?.selectedValue ?? null;
+            const selectedValue = parsed?.selectedValue ?? null;
+            return selectedValue !== null
+              ? { modelName: r.modelTarget.modelName, selectedValue }
+              : null;
           })
-          .filter((v): v is string => v !== null);
+          .filter((p): p is { modelName: string; selectedValue: string } => p !== null);
 
-        if (selections.length === 0) {
+        if (validPairs.length === 0) {
           agreement = { agreementPercent: 0, outlierModels: [], humanReviewFlag: true, clusterDetails: null };
         } else {
           // Count occurrences per value, find mode
           const counts = new Map<string, string[]>();
-          for (let i = 0; i < selections.length; i++) {
-            const val = selections[i];
-            const modelName = data.responses[i].modelTarget.modelName;
-            const existing = counts.get(val);
+          for (const { modelName, selectedValue } of validPairs) {
+            const existing = counts.get(selectedValue);
             if (existing) {
               existing.push(modelName);
             } else {
-              counts.set(val, [modelName]);
+              counts.set(selectedValue, [modelName]);
             }
           }
 
@@ -283,13 +285,10 @@ export async function handleComputeMetrics(
             }
           }
 
-          const agreementPercent = (modeCount / selections.length) * 100;
-          const outlierModels = data.responses
-            .filter((r) => {
-              const parsed = parsedCategoricalSchema.parse(r.parsedJson);
-              return parsed?.selectedValue !== modeValue;
-            })
-            .map((r) => r.modelTarget.modelName);
+          const agreementPercent = (modeCount / validPairs.length) * 100;
+          const outlierModels = validPairs
+            .filter((p) => p.selectedValue !== modeValue)
+            .map((p) => p.modelName);
 
           agreement = {
             agreementPercent,
@@ -309,10 +308,10 @@ export async function handleComputeMetrics(
           })
           .filter((r): r is RankedResponse => r !== null);
 
-        // Extract min/max from config or use defaults
-        const configParsed = data.configJson as { min?: number; max?: number } | null;
-        const scaleMin = configParsed?.min ?? 0;
-        const scaleMax = configParsed?.max ?? 10;
+        // Extract min/max from config via Zod validation
+        const configParsed = numericScaleConfigSchema.safeParse(data.configJson);
+        const scaleMin = configParsed.success ? configParsed.data.min : 0;
+        const scaleMax = configParsed.success ? configParsed.data.max : 10;
 
         agreement = computeRankedAgreement(numResponses, scaleMin, scaleMax);
       } else {
