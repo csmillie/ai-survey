@@ -12,20 +12,14 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { cancelRunAction, reRunAnalysisAction } from "./actions";
+import { cancelRunAction } from "./actions";
 import { StatusBadge, StatCard } from "./shared-components";
 import { DecisionHeader } from "./decision-header";
-import { NeedsReview } from "./needs-review";
-import { ModelTrustPanel } from "./model-trust-panel";
 import { QuestionResults } from "./question-results";
 import type {
   ResponseData,
   QuestionGroup,
-  ModelMetricData,
-  RecommendationData,
   QuestionAgreementData,
-  QuestionTruthData,
-  QuestionRefereeData,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -41,11 +35,7 @@ interface RunProgressViewProps {
   completedJobs: number;
   failedJobs: number;
   responses: ResponseData[];
-  modelMetrics?: ModelMetricData[];
   questionAgreements?: QuestionAgreementData[];
-  questionTruths?: QuestionTruthData[];
-  questionReferees?: QuestionRefereeData[];
-  recommendation?: RecommendationData | null;
   completedAt?: string | null;
   modelCount?: number;
   avgLatencyMs?: number | null;
@@ -75,11 +65,7 @@ export function RunProgressView({
   completedJobs: initialCompleted,
   failedJobs: initialFailed,
   responses,
-  modelMetrics = [],
   questionAgreements = [],
-  questionTruths = [],
-  questionReferees = [],
-  recommendation = null,
   completedAt = null,
   modelCount = 0,
   avgLatencyMs = null,
@@ -93,7 +79,6 @@ export function RunProgressView({
   const [error, setError] = useState<string | null>(null);
 
   const [isCancelling, startCancelTransition] = useTransition();
-  const [isReRunning, startReRunTransition] = useTransition();
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -179,18 +164,6 @@ export function RunProgressView({
     });
   }, [runId]);
 
-  const handleReRunAnalysis = useCallback(() => {
-    startReRunTransition(async () => {
-      setError(null);
-      const result = await reRunAnalysisAction(runId);
-      if (!result.success) {
-        setError(result.error);
-      } else {
-        setAnalysisComplete(false);
-      }
-    });
-  }, [runId]);
-
   const toggleRow = useCallback((responseId: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
@@ -201,13 +174,6 @@ export function RunProgressView({
       }
       return next;
     });
-  }, []);
-
-  const handleScrollToQuestion = useCallback((questionId: string) => {
-    const el = questionRefsRef.current.get(questionId);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-    }
   }, []);
 
   // Group responses by question
@@ -242,67 +208,6 @@ export function RunProgressView({
     return map;
   }, [questionAgreements]);
 
-  // Build truth/referee lookups for per-question panels
-  const truthMap = useMemo(() => {
-    const map = new Map<string, QuestionTruthData>();
-    for (const t of questionTruths) {
-      map.set(t.questionId, t);
-    }
-    return map;
-  }, [questionTruths]);
-
-  const refereeMap = useMemo(() => {
-    const map = new Map<string, QuestionRefereeData>();
-    for (const r of questionReferees) {
-      map.set(r.questionId, r);
-    }
-    return map;
-  }, [questionReferees]);
-
-  // Build model stats (avg latency + avg cost) keyed by modelTargetId
-  const modelStats = useMemo(() => {
-    const accum = new Map<string, { totalLatency: number; latencyCount: number; totalCost: number; costCount: number }>();
-    const modelTargetLookup = new Map<string, string>();
-    for (const m of modelMetrics) {
-      modelTargetLookup.set(`${m.modelName}|${m.provider}`, m.modelTargetId);
-    }
-
-    for (const resp of responses) {
-      const key = `${resp.modelName}|${resp.provider}`;
-      const targetId = modelTargetLookup.get(key);
-      if (!targetId) continue;
-
-      let entry = accum.get(targetId);
-      if (!entry) {
-        entry = { totalLatency: 0, latencyCount: 0, totalCost: 0, costCount: 0 };
-        accum.set(targetId, entry);
-      }
-      if (resp.latencyMs !== null) {
-        entry.totalLatency += resp.latencyMs;
-        entry.latencyCount++;
-      }
-      if (resp.costUsd !== null) {
-        const cost = parseFloat(resp.costUsd);
-        if (!isNaN(cost)) {
-          entry.totalCost += cost;
-          entry.costCount++;
-        }
-      }
-    }
-
-    const result = new Map<string, { avgLatencyMs: number; avgCostUsd: number }>();
-    for (const [targetId, entry] of accum) {
-      if (entry.latencyCount > 0 || entry.costCount > 0) {
-        result.set(targetId, {
-          avgLatencyMs: entry.latencyCount > 0 ? entry.totalLatency / entry.latencyCount : 0,
-          avgCostUsd: entry.costCount > 0 ? entry.totalCost / entry.costCount : 0,
-        });
-      }
-    }
-    return result;
-  }, [responses, modelMetrics]);
-
-  const hasMetrics = modelMetrics.length > 0;
   const progress = total > 0 ? ((completed + failed) / total) * 100 : 0;
   const isTerminal = status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
 
@@ -363,14 +268,6 @@ export function RunProgressView({
         </>
       )}
 
-      {/* --- Analysis in progress banner --- */}
-      {status === "COMPLETED" && !analysisComplete && (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
-          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-          <span>Calculating trust scores, fact confidence, and agreement analysis&hellip;</span>
-        </div>
-      )}
-
       {/* --- Decision Dashboard (terminal runs) --- */}
       {isTerminal && responses.length > 0 && (
         <>
@@ -383,40 +280,9 @@ export function RunProgressView({
             status={status}
           />
 
-          {status === "COMPLETED" && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReRunAnalysis}
-                disabled={isReRunning || !analysisComplete}
-              >
-                {isReRunning ? "Starting..." : "Re-Run Analysis"}
-              </Button>
-            </div>
-          )}
-
-          {hasMetrics && (
-            <ModelTrustPanel
-              modelMetrics={modelMetrics}
-              questionAgreements={questionAgreements}
-              runId={runId}
-              modelStats={modelStats}
-              onScrollToQuestion={handleScrollToQuestion}
-              recommendation={recommendation}
-            />
-          )}
-
-          <NeedsReview
-            questionAgreements={questionAgreements}
-            onScrollToQuestion={handleScrollToQuestion}
-          />
-
           <QuestionResults
             questionGroups={questionGroups}
             agreementMap={agreementMap}
-            truthMap={truthMap}
-            refereeMap={refereeMap}
             expandedRows={expandedRows}
             onToggleRow={toggleRow}
             questionRefs={questionRefsRef}

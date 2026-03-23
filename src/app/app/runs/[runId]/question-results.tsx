@@ -30,14 +30,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
+import { ScoreBar, ModelLabel } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
-import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
-import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData, QuestionTruthData, QuestionRefereeData } from "./types";
-import { TruthConfidencePanel } from "./truth-confidence-panel";
+import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,8 +44,6 @@ import { TruthConfidencePanel } from "./truth-confidence-panel";
 interface QuestionResultsProps {
   questionGroups: QuestionGroup[];
   agreementMap: Map<string, QuestionAgreementData>;
-  truthMap?: Map<string, QuestionTruthData>;
-  refereeMap?: Map<string, QuestionRefereeData>;
   expandedRows: Set<string>;
   onToggleRow: (responseId: string) => void;
   questionRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>;
@@ -72,30 +68,6 @@ function formatAvgScore(responses: ResponseData[]): React.JSX.Element | null {
       Avg: {avg.toFixed(1)} / {config.scaleMax}
     </span>
   );
-}
-
-function computeVarianceBadge(
-  responses: ResponseData[]
-): { label: string; variant: "secondary" | "destructive" } | null {
-  const scores = responses.filter(hasScore).map((r) => r.score);
-  if (scores.length < 2) return null;
-
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const variance =
-    scores.reduce((sum, s) => sum + (s - mean) ** 2, 0) / scores.length;
-  const stddev = Math.sqrt(variance);
-
-  // When mean is near zero, CV is unstable — fall back to absolute stddev
-  if (Math.abs(mean) < 0.01) {
-    if (stddev < 0.5) return { label: "Low variance", variant: "secondary" };
-    if (stddev < 1.5) return { label: "Med variance", variant: "secondary" };
-    return { label: "High variance", variant: "destructive" };
-  }
-
-  const cv = stddev / Math.abs(mean);
-  if (cv < 0.15) return { label: "Low variance", variant: "secondary" };
-  if (cv < 0.30) return { label: "Med variance", variant: "secondary" };
-  return { label: "High variance", variant: "destructive" };
 }
 
 // ---------------------------------------------------------------------------
@@ -191,12 +163,10 @@ function ResponseRow({
   response,
   isExpanded,
   onToggle,
-  factConfidenceLevel,
 }: {
   response: ResponseData;
   isExpanded: boolean;
   onToggle: () => void;
-  factConfidenceLevel: string | null;
 }): React.JSX.Element {
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
@@ -289,29 +259,6 @@ function ResponseRow({
             <p className="truncate text-sm">{truncatedAnswer}</p>
           )}
         </TableCell>
-        <TableCell className="text-center">
-          <SentimentBadge score={response.sentimentScore} />
-        </TableCell>
-        <TableCell className="text-center">
-          <span className="text-sm">{response.citations.length}</span>
-        </TableCell>
-        <TableCell className="text-center">
-          {factConfidenceLevel ? (
-            <span
-              className={`text-sm font-medium ${
-                factConfidenceLevel === "high"
-                  ? "text-green-600 dark:text-green-400"
-                  : factConfidenceLevel === "medium"
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {factConfidenceLevel.charAt(0).toUpperCase() + factConfidenceLevel.slice(1)}
-            </span>
-          ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
-          )}
-        </TableCell>
         <TableCell className="text-right">
           <button
             type="button"
@@ -326,7 +273,7 @@ function ResponseRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 p-6">
+          <TableCell colSpan={3} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
               {/* Full answer or reasoning */}
               <div>
@@ -383,60 +330,6 @@ function ResponseRow({
                 </div>
               )}
 
-              {/* Analysis */}
-              <div>
-                <h4 className="mb-1 text-sm font-medium">Reliability Analysis</h4>
-                <div className="flex flex-wrap gap-2">
-                  {response.sentimentScore !== null && (
-                    <Badge variant="secondary">
-                      Sentiment: {response.sentimentScore.toFixed(3)}
-                    </Badge>
-                  )}
-                  {response.flags.length > 0 &&
-                    response.flags.map((flag) => (
-                      <Badge key={flag} variant="destructive">
-                        {flag}
-                      </Badge>
-                    ))}
-                  {response.brandMentions.length > 0 && (
-                    <Badge variant="secondary">
-                      Brands: {response.brandMentions.join(", ")}
-                    </Badge>
-                  )}
-                  {response.institutionMentions.length > 0 && (
-                    <Badge variant="secondary">
-                      Institutions: {response.institutionMentions.join(", ")}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Entities */}
-              {response.entities && (
-                <div>
-                  <h4 className="mb-1 text-sm font-medium">Entities</h4>
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    {response.entities.people.length > 0 && (
-                      <span>
-                        <strong>People:</strong>{" "}
-                        {response.entities.people.join(", ")}
-                      </span>
-                    )}
-                    {response.entities.places.length > 0 && (
-                      <span>
-                        <strong>Places:</strong>{" "}
-                        {response.entities.places.join(", ")}
-                      </span>
-                    )}
-                    {response.entities.organizations.length > 0 && (
-                      <span>
-                        <strong>Organizations:</strong>{" "}
-                        {response.entities.organizations.join(", ")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </TableCell>
         </TableRow>
@@ -571,9 +464,7 @@ function QuestionTitle({
 
 export const QuestionResults = memo(function QuestionResults({
   questionGroups,
-  agreementMap,
-  truthMap = new Map(),
-  refereeMap = new Map(),
+  agreementMap: _agreementMap,
   expandedRows,
   onToggleRow,
   questionRefs,
@@ -595,11 +486,6 @@ export const QuestionResults = memo(function QuestionResults({
   return (
     <>
       {questionGroups.map((group) => {
-        const agreement = agreementMap.get(group.questionId);
-        const truth = truthMap.get(group.questionId);
-        const referee = refereeMap.get(group.questionId);
-        const varianceBadge = computeVarianceBadge(group.responses);
-
         return (
           <Card
             key={group.questionId}
@@ -619,32 +505,7 @@ export const QuestionResults = memo(function QuestionResults({
                 {group.responses.length} model output
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
-                {agreement && (
-                  <>
-                    <AgreementBadge percent={agreement.agreementPercent} className="ml-2" />
-                    {agreement.humanReviewFlag && (
-                      <Badge variant="destructive" className="ml-1">
-                        Needs Review
-                      </Badge>
-                    )}
-                  </>
-                )}
-                {varianceBadge && (
-                  <Badge variant={varianceBadge.variant} className="ml-2">
-                    {varianceBadge.label}
-                  </Badge>
-                )}
-                {agreement && agreement.outlierModels.length > 0 && (
-                  <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
-                    Outliers: {agreement.outlierModels.join(", ")}
-                  </span>
-                )}
               </CardDescription>
-              {agreement && agreement.factConfidenceLevel && (
-                <div className="mt-2">
-                  <FactConfidenceCard agreement={agreement} />
-                </div>
-              )}
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="responses">
@@ -660,9 +521,6 @@ export const QuestionResults = memo(function QuestionResults({
                       <TableRow>
                         <TableHead>Model</TableHead>
                         <TableHead>Output</TableHead>
-                        <TableHead className="text-center">Sentiment</TableHead>
-                        <TableHead className="text-center">Citations</TableHead>
-                        <TableHead className="text-center">Consistency</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
@@ -675,7 +533,6 @@ export const QuestionResults = memo(function QuestionResults({
                             response={resp}
                             isExpanded={isExpanded}
                             onToggle={() => onToggleRow(resp.id)}
-                            factConfidenceLevel={agreement?.factConfidenceLevel ?? null}
                           />
                         );
                       })}
@@ -701,10 +558,6 @@ export const QuestionResults = memo(function QuestionResults({
                 </TabsContent>
               </Tabs>
 
-              {/* Truth Confidence Panel */}
-              {truth && (
-                <TruthConfidencePanel truth={truth} referee={referee} questionPrompt={group.questionPrompt} />
-              )}
             </CardContent>
           </Card>
         );
