@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { requireSurveyAccess } from "@/lib/survey-auth";
@@ -97,12 +98,7 @@ export default async function SurveyDetailPage({
           threadKey: q.threadKey,
           order: q.order,
           type: q.type,
-          configJson: q.configJson as {
-            scalePreset: string;
-            scaleMin: number;
-            scaleMax: number;
-            includeReasoning: boolean;
-          } | null,
+          configJson: z.record(z.string(), z.unknown()).nullable().catch(null).parse(q.configJson),
         }))}
         variables={fullSurvey.variables.map((v) => ({
           id: v.id,
