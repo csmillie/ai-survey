@@ -62,12 +62,44 @@ function formatAvgScore(responses: ResponseData[]): React.JSX.Element | null {
   if (scores.length === 0) return null;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const config = responses[0]?.questionConfig;
-  if (!config) return null;
+  const scaleMax = typeof config?.scaleMax === "number" ? config.scaleMax : (typeof config?.max === "number" ? config.max : null);
+  if (scaleMax === null) return null;
   return (
     <span className="ml-2 font-medium">
-      Avg: {avg.toFixed(1)} / {config.scaleMax}
+      Avg: {avg.toFixed(1)} / {scaleMax}
     </span>
   );
+}
+
+/** Render a human-readable scale description from the question config */
+function formatScaleDescription(questionType: string, config: Record<string, unknown> | null): string | null {
+  if (!config) return null;
+
+  const options = config.options as Array<{ label: string; value: string }> | undefined;
+  const type = config.type as string | undefined;
+
+  if (type === "NUMERIC_SCALE" || questionType === "NUMERIC_SCALE") {
+    const min = config.min as number | undefined;
+    const max = config.max as number | undefined;
+    const minLabel = config.minLabel as string | undefined;
+    const maxLabel = config.maxLabel as string | undefined;
+    if (min != null && max != null) {
+      const labels = [minLabel, maxLabel].filter(Boolean).join(" – ");
+      return labels ? `Scale: ${min}–${max} (${labels})` : `Scale: ${min}–${max}`;
+    }
+  }
+
+  if (questionType === "RANKED") {
+    const min = config.scaleMin as number | undefined;
+    const max = config.scaleMax as number | undefined;
+    if (min != null && max != null) return `Scale: ${min}–${max}`;
+  }
+
+  if (options && Array.isArray(options) && options.length > 0) {
+    return `Options: ${options.map((o) => o.label).join(" / ")}`;
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +188,59 @@ function verificationBorderClass(status: "UNREVIEWED" | "VERIFIED" | "INACCURATE
 }
 
 // ---------------------------------------------------------------------------
+// Internal: ResponseValue — display the response with confidence on hover
+// ---------------------------------------------------------------------------
+
+function ResponseValue({ response }: { response: ResponseData }): React.JSX.Element {
+  const confidenceTooltip = response.confidence !== null
+    ? `Confidence: ${response.confidence}%`
+    : undefined;
+
+  // Try to extract selectedValue from parsedJson in rawText for benchmark types
+  let displayValue: string | null = null;
+
+  if (response.score !== null) {
+    // Ranked or numeric scale — show the score
+    const config = response.questionConfig;
+    const max = typeof config?.scaleMax === "number" ? config.scaleMax : (typeof config?.max === "number" ? config.max : null);
+    displayValue = max !== null ? `${response.score} / ${max}` : String(response.score);
+  } else if (response.answerText) {
+    // Try to parse as benchmark JSON response
+    try {
+      const parsed = JSON.parse(response.answerText);
+      if (parsed && typeof parsed === "object" && "selectedValue" in parsed) {
+        // Look up the label from config options
+        const options = (response.questionConfig?.options ?? []) as Array<{ value: string; label: string }>;
+        const match = Array.isArray(options) ? options.find((o) => o.value === parsed.selectedValue) : null;
+        displayValue = match ? match.label : String(parsed.selectedValue);
+      } else if (parsed && typeof parsed === "object" && "score" in parsed) {
+        displayValue = String(parsed.score);
+      }
+    } catch {
+      // Not JSON — use as-is
+    }
+  }
+
+  if (displayValue) {
+    return (
+      <span className="text-sm font-medium" title={confidenceTooltip}>
+        {displayValue}
+      </span>
+    );
+  }
+
+  // Fallback: truncated text for open-ended
+  const truncated = response.answerText.length > 120
+    ? response.answerText.slice(0, 120) + "..."
+    : response.answerText;
+  return (
+    <p className="truncate text-sm" title={confidenceTooltip}>
+      {truncated}
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Internal: ResponseRow
 // ---------------------------------------------------------------------------
 
@@ -189,11 +274,6 @@ function ResponseRow({
       setDebugLoading(false);
     }
   }, [response.id, debugData]);
-
-  const truncatedAnswer =
-    response.answerText.length > 120
-      ? response.answerText.slice(0, 120) + "..."
-      : response.answerText;
 
   return (
     <>
@@ -235,29 +315,7 @@ function ResponseRow({
           </div>
         </TableCell>
         <TableCell className="max-w-md">
-          {response.selectedOptionValue !== null ? (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{response.selectedOptionValue}</Badge>
-              {response.normalizedScore !== null && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  ({(response.normalizedScore * 100).toFixed(0)}%)
-                </span>
-              )}
-              {response.matrixRowKey && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  [{response.matrixRowKey}]
-                </span>
-              )}
-            </div>
-          ) : response.score !== null && response.questionConfig ? (
-            <ScoreBar
-              score={response.score}
-              min={response.questionConfig.scaleMin}
-              max={response.questionConfig.scaleMax}
-            />
-          ) : (
-            <p className="truncate text-sm">{truncatedAnswer}</p>
-          )}
+          <ResponseValue response={response} />
         </TableCell>
         <TableCell className="text-right">
           <button
@@ -284,8 +342,8 @@ function ResponseRow({
                   <div className="space-y-2">
                     <ScoreBar
                       score={response.score}
-                      min={response.questionConfig.scaleMin}
-                      max={response.questionConfig.scaleMax}
+                      min={typeof response.questionConfig.scaleMin === "number" ? response.questionConfig.scaleMin : (typeof response.questionConfig.min === "number" ? response.questionConfig.min : 0)}
+                      max={typeof response.questionConfig.scaleMax === "number" ? response.questionConfig.scaleMax : (typeof response.questionConfig.max === "number" ? response.questionConfig.max : 10)}
                     />
                     {response.reasoningText && (
                       <p className="whitespace-pre-wrap text-sm text-[hsl(var(--muted-foreground))]">
@@ -506,6 +564,11 @@ export const QuestionResults = memo(function QuestionResults({
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
               </CardDescription>
+              {formatScaleDescription(group.questionType, group.questionConfig) && (
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {formatScaleDescription(group.questionType, group.questionConfig)}
+                </p>
+              )}
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="responses">

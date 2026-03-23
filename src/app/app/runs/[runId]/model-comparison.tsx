@@ -128,7 +128,7 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
                 <TableCell className="max-w-xs">
                   {isRanked && resp.score !== null && resp.questionConfig ? (
                     <span className="text-sm font-semibold">
-                      {resp.score} / {resp.questionConfig.scaleMax}
+                      {resp.score} / {typeof resp.questionConfig.scaleMax === "number" ? resp.questionConfig.scaleMax : (typeof resp.questionConfig.max === "number" ? resp.questionConfig.max : 10)}
                     </span>
                   ) : (
                     <p className="truncate text-sm">{truncated}</p>

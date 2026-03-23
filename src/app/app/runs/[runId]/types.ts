@@ -82,7 +82,7 @@ export interface ResponseData {
   questionPrompt: string;
   questionType: string;
   questionOrder: number;
-  questionConfig: { scaleMin: number; scaleMax: number } | null;
+  questionConfig: Record<string, unknown> | null;
   modelName: string;
   provider: string;
   answerText: string;
@@ -117,6 +117,8 @@ export interface QuestionGroup {
   questionId: string;
   questionTitle: string;
   questionPrompt: string;
+  questionType: string;
+  questionConfig: Record<string, unknown> | null;
   questionOrder: number;
   responses: ResponseData[];
 }

@@ -1,9 +1,9 @@
+import { z } from "zod";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
 import {
-  rankedConfigSchema,
   outlierModelsSchema,
   overconfidentModelsSchema,
   factConfidenceSignalsSchema,
@@ -117,12 +117,7 @@ export default async function RunPage({ params }: RunPageProps) {
       questionPrompt: resp.question.promptTemplate,
       questionType: resp.question.type,
       questionOrder: questionRankMap.get(resp.question.id) ?? resp.question.order,
-      questionConfig: (() => {
-        const result = rankedConfigSchema.safeParse(resp.question.configJson);
-        return result.success
-          ? { scaleMin: result.data.scaleMin, scaleMax: result.data.scaleMax }
-          : null;
-      })(),
+      questionConfig: z.record(z.string(), z.unknown()).nullable().catch(null).parse(resp.question.configJson),
       modelName: resp.modelTarget.modelName,
       provider: resp.modelTarget.provider,
       answerText: parsed?.answerText ?? (parsed?.score != null ? "" : resp.rawText),

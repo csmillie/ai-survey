@@ -187,6 +187,8 @@ export function RunProgressView({
           questionId: resp.questionId,
           questionTitle: resp.questionTitle,
           questionPrompt: resp.questionPrompt,
+          questionType: resp.questionType,
+          questionConfig: resp.questionConfig,
           questionOrder: resp.questionOrder,
           responses: [],
         };
