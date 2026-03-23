@@ -456,6 +456,27 @@ export async function handleComputeMetrics(
     // 5. Compute recommendation
     const recommendation = computeRecommendation(modelScores, questionReviews);
 
+    // 5b. Aggregate per-group agreements into per-question records for upsert.
+    // Multiple groupKeys may share the same questionId (matrix rows).
+    const aggregatedByQuestion = new Map<string, {
+      questionId: string;
+      agreements: AgreementResult[];
+      groupKeys: string[];
+    }>();
+    for (const { groupKey, questionId, agreement } of questionUpserts) {
+      const existing = aggregatedByQuestion.get(questionId);
+      if (existing) {
+        existing.agreements.push(agreement);
+        existing.groupKeys.push(groupKey);
+      } else {
+        aggregatedByQuestion.set(questionId, {
+          questionId,
+          agreements: [agreement],
+          groupKeys: [groupKey],
+        });
+      }
+    }
+
     // 6. Persist all metrics atomically (concurrent upserts within tx)
     await prisma.$transaction(async (tx) => {
       await Promise.all([
@@ -494,75 +515,52 @@ export async function handleComputeMetrics(
             },
           })
         ),
-        // Aggregate matrix rows: multiple groupKeys may share the same questionId.
-        // Average their agreement percentages for the per-question upsert.
-        ...(() => {
-          const aggregated = new Map<string, {
-            questionId: string;
-            agreements: AgreementResult[];
-            groupKeys: string[];
-          }>();
-          for (const { groupKey, questionId, agreement } of questionUpserts) {
-            const existing = aggregated.get(questionId);
-            if (existing) {
-              existing.agreements.push(agreement);
-              existing.groupKeys.push(groupKey);
-            } else {
-              aggregated.set(questionId, {
-                questionId,
-                agreements: [agreement],
-                groupKeys: [groupKey],
-              });
-            }
-          }
-          return [...aggregated.values()].map(({ questionId, agreements, groupKeys }) => {
-            // Use first group's data for single-row questions; average for matrix
-            const avgAgreement = agreements.reduce((s, a) => s + a.agreementPercent, 0) / agreements.length;
-            const anyHumanReview = agreements.some((a) => a.humanReviewFlag);
-            const allOutliers = agreements.flatMap((a) => a.outlierModels);
-            const uniqueOutliers = [...new Set(allOutliers)];
-            const overconfident = groupKeys.flatMap((gk) => overconfidentByGroup.get(gk) ?? []);
-            const uniqueOverconfident = [...new Set(overconfident)];
-            const factConf = factConfidenceByGroup.get(groupKeys[0]);
-            const factConfData = {
-              factConfidenceLevel: factConf?.level ?? null,
-              factConfidenceScore: factConf?.score ?? null,
-              factConfidenceSignals: factConf
-                ? (factConf.signals as unknown as Prisma.InputJsonValue)
-                : Prisma.JsonNull,
-              factComparisonJson: factConf
-                ? (factConf.comparison as unknown as Prisma.InputJsonValue)
-                : Prisma.JsonNull,
-            };
-            return tx.runQuestionAgreement.upsert({
-              where: {
-                runId_questionId: { runId, questionId },
-              },
-              create: {
-                runId,
-                questionId,
-                agreementPercent: avgAgreement,
-                outlierModelsJson:
-                  uniqueOutliers as unknown as Prisma.InputJsonValue,
-                humanReviewFlag: anyHumanReview,
-                overconfidentModelsJson:
-                  uniqueOverconfident as unknown as Prisma.InputJsonValue,
-                clusterDetailsJson: Prisma.JsonNull,
-                ...factConfData,
-              },
-              update: {
-                agreementPercent: avgAgreement,
-                outlierModelsJson:
-                  uniqueOutliers as unknown as Prisma.InputJsonValue,
-                humanReviewFlag: anyHumanReview,
-                overconfidentModelsJson:
-                  uniqueOverconfident as unknown as Prisma.InputJsonValue,
-                clusterDetailsJson: Prisma.JsonNull,
-                ...factConfData,
-              },
-            });
+        ...[...aggregatedByQuestion.values()].map(({ questionId, agreements, groupKeys }) => {
+          const avgAgreement = agreements.reduce((s, a) => s + a.agreementPercent, 0) / agreements.length;
+          const anyHumanReview = agreements.some((a) => a.humanReviewFlag);
+          const allOutliers = agreements.flatMap((a) => a.outlierModels);
+          const uniqueOutliers = [...new Set(allOutliers)];
+          const overconfident = groupKeys.flatMap((gk) => overconfidentByGroup.get(gk) ?? []);
+          const uniqueOverconfident = [...new Set(overconfident)];
+          const factConf = factConfidenceByGroup.get(groupKeys[0]);
+          const factConfData = {
+            factConfidenceLevel: factConf?.level ?? null,
+            factConfidenceScore: factConf?.score ?? null,
+            factConfidenceSignals: factConf
+              ? (factConf.signals as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+            factComparisonJson: factConf
+              ? (factConf.comparison as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          };
+          return tx.runQuestionAgreement.upsert({
+            where: {
+              runId_questionId: { runId, questionId },
+            },
+            create: {
+              runId,
+              questionId,
+              agreementPercent: avgAgreement,
+              outlierModelsJson:
+                uniqueOutliers as unknown as Prisma.InputJsonValue,
+              humanReviewFlag: anyHumanReview,
+              overconfidentModelsJson:
+                uniqueOverconfident as unknown as Prisma.InputJsonValue,
+              clusterDetailsJson: Prisma.JsonNull,
+              ...factConfData,
+            },
+            update: {
+              agreementPercent: avgAgreement,
+              outlierModelsJson:
+                uniqueOutliers as unknown as Prisma.InputJsonValue,
+              humanReviewFlag: anyHumanReview,
+              overconfidentModelsJson:
+                uniqueOverconfident as unknown as Prisma.InputJsonValue,
+              clusterDetailsJson: Prisma.JsonNull,
+              ...factConfData,
+            },
           });
-        })(),
+        }),
         tx.surveyRun.update({
           where: { id: runId },
           data: {

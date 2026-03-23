@@ -106,6 +106,7 @@ export async function allocateJobs(params: {
             type: "EXECUTE_QUESTION",
             payloadJson: {
               ...basePayload,
+              questionMode: "STATELESS",
               matrixRowKey: row.rowKey,
               matrixRowLabel: row.label,
             },

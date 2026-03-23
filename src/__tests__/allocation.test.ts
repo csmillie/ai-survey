@@ -8,9 +8,6 @@ vi.mock("@/lib/db", () => ({
     variable: {
       findMany: vi.fn(),
     },
-    matrixRow: {
-      findMany: vi.fn(),
-    },
   },
 }));
 
