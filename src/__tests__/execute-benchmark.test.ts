@@ -169,8 +169,21 @@ describe("type guards", () => {
 
   it("isCategoricalType identifies categorical types", () => {
     expect(isCategoricalType("SINGLE_SELECT")).toBe(true);
+    expect(isCategoricalType("BINARY")).toBe(true);
+    expect(isCategoricalType("FORCED_CHOICE")).toBe(true);
     expect(isCategoricalType("LIKERT")).toBe(true);
     expect(isCategoricalType("MATRIX_LIKERT")).toBe(true);
     expect(isCategoricalType("NUMERIC_SCALE")).toBe(false);
+    expect(isCategoricalType("OPEN_ENDED")).toBe(false);
+    expect(isCategoricalType("RANKED")).toBe(false);
+  });
+
+  it("isBenchmarkType covers all 6 benchmark types", () => {
+    expect(isBenchmarkType("SINGLE_SELECT")).toBe(true);
+    expect(isBenchmarkType("BINARY")).toBe(true);
+    expect(isBenchmarkType("FORCED_CHOICE")).toBe(true);
+    expect(isBenchmarkType("LIKERT")).toBe(true);
+    expect(isBenchmarkType("NUMERIC_SCALE")).toBe(true);
+    expect(isBenchmarkType("MATRIX_LIKERT")).toBe(true);
   });
 });

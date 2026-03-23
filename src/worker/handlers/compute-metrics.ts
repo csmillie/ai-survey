@@ -278,10 +278,14 @@ export async function handleComputeMetrics(
 
           let modeValue = "";
           let modeCount = 0;
+          let isTied = false;
           for (const [val, models] of counts) {
             if (models.length > modeCount) {
               modeCount = models.length;
               modeValue = val;
+              isTied = false;
+            } else if (models.length === modeCount && modeCount > 0) {
+              isTied = true;
             }
           }
 
@@ -293,7 +297,7 @@ export async function handleComputeMetrics(
           agreement = {
             agreementPercent,
             outlierModels,
-            humanReviewFlag: agreementPercent < 50,
+            humanReviewFlag: isTied || agreementPercent < 50,
             clusterDetails: null,
           };
         }

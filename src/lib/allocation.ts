@@ -85,13 +85,13 @@ export async function allocateJobs(params: {
       };
 
       // MATRIX_LIKERT: one job per row
-      if (question.type === "MATRIX_LIKERT" && question.matrixRows.length === 0) {
-        console.warn(
-          `[allocation] MATRIX_LIKERT question ${question.id} has no rows — skipping`
-        );
-        continue;
-      }
-      if (question.type === "MATRIX_LIKERT" && question.matrixRows.length > 0) {
+      if (question.type === "MATRIX_LIKERT") {
+        if (question.matrixRows.length === 0) {
+          console.warn(
+            `[allocation] MATRIX_LIKERT question ${question.id} has no rows — skipping`
+          );
+          continue;
+        }
         for (const row of question.matrixRows) {
           const threadKey = `${runId}-${modelTargetId}-${question.id}-${row.rowKey}`;
           const idempotencyKey = `${runId}:${modelTargetId}:${question.id}:${row.rowKey}`;
@@ -104,7 +104,6 @@ export async function allocateJobs(params: {
             type: "EXECUTE_QUESTION",
             payloadJson: {
               ...basePayload,
-              threadKey,
               matrixRowKey: row.rowKey,
               matrixRowLabel: row.label,
             },

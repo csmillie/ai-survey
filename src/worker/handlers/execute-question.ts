@@ -203,16 +203,23 @@ export async function handleExecuteQuestion(
           selectedOptionValue = catResult.data.selectedValue;
           confidence = Math.round(catResult.data.confidence);
           // Validate selectedValue is in the config's option list
+          let optionValid = true;
           if ("options" in benchmarkConfig) {
             const validValues = benchmarkConfig.options.map((o) => o.value);
             if (!validValues.includes(selectedOptionValue)) {
               console.warn(
                 `[execute-question] Invalid selectedValue "${selectedOptionValue}" for job ${jobId}, valid: ${validValues.join(", ")}`
               );
+              optionValid = false;
             }
           }
-          normalizedScore = normalizeToZeroOne(validatedType, selectedOptionValue, benchmarkConfig);
-          finalParsed = { selectedValue: selectedOptionValue, confidence };
+          if (optionValid) {
+            normalizedScore = normalizeToZeroOne(validatedType, selectedOptionValue, benchmarkConfig);
+            finalParsed = { selectedValue: selectedOptionValue, confidence };
+          } else {
+            selectedOptionValue = null;
+            finalParsed = null;
+          }
         } else {
           console.warn(
             `[execute-question] Categorical response parse failed for job ${jobId}: ${catResult.error.message}`
