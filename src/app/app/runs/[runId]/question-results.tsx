@@ -474,7 +474,7 @@ function ResponseRow({
 // QuestionTitle — truncates long titles with expand/collapse
 // ---------------------------------------------------------------------------
 
-const TITLE_TRUNCATE_LENGTH = 100;
+const TITLE_TRUNCATE_LENGTH = 200;
 
 function QuestionTitle({
   order,
@@ -496,7 +496,7 @@ function QuestionTitle({
       : title;
 
   return (
-    <CardTitle className="text-lg">
+    <CardTitle className="text-lg leading-snug">
       Q{order}: {displayText}
       {isTruncatable && (
         <button

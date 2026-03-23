@@ -125,7 +125,17 @@ export default async function RunPage({ params }: RunPageProps) {
       reasoningText: resp.reasoningText ?? null,
       citations: parsed?.citations ?? [],
       sentimentScore: resp.analysis?.sentimentScore ?? null,
-      confidence: resp.confidence,
+      confidence: resp.confidence ?? (() => {
+        // Fallback: extract confidence from raw JSON for responses stored before
+        // the benchmark handler populated the dedicated column.
+        try {
+          const raw = typeof resp.parsedJson === "object" && resp.parsedJson !== null
+            ? resp.parsedJson as Record<string, unknown>
+            : JSON.parse(resp.rawText);
+          const c = raw?.confidence;
+          return typeof c === "number" && c >= 0 && c <= 100 ? Math.round(c) : null;
+        } catch { return null; }
+      })(),
       normalizedScore: resp.normalizedScore ?? null,
       selectedOptionValue: resp.selectedOptionValue ?? null,
       matrixRowKey: resp.matrixRowKey ?? null,
