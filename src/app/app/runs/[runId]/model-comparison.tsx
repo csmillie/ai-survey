@@ -196,7 +196,7 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
             Mean: {valueMean.toFixed(1)}
           </Badge>
           <Badge variant="secondary">
-            Std Dev: {valueStd.toFixed(2)}
+            Standard Deviation: {valueStd.toFixed(2)}
           </Badge>
         </div>
       )}
