@@ -92,6 +92,8 @@ export async function allocateJobs(params: {
           );
           continue;
         }
+        // Matrix rows are always independent prompts (STATELESS), even if the
+        // question is configured as THREADED — each row is a separate survey item.
         for (const row of question.matrixRows) {
           const threadKey = `${runId}-${modelTargetId}-${question.id}-${row.rowKey}`;
           const idempotencyKey = `${runId}:${modelTargetId}:${question.id}:${row.rowKey}`;

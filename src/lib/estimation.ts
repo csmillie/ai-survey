@@ -84,6 +84,9 @@ export async function estimateRun(params: {
   // MATRIX_LIKERT questions expand to one job per row
   let questionCount = 0;
   for (const q of questions) {
+    if (q.type === "MATRIX_LIKERT" && q._count.matrixRows === 0) {
+      console.warn("[estimation] MATRIX_LIKERT question has no rows — contributes 0 jobs");
+    }
     questionCount += q.type === "MATRIX_LIKERT" ? q._count.matrixRows : 1;
   }
 

@@ -254,8 +254,8 @@ export async function handleComputeMetrics(
         // Categorical benchmark types: agreement = % selecting the mode
         const validPairs = data.responses
           .map((r) => {
-            const parsed = parsedCategoricalSchema.parse(r.parsedJson);
-            const selectedValue = parsed?.selectedValue ?? null;
+            const parseResult = parsedCategoricalSchema.safeParse(r.parsedJson);
+            const selectedValue = parseResult.success ? (parseResult.data?.selectedValue ?? null) : null;
             return selectedValue !== null
               ? { modelName: r.modelTarget.modelName, selectedValue }
               : null;
@@ -296,7 +296,7 @@ export async function handleComputeMetrics(
 
           agreement = {
             agreementPercent,
-            outlierModels,
+            outlierModels: isTied ? [] : outlierModels,
             humanReviewFlag: isTied || agreementPercent < 50,
             clusterDetails: null,
           };
@@ -305,9 +305,10 @@ export async function handleComputeMetrics(
         // Numeric scale: treat like ranked with min/max from config
         const numResponses: RankedResponse[] = data.responses
           .map((r) => {
-            const parsed = parsedNumericScaleSchema.parse(r.parsedJson);
-            return parsed?.score != null
-              ? { modelName: r.modelTarget.modelName, score: parsed.score }
+            const parseResult = parsedNumericScaleSchema.safeParse(r.parsedJson);
+            const score = parseResult.success ? parseResult.data?.score : null;
+            return score != null
+              ? { modelName: r.modelTarget.modelName, score }
               : null;
           })
           .filter((r): r is RankedResponse => r !== null);
