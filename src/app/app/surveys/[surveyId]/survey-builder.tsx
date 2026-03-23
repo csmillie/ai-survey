@@ -365,6 +365,7 @@ function QuestionsTab({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const addFormRef = useRef<HTMLFormElement>(null);
+  const [configValid, setConfigValid] = useState(true);
 
   const [questionType, setQuestionType] = useState<string>("OPEN_ENDED");
   const [scalePreset, setScalePreset] = useState<string>("0-5");
@@ -437,7 +438,10 @@ function QuestionsTab({
                 <Label>Prompt Type</Label>
                 <Select
                   value={questionType}
-                  onChange={(e) => setQuestionType(e.target.value)}
+                  onChange={(e) => {
+                    setQuestionType(e.target.value);
+                    setConfigValid(true);
+                  }}
                 >
                   {ALL_TYPES.map((t) => (
                     <SelectOption key={t} value={t}>
@@ -533,7 +537,7 @@ function QuestionsTab({
 
               {/* Benchmark Configuration (JSON editor for new types) */}
               {["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIKERT", "NUMERIC_SCALE", "MATRIX_LIKERT"].includes(questionType) && (
-                <BenchmarkConfigEditor key={questionType} questionType={questionType} />
+                <BenchmarkConfigEditor key={questionType} questionType={questionType} onValidChange={setConfigValid} />
               )}
 
               {/* Mode */}
@@ -627,7 +631,7 @@ function QuestionsTab({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Add Prompt</Button>
+                <Button type="submit" disabled={!configValid}>Add Prompt</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -731,6 +735,7 @@ function QuestionEditRow({
   onDone: () => void;
 }) {
   const boundUpdate = updateQuestionAction.bind(null, surveyId, question.id);
+  const [editConfigValid, setEditConfigValid] = useState(true);
 
   const [editType, setEditType] = useState<string>(question.type);
   const rankedResult = question.type === "RANKED" ? rankedConfigSchema.safeParse(question.configJson) : null;
@@ -905,6 +910,7 @@ function QuestionEditRow({
               key={editType}
               questionType={editType}
               initialConfig={question.configJson ?? undefined}
+              onValidChange={setEditConfigValid}
             />
           )}
 
@@ -979,7 +985,7 @@ function QuestionEditRow({
             <Button type="button" variant="ghost" size="sm" onClick={onDone}>
               Cancel
             </Button>
-            <Button type="submit" size="sm">
+            <Button type="submit" size="sm" disabled={!editConfigValid}>
               Save
             </Button>
           </div>
@@ -1047,9 +1053,11 @@ const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
 function BenchmarkConfigEditor({
   questionType,
   initialConfig,
+  onValidChange,
 }: {
   questionType: string;
   initialConfig?: Record<string, unknown>;
+  onValidChange?: (valid: boolean) => void;
 }) {
   const defaultConfig = DEFAULT_CONFIGS[questionType];
   const existingType = typeof initialConfig?.["type"] === "string" ? initialConfig["type"] : undefined;
@@ -1066,8 +1074,10 @@ function BenchmarkConfigEditor({
     try {
       JSON.parse(value);
       setParseError(null);
+      onValidChange?.(true);
     } catch {
       setParseError("Invalid JSON");
+      onValidChange?.(false);
     }
   }
 
