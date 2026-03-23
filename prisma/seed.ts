@@ -142,7 +142,7 @@ async function main() {
         // Use a deterministic composite key via the title + owner lookup.
         // Since there is no unique constraint on title, we use id-based upsert
         // with a stable UUID derived from the survey name.
-        id: "00000000-0000-4000-a000-benchmark-gss",
+        id: "a0000000-0000-4000-a000-be4c000a7600",
       },
       update: {
         title: "GSS Lite Benchmark Demo",
@@ -153,7 +153,7 @@ async function main() {
         benchmarkSource: "GSS/WVS Composite",
       },
       create: {
-        id: "00000000-0000-4000-a000-benchmark-gss",
+        id: "a0000000-0000-4000-a000-be4c000a7600",
         ownerId: adminUser.id,
         title: "GSS Lite Benchmark Demo",
         description:
@@ -168,7 +168,7 @@ async function main() {
     console.log(`Benchmark survey "${benchmarkSurvey.title}" — ${surveyId} (upserted)`);
 
     // --- Q1: SINGLE_SELECT — General happiness ---
-    const q1Id = "00000000-0000-4000-a001-benchmark-gss";
+    const q1Id = "a0000000-0000-4000-a000-be4c000a7601";
     await prisma.question.upsert({
       where: { id: q1Id },
       update: {
@@ -217,7 +217,7 @@ async function main() {
     console.log("  Q1 SINGLE_SELECT — HAPPY (upserted)");
 
     // --- Q2: BINARY — Social support ---
-    const q2Id = "00000000-0000-4000-a002-benchmark-gss";
+    const q2Id = "a0000000-0000-4000-a000-be4c000a7602";
     await prisma.question.upsert({
       where: { id: q2Id },
       update: {
@@ -260,7 +260,7 @@ async function main() {
     console.log("  Q2 BINARY — SUPPORT1 (upserted)");
 
     // --- Q3: FORCED_CHOICE — Social trust ---
-    const q3Id = "00000000-0000-4000-a003-benchmark-gss";
+    const q3Id = "a0000000-0000-4000-a000-be4c000a7603";
     await prisma.question.upsert({
       where: { id: q3Id },
       update: {
@@ -311,7 +311,7 @@ async function main() {
     console.log("  Q3 FORCED_CHOICE — TRUST (upserted)");
 
     // --- Q4: LIKERT — Working mothers ---
-    const q4Id = "00000000-0000-4000-a004-benchmark-gss";
+    const q4Id = "a0000000-0000-4000-a000-be4c000a7604";
     await prisma.question.upsert({
       where: { id: q4Id },
       update: {
@@ -366,7 +366,7 @@ async function main() {
     console.log("  Q4 LIKERT — FECHLD (upserted)");
 
     // --- Q5: NUMERIC_SCALE — Life satisfaction ---
-    const q5Id = "00000000-0000-4000-a005-benchmark-gss";
+    const q5Id = "a0000000-0000-4000-a000-be4c000a7605";
     await prisma.question.upsert({
       where: { id: q5Id },
       update: {
@@ -411,7 +411,7 @@ async function main() {
     console.log("  Q5 NUMERIC_SCALE — LIFESAT (upserted)");
 
     // --- Q6: MATRIX_LIKERT — Confidence in institutions ---
-    const q6Id = "00000000-0000-4000-a006-benchmark-gss";
+    const q6Id = "a0000000-0000-4000-a000-be4c000a7606";
     await prisma.question.upsert({
       where: { id: q6Id },
       update: {

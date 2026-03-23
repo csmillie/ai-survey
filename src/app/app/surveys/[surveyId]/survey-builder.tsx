@@ -33,7 +33,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { SCALE_PRESETS } from "@/lib/schemas";
+import { SCALE_PRESETS, rankedConfigSchema } from "@/lib/schemas";
 import { deleteSurveyAction } from "@/app/app/surveys/actions";
 import {
   updateSurveyAction,
@@ -727,18 +727,19 @@ function QuestionEditRow({
   const boundUpdate = updateQuestionAction.bind(null, surveyId, question.id);
 
   const [editType, setEditType] = useState<string>(question.type);
-  const rankedConfig = question.type === "RANKED" && question.configJson ? question.configJson as Record<string, unknown> : null;
+  const rankedResult = question.type === "RANKED" ? rankedConfigSchema.safeParse(question.configJson) : null;
+  const rankedConfig = rankedResult?.success ? rankedResult.data : null;
   const [editScalePreset, setEditScalePreset] = useState<string>(
-    (rankedConfig?.scalePreset as string) ?? "0-5"
+    rankedConfig?.scalePreset ?? "0-5"
   );
   const [editScaleMin, setEditScaleMin] = useState(
-    (rankedConfig?.scaleMin as number) ?? 0
+    rankedConfig?.scaleMin ?? 0
   );
   const [editScaleMax, setEditScaleMax] = useState(
-    (rankedConfig?.scaleMax as number) ?? 5
+    rankedConfig?.scaleMax ?? 5
   );
   const [editIncludeReasoning, setEditIncludeReasoning] = useState(
-    (rankedConfig?.includeReasoning as boolean) ?? true
+    rankedConfig?.includeReasoning ?? true
   );
   const [editMode, setEditMode] = useState<"STATELESS" | "THREADED">(
     question.mode === "THREADED" ? "THREADED" : "STATELESS"
@@ -1012,11 +1013,11 @@ const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     type: "LIKERT",
     points: 5,
     options: [
-      { label: "Strongly agree", value: "5", numericValue: 5 },
-      { label: "Agree", value: "4", numericValue: 4 },
-      { label: "Neither agree nor disagree", value: "3", numericValue: 3 },
-      { label: "Disagree", value: "2", numericValue: 2 },
-      { label: "Strongly disagree", value: "1", numericValue: 1 },
+      { label: "Strongly agree", value: "strongly_agree", numericValue: 5 },
+      { label: "Agree", value: "agree", numericValue: 4 },
+      { label: "Neither agree nor disagree", value: "neither", numericValue: 3 },
+      { label: "Disagree", value: "disagree", numericValue: 2 },
+      { label: "Strongly disagree", value: "strongly_disagree", numericValue: 1 },
     ],
   },
   NUMERIC_SCALE: {
@@ -1082,7 +1083,7 @@ function BenchmarkConfigEditor({
       <input
         type="hidden"
         name="configJson"
-        value={configText}
+        value={parseError ? "" : configText}
       />
     </div>
   );
