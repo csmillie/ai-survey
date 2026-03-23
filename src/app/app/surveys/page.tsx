@@ -8,6 +8,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { ImportSurveyButton } from "./import-survey-button";
 
 export default async function SurveysPage() {
   const session = await requireSession();
@@ -35,9 +36,12 @@ export default async function SurveysPage() {
             Create an evaluation to see which AI models can be trusted before using them in real decisions.
           </p>
         </div>
-        <Link href="/app/surveys/new">
-          <Button>New Evaluation</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <ImportSurveyButton />
+          <Link href="/app/surveys/new">
+            <Button>New Evaluation</Button>
+          </Link>
+        </div>
       </div>
 
       {surveys.length === 0 ? (
