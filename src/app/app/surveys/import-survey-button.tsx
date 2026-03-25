@@ -4,7 +4,6 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -72,9 +71,7 @@ export function ImportSurveyButton() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger>
-        <Button variant="outline">Import JSON</Button>
-      </DialogTrigger>
+      <Button variant="outline" onClick={() => setOpen(true)}>Import JSON</Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Import Evaluation from JSON</DialogTitle>

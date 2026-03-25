@@ -19,7 +19,6 @@ import { QuestionResults } from "./question-results";
 import type {
   ResponseData,
   QuestionGroup,
-  QuestionAgreementData,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +34,6 @@ interface RunProgressViewProps {
   completedJobs: number;
   failedJobs: number;
   responses: ResponseData[];
-  questionAgreements?: QuestionAgreementData[];
   completedAt?: string | null;
   modelCount?: number;
   avgLatencyMs?: number | null;
@@ -65,7 +63,6 @@ export function RunProgressView({
   completedJobs: initialCompleted,
   failedJobs: initialFailed,
   responses,
-  questionAgreements = [],
   completedAt = null,
   modelCount = 0,
   avgLatencyMs = null,
@@ -202,14 +199,6 @@ export function RunProgressView({
   }, [responses]);
 
   // Build agreement lookup for per-question badges
-  const agreementMap = useMemo(() => {
-    const map = new Map<string, QuestionAgreementData>();
-    for (const a of questionAgreements) {
-      map.set(a.questionId, a);
-    }
-    return map;
-  }, [questionAgreements]);
-
   const progress = total > 0 ? ((completed + failed) / total) * 100 : 0;
   const isTerminal = status === "COMPLETED" || status === "FAILED" || status === "CANCELLED";
 
@@ -286,7 +275,6 @@ export function RunProgressView({
 
           <QuestionResults
             questionGroups={questionGroups}
-            agreementMap={agreementMap}
             expandedRows={expandedRows}
             onToggleRow={toggleRow}
             questionRefs={questionRefsRef}

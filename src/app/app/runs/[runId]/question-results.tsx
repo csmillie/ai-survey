@@ -35,7 +35,7 @@ import { ModelComparison } from "./model-comparison";
 import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
-import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } from "./types";
+import type { ResponseData, DebugData, QuestionGroup } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,7 +43,6 @@ import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData } fr
 
 interface QuestionResultsProps {
   questionGroups: QuestionGroup[];
-  agreementMap: Map<string, QuestionAgreementData>;
   expandedRows: Set<string>;
   onToggleRow: (responseId: string) => void;
   questionRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>;
@@ -522,7 +521,6 @@ function QuestionTitle({
 
 export const QuestionResults = memo(function QuestionResults({
   questionGroups,
-  agreementMap: _agreementMap,
   expandedRows,
   onToggleRow,
   questionRefs,
@@ -582,11 +580,14 @@ export const QuestionResults = memo(function QuestionResults({
                   );
                 })()}
               </CardDescription>
-              {formatScaleDescription(group.questionType, group.questionConfig) && (
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {formatScaleDescription(group.questionType, group.questionConfig)}
-                </p>
-              )}
+              {(() => {
+                const scaleDesc = formatScaleDescription(group.questionType, group.questionConfig);
+                return scaleDesc ? (
+                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                    {scaleDesc}
+                  </p>
+                ) : null;
+              })()}
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="responses">

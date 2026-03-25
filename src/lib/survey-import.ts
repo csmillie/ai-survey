@@ -81,51 +81,66 @@ const TYPE_MAP: Record<string, QuestionType> = {
 // Config Builders
 // ---------------------------------------------------------------------------
 
+function toJsonValue(obj: Record<string, unknown>): Prisma.InputJsonValue {
+  return obj as Prisma.InputJsonValue;
+}
+
 function buildSingleSelectConfig(q: ImportQuestion): Prisma.InputJsonValue {
   const options = (q.options ?? []).map((o) => ({
     label: o.label,
     value: String(o.value),
-    numericValue: o.score,
+    numericValue: o.score ?? null,
   }));
-  return { type: "SINGLE_SELECT", options } as unknown as Prisma.InputJsonValue;
+  return toJsonValue({ type: "SINGLE_SELECT", options });
 }
 
 function buildBinaryConfig(q: ImportQuestion): Prisma.InputJsonValue {
   const options = (q.options ?? []).map((o) => ({
     label: o.label,
     value: o.value === true ? "yes" : o.value === false ? "no" : String(o.value),
-    numericValue: o.score,
+    numericValue: o.score ?? null,
   }));
-  return {
+  if (options.length < 2) {
+    throw new Error(`BINARY question ${q.id} requires exactly 2 options, got ${options.length}`);
+  }
+  return toJsonValue({
     type: "BINARY",
     options: [options[0], options[1]],
-  } as unknown as Prisma.InputJsonValue;
+  });
 }
 
 function buildForcedChoiceConfig(q: ImportQuestion): Prisma.InputJsonValue {
   const options = (q.options ?? []).map((o) => ({
     label: o.label,
     value: String(o.value),
-    numericValue: o.score,
+    numericValue: o.score ?? null,
   }));
-  return {
+  if (options.length < 2) {
+    throw new Error(`FORCED_CHOICE question ${q.id} requires exactly 2 options, got ${options.length}`);
+  }
+  return toJsonValue({
     type: "FORCED_CHOICE",
     options: [options[0], options[1]],
-  } as unknown as Prisma.InputJsonValue;
+  });
 }
+
+const VALID_LIKERT_POINTS = new Set([4, 5, 7]);
 
 function buildLikertConfig(q: ImportQuestion): Prisma.InputJsonValue {
   const scale = q.scale;
   if (!scale || !scale.labels) {
     throw new Error(`LIKERT question ${q.id} missing scale.labels`);
   }
-  const points = scale.labels.length as 4 | 5 | 7;
+  const points = scale.labels.length;
+  if (!VALID_LIKERT_POINTS.has(points)) {
+    throw new Error(`LIKERT question ${q.id} has unsupported scale length ${points} (expected 4, 5, or 7)`);
+  }
   const options = scale.labels.map((label, i) => ({
     label,
     value: label.toLowerCase().replace(/\s+/g, "_"),
     numericValue: scale.min + i,
   }));
-  return { type: "LIKERT", points, options } as unknown as Prisma.InputJsonValue;
+  return toJsonValue({ type: "LIKERT", points: points as 4 | 5 | 7, options });
 }
 
 function buildNumericScaleConfig(q: ImportQuestion): Prisma.InputJsonValue {
@@ -133,13 +148,13 @@ function buildNumericScaleConfig(q: ImportQuestion): Prisma.InputJsonValue {
   if (!scale) {
     throw new Error(`NUMERIC_SCALE question ${q.id} missing scale`);
   }
-  return {
+  return toJsonValue({
     type: "NUMERIC_SCALE",
     min: scale.min,
     max: scale.max,
     minLabel: scale.min_label ?? "",
     maxLabel: scale.max_label ?? "",
-  } as unknown as Prisma.InputJsonValue;
+  });
 }
 
 const CONFIG_BUILDERS: Record<string, (q: ImportQuestion) => Prisma.InputJsonValue> = {
@@ -227,6 +242,7 @@ export function mapImportToSurvey(input: ImportSurveyJson): MappedSurvey {
   return {
     title: input.title,
     description: description.trim() || undefined,
+    // All JSON imports are benchmark instruments — non-benchmark surveys are created via the UI
     isBenchmarkInstrument: true,
     benchmarkSource: input.benchmark_sources?.join(", "),
     benchmarkVersion: input.version,

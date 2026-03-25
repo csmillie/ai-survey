@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { createSurveySchema } from "@/lib/schemas";
@@ -85,6 +84,10 @@ export async function importSurveyAction(
     return { error: "No JSON data provided" };
   }
 
+  if (jsonString.length > 1_000_000) {
+    return { error: "JSON payload too large (max 1 MB)" };
+  }
+
   // 1. Parse raw JSON
   let rawJson: unknown;
   try {
@@ -109,40 +112,46 @@ export async function importSurveyAction(
   }
 
   // 4. Create survey + questions in a transaction
-  const survey = await prisma.$transaction(async (tx) => {
-    const s = await tx.survey.create({
-      data: {
-        title: mapped.title,
-        description: mapped.description,
-        ownerId: session.userId,
-        isBenchmarkInstrument: mapped.isBenchmarkInstrument,
-        benchmarkSource: mapped.benchmarkSource,
-        benchmarkVersion: mapped.benchmarkVersion,
-        executionMode: mapped.executionMode,
-      },
-    });
-
-    for (const q of mapped.questions) {
-      await tx.question.create({
+  let survey;
+  try {
+    survey = await prisma.$transaction(async (tx) => {
+      const s = await tx.survey.create({
         data: {
-          surveyId: s.id,
-          title: q.title,
-          promptTemplate: q.promptTemplate,
-          order: q.order,
-          type: q.type,
-          configJson: q.configJson as unknown as Prisma.InputJsonValue,
-          code: q.code,
-          constructKey: q.constructKey,
-          sourceSurvey: q.sourceSurvey,
-          sourceVariable: q.sourceVariable,
-          isBenchmarkAnchor: q.isBenchmarkAnchor,
-          benchmarkNotes: q.benchmarkNotes,
+          title: mapped.title,
+          description: mapped.description,
+          ownerId: session.userId,
+          isBenchmarkInstrument: mapped.isBenchmarkInstrument,
+          benchmarkSource: mapped.benchmarkSource,
+          benchmarkVersion: mapped.benchmarkVersion,
+          executionMode: mapped.executionMode,
         },
       });
-    }
 
-    return s;
-  });
+      for (const q of mapped.questions) {
+        await tx.question.create({
+          data: {
+            surveyId: s.id,
+            title: q.title,
+            promptTemplate: q.promptTemplate,
+            order: q.order,
+            type: q.type,
+            configJson: q.configJson,
+            code: q.code,
+            constructKey: q.constructKey,
+            sourceSurvey: q.sourceSurvey,
+            sourceVariable: q.sourceVariable,
+            isBenchmarkAnchor: q.isBenchmarkAnchor,
+            benchmarkNotes: q.benchmarkNotes,
+          },
+        });
+      }
+
+      return s;
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown database error";
+    return { error: `Failed to create survey: ${message}` };
+  }
 
   await createAuditEvent({
     actorUserId: session.userId,

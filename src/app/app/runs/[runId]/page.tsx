@@ -26,6 +26,16 @@ interface AnalysisEntities {
   organizations: string[];
 }
 
+const usageJsonSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+});
+
+function parseUsageJson(raw: unknown): { inputTokens?: number; outputTokens?: number } | null {
+  const result = usageJsonSchema.safeParse(raw);
+  return result.success ? result.data : null;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -144,7 +154,7 @@ export default async function RunPage({ params }: RunPageProps) {
         const stored = resp.costUsd ? Number(resp.costUsd) : 0;
         if (stored > 0) return stored.toString();
         // Recompute from tokens and model pricing when stored value is zero
-        const usage = resp.usageJson as { inputTokens?: number; outputTokens?: number } | null;
+        const usage = parseUsageJson(resp.usageJson);
         if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
           const inputCost = (usage.inputTokens * Number(resp.modelTarget.inputTokenCostUsd)) / 1_000_000;
           const outputCost = (usage.outputTokens * Number(resp.modelTarget.outputTokenCostUsd)) / 1_000_000;
@@ -155,7 +165,7 @@ export default async function RunPage({ params }: RunPageProps) {
       })(),
       latencyMs: resp.latencyMs,
       totalTokens: (() => {
-        const usage = resp.usageJson as { inputTokens?: number; outputTokens?: number } | null;
+        const usage = parseUsageJson(resp.usageJson);
         if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
           return usage.inputTokens + usage.outputTokens;
         }
@@ -182,7 +192,7 @@ export default async function RunPage({ params }: RunPageProps) {
     orderBy: { agreementPercent: "asc" },
   });
 
-  const questionAgreementsData = questionAgreements.flatMap((a) => {
+  const _questionAgreementsData = questionAgreements.flatMap((a) => {
     const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
     if (!outliers.success) return [];
     const overconfident = overconfidentModelsSchema.safeParse(a.overconfidentModelsJson);
@@ -225,7 +235,6 @@ export default async function RunPage({ params }: RunPageProps) {
       completedJobs={completedJobs}
       failedJobs={failedJobs}
       responses={responses}
-      questionAgreements={questionAgreementsData}
       completedAt={run.completedAt?.toISOString() ?? null}
       modelCount={run.models.length}
       avgLatencyMs={avgLatencyMs}
