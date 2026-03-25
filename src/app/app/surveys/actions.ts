@@ -10,6 +10,7 @@ import {
   SURVEY_CREATED,
   SURVEY_DELETED,
 } from "@/lib/audit";
+import { importSurveyJsonSchema, mapImportToSurvey } from "@/lib/survey-import";
 
 export async function createSurveyAction(formData: FormData): Promise<{ error: string }> {
   const session = await requireSession();
@@ -66,4 +67,107 @@ export async function deleteSurveyAction(formData: FormData): Promise<{ error: s
   });
 
   redirect("/app/surveys");
+}
+
+// ---------------------------------------------------------------------------
+// Import Survey from JSON
+// ---------------------------------------------------------------------------
+
+export async function importSurveyAction(
+  _prevState: { error: string } | null,
+  formData: FormData,
+): Promise<{ error: string } | null> {
+  const session = await requireSession();
+
+  const jsonString = formData.get("json");
+  if (typeof jsonString !== "string" || !jsonString.trim()) {
+    return { error: "No JSON data provided" };
+  }
+
+  if (jsonString.length > 1_000_000) {
+    return { error: "JSON payload too large (max 1 MB)" };
+  }
+
+  // 1. Parse raw JSON
+  let rawJson: unknown;
+  try {
+    rawJson = JSON.parse(jsonString);
+  } catch {
+    return { error: "Invalid JSON: could not parse file contents" };
+  }
+
+  // 2. Validate structure with Zod
+  const parseResult = importSurveyJsonSchema.safeParse(rawJson);
+  if (!parseResult.success) {
+    const issues = parseResult.error.issues.map((i) => i.message).join(", ");
+    return { error: `Invalid survey format: ${issues}` };
+  }
+
+  // 3. Map to internal types
+  let mapped;
+  try {
+    mapped = mapImportToSurvey(parseResult.data);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to map survey data" };
+  }
+
+  // 4. Create survey + questions in a transaction
+  let survey;
+  try {
+    survey = await prisma.$transaction(async (tx) => {
+      const s = await tx.survey.create({
+        data: {
+          title: mapped.title,
+          description: mapped.description,
+          ownerId: session.userId,
+          isBenchmarkInstrument: mapped.isBenchmarkInstrument,
+          benchmarkSource: mapped.benchmarkSource,
+          benchmarkVersion: mapped.benchmarkVersion,
+          executionMode: mapped.executionMode,
+        },
+      });
+
+      for (const q of mapped.questions) {
+        await tx.question.create({
+          data: {
+            surveyId: s.id,
+            title: q.title,
+            promptTemplate: q.promptTemplate,
+            order: q.order,
+            type: q.type,
+            configJson: q.configJson,
+            code: q.code,
+            constructKey: q.constructKey,
+            sourceSurvey: q.sourceSurvey,
+            sourceVariable: q.sourceVariable,
+            isBenchmarkAnchor: q.isBenchmarkAnchor,
+            benchmarkNotes: q.benchmarkNotes,
+          },
+        });
+      }
+
+      return s;
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown database error";
+    return { error: `Failed to create survey: ${message}` };
+  }
+
+  try {
+    await createAuditEvent({
+      actorUserId: session.userId,
+      action: SURVEY_CREATED,
+      targetType: "Survey",
+      targetId: survey.id,
+      meta: {
+        title: survey.title,
+        importedQuestions: mapped.questions.length,
+        source: "json_import",
+      },
+    });
+  } catch {
+    // Best-effort audit logging — survey was already created successfully
+  }
+
+  redirect(`/app/surveys/${survey.id}`);
 }

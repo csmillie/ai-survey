@@ -6,6 +6,35 @@ import { SentimentBadge, ModelLabel } from "./shared-components";
 import type { ResponseData } from "./types";
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getScaleMinMax(config: Record<string, unknown> | null): { scaleMin: number; scaleMax: number } {
+  if (!config) return { scaleMin: 0, scaleMax: 10 };
+  const scaleMin = typeof config.scaleMin === "number" ? config.scaleMin : (typeof config.min === "number" ? config.min : 0);
+  const scaleMax = typeof config.scaleMax === "number" ? config.scaleMax : (typeof config.max === "number" ? config.max : 10);
+  return { scaleMin, scaleMax };
+}
+
+function ScoreBarInline({ score, config }: { score: number; config: Record<string, unknown> }) {
+  const { scaleMin, scaleMax } = getScaleMinMax(config);
+  const pct = Math.min(100, Math.max(0, ((score - scaleMin) / (scaleMax - scaleMin)) * 100));
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-semibold">{score} / {scaleMax}</span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-[hsl(var(--muted))]">
+        <div
+          className={`h-full rounded-full ${scoreColor(score, scaleMin, scaleMax)}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -167,34 +196,7 @@ function ModelCard({
 
       {/* Score bar or answer */}
       {isRanked && response.score !== null && response.questionConfig ? (
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-semibold">
-              {response.score} / {response.questionConfig.scaleMax}
-            </span>
-          </div>
-          <div className="h-2 w-full rounded-full bg-[hsl(var(--muted))]">
-            <div
-              className={`h-full rounded-full ${scoreColor(
-                response.score,
-                response.questionConfig.scaleMin,
-                response.questionConfig.scaleMax
-              )}`}
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.max(
-                    0,
-                    ((response.score - response.questionConfig.scaleMin) /
-                      (response.questionConfig.scaleMax -
-                        response.questionConfig.scaleMin)) *
-                      100
-                  )
-                )}%`,
-              }}
-            />
-          </div>
-        </div>
+        <ScoreBarInline score={response.score} config={response.questionConfig} />
       ) : (
         <p className="text-sm leading-relaxed line-clamp-6">
           {response.answerText}

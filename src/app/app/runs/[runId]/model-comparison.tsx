@@ -9,8 +9,9 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { SentimentBadge, ModelLabel } from "./shared-components";
+import { ModelLabel, formatCost, parseCostUsd } from "./shared-components";
 import type { ResponseData } from "./types";
+import { getConfigOptions } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,7 +23,7 @@ interface ModelComparisonProps {
 }
 
 // ---------------------------------------------------------------------------
-// Stats helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 function mean(values: number[]): number {
@@ -48,43 +49,79 @@ function divergenceBg(sigmas: number): string {
   return "bg-red-500/5";
 }
 
-function hasScore(r: ResponseData): r is ResponseData & { score: number } {
-  return r.score !== null;
+/** Parse answer text as JSON once, returning null on failure */
+function parseAnswerJson(answerText: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(answerText);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
-function hasSentiment(r: ResponseData): r is ResponseData & { sentimentScore: number } {
-  return r.sentimentScore !== null;
+/** Extract a display string and numeric value for the response */
+function getResponseValues(resp: ResponseData): { display: string; numeric: number | null } {
+  if (resp.score !== null) {
+    const config = resp.questionConfig;
+    const max = typeof config?.scaleMax === "number"
+      ? config.scaleMax
+      : typeof config?.max === "number"
+        ? config.max
+        : null;
+    const display = max !== null ? `${resp.score} / ${max}` : String(resp.score);
+    return { display, numeric: resp.score };
+  }
+
+  const parsed = parseAnswerJson(resp.answerText);
+  if (parsed) {
+    if ("selectedValue" in parsed) {
+      const options = getConfigOptions(resp.questionConfig);
+      const match = options.find((o) => o.value === parsed.selectedValue);
+      const display = match ? match.label : String(parsed.selectedValue);
+      const numeric = match ? (match.numericValue ?? match.score ?? null) : null;
+      return { display, numeric };
+    }
+    if ("score" in parsed && typeof parsed.score === "number") {
+      return { display: String(parsed.score), numeric: parsed.score };
+    }
+  }
+
+  const display = resp.answerText.length > 80
+    ? resp.answerText.slice(0, 80) + "..."
+    : resp.answerText;
+  return { display, numeric: null };
+}
+
+/** Extract a display string for the response value */
+function getResponseDisplay(resp: ResponseData): string {
+  return getResponseValues(resp).display;
+}
+
+/**
+ * Extract a numeric value from any response for divergence calculation.
+ */
+function getNumericValue(resp: ResponseData): number | null {
+  return getResponseValues(resp).numeric;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function ModelComparison({ responses, questionType }: ModelComparisonProps): React.JSX.Element {
-  const isRanked = questionType === "RANKED";
-  const scores = responses.filter(hasScore).map((r) => r.score);
-  const sentiments = responses.filter(hasSentiment).map((r) => r.sentimentScore);
+export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.Element {
+  // Extract numeric values for all responses
+  const numericPairs = responses.map((r) => ({
+    response: r,
+    numericValue: getNumericValue(r),
+  }));
 
-  const scoreMean = scores.length > 0 ? mean(scores) : null;
-  const scoreStd = scores.length > 1 ? stddev(scores) : 0;
-  const sentimentMean = sentiments.length > 0 ? mean(sentiments) : null;
-  const sentStd = sentiments.length > 1 ? stddev(sentiments) : 0;
+  const numericValues = numericPairs
+    .map((p) => p.numericValue)
+    .filter((v): v is number => v !== null);
 
-  // For open-ended: compute "agreement" as % of models with same sentiment direction
-  const sentimentDirections = sentiments.map((s) =>
-    s > 0.3 ? "positive" : s < -0.3 ? "negative" : "neutral"
-  );
-  const directionCounts = new Map<string, number>();
-  for (const d of sentimentDirections) {
-    directionCounts.set(d, (directionCounts.get(d) ?? 0) + 1);
-  }
-  const majorityDirection = [...directionCounts.entries()].sort(
-    (a, b) => b[1] - a[1]
-  )[0];
-  const sentimentAgreement =
-    sentimentDirections.length > 0 && majorityDirection
-      ? majorityDirection[1] / sentimentDirections.length
-      : null;
+  const valueMean = numericValues.length > 0 ? mean(numericValues) : null;
+  const valueStd = numericValues.length > 1 ? stddev(numericValues) : 0;
+  const hasNumericData = numericValues.length >= 2;
 
   return (
     <div className="space-y-4">
@@ -92,33 +129,19 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
         <TableHeader>
           <TableRow>
             <TableHead>Model</TableHead>
-            <TableHead>{isRanked ? "Score" : "Answer (excerpt)"}</TableHead>
-            <TableHead className="text-center">
-              {isRanked ? "Value" : "Sentiment"}
-            </TableHead>
+            <TableHead>Response</TableHead>
+            <TableHead className="text-center">Confidence</TableHead>
+            <TableHead className="text-center">Tokens</TableHead>
+            <TableHead className="text-center">Cost</TableHead>
             <TableHead className="text-center">Divergence</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {responses.map((resp) => {
+          {numericPairs.map(({ response: resp, numericValue }) => {
             let sigmas = 0;
-            if (isRanked && scoreMean !== null && scoreStd > 0 && resp.score !== null) {
-              sigmas = Math.abs(resp.score - scoreMean) / scoreStd;
-            } else if (
-              !isRanked &&
-              sentimentMean !== null &&
-              resp.sentimentScore !== null
-            ) {
-              sigmas =
-                sentStd > 0
-                  ? Math.abs(resp.sentimentScore - sentimentMean) / sentStd
-                  : 0;
+            if (hasNumericData && valueMean !== null && valueStd > 0 && numericValue !== null) {
+              sigmas = Math.abs(numericValue - valueMean) / valueStd;
             }
-
-            const truncated =
-              resp.answerText.length > 80
-                ? resp.answerText.slice(0, 80) + "..."
-                : resp.answerText;
 
             return (
               <TableRow key={resp.id} className={divergenceBg(sigmas)}>
@@ -126,29 +149,39 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
                   <ModelLabel modelName={resp.modelName} provider={resp.provider} />
                 </TableCell>
                 <TableCell className="max-w-xs">
-                  {isRanked && resp.score !== null && resp.questionConfig ? (
-                    <span className="text-sm font-semibold">
-                      {resp.score} / {resp.questionConfig.scaleMax}
+                  <span className="text-sm">{getResponseDisplay(resp)}</span>
+                </TableCell>
+                <TableCell className="text-center">
+                  {resp.confidence !== null ? (
+                    <Badge variant="secondary">{resp.confidence}%</Badge>
+                  ) : (
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {resp.totalTokens !== null ? (
+                    <span className="text-sm">{resp.totalTokens.toLocaleString()}</span>
+                  ) : (
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {resp.costUsd !== null ? (
+                    <span className="text-sm">
+                      {formatCost(parseCostUsd(resp.costUsd))}
                     </span>
                   ) : (
-                    <p className="truncate text-sm">{truncated}</p>
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
                   )}
                 </TableCell>
                 <TableCell className="text-center">
-                  {isRanked ? (
-                    resp.score !== null ? (
-                      <span className="text-sm font-medium">{resp.score}</span>
-                    ) : (
-                      <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
-                    )
+                  {hasNumericData && numericValue !== null && valueStd > 0 ? (
+                    <span className={`text-sm font-medium ${divergenceColor(sigmas)}`}>
+                      {sigmas.toFixed(1)}&sigma;
+                    </span>
                   ) : (
-                    <SentimentBadge score={resp.sentimentScore} />
+                    <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
                   )}
-                </TableCell>
-                <TableCell className="text-center">
-                  <span className={`text-sm font-medium ${divergenceColor(sigmas)}`}>
-                    {sigmas.toFixed(1)}σ
-                  </span>
                 </TableCell>
               </TableRow>
             );
@@ -157,26 +190,19 @@ export function ModelComparison({ responses, questionType }: ModelComparisonProp
       </Table>
 
       {/* Summary row */}
-      <div className="flex flex-wrap gap-3 text-sm">
-        {isRanked && scoreMean !== null && (
-          <>
-            <Badge variant="secondary">
-              Range: {Math.min(...scores)} – {Math.max(...scores)}
-            </Badge>
-            <Badge variant="secondary">
-              Mean: {scoreMean.toFixed(1)}
-            </Badge>
-            <Badge variant="secondary">
-              Std Dev: {scoreStd.toFixed(2)}
-            </Badge>
-          </>
-        )}
-        {!isRanked && sentimentAgreement !== null && (
+      {hasNumericData && valueMean !== null && (
+        <div className="flex flex-wrap gap-3 text-sm">
           <Badge variant="secondary">
-            Sentiment Agreement: {Math.round(sentimentAgreement * 100)}%
+            Range: {Math.min(...numericValues)} – {Math.max(...numericValues)}
           </Badge>
-        )}
-      </div>
+          <Badge variant="secondary">
+            Mean: {valueMean.toFixed(1)}
+          </Badge>
+          <Badge variant="secondary">
+            Standard Deviation: {valueStd.toFixed(2)}
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }

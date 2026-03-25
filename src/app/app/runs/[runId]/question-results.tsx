@@ -30,14 +30,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, SentimentBadge, AgreementBadge, ModelLabel } from "./shared-components";
+import { ScoreBar, ModelLabel, formatCost, parseCostUsd } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
-import { FactConfidenceCard } from "./fact-confidence-card";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
-import type { ResponseData, DebugData, QuestionGroup, QuestionAgreementData, QuestionTruthData, QuestionRefereeData } from "./types";
-import { TruthConfidencePanel } from "./truth-confidence-panel";
+import type { ResponseData, DebugData, QuestionGroup } from "./types";
+import { getConfigOptions } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,9 +44,6 @@ import { TruthConfidencePanel } from "./truth-confidence-panel";
 
 interface QuestionResultsProps {
   questionGroups: QuestionGroup[];
-  agreementMap: Map<string, QuestionAgreementData>;
-  truthMap?: Map<string, QuestionTruthData>;
-  refereeMap?: Map<string, QuestionRefereeData>;
   expandedRows: Set<string>;
   onToggleRow: (responseId: string) => void;
   questionRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>;
@@ -66,36 +62,44 @@ function formatAvgScore(responses: ResponseData[]): React.JSX.Element | null {
   if (scores.length === 0) return null;
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const config = responses[0]?.questionConfig;
-  if (!config) return null;
+  const scaleMax = typeof config?.scaleMax === "number" ? config.scaleMax : (typeof config?.max === "number" ? config.max : null);
+  if (scaleMax === null) return null;
   return (
     <span className="ml-2 font-medium">
-      Avg: {avg.toFixed(1)} / {config.scaleMax}
+      Avg: {avg.toFixed(1)} / {scaleMax}
     </span>
   );
 }
 
-function computeVarianceBadge(
-  responses: ResponseData[]
-): { label: string; variant: "secondary" | "destructive" } | null {
-  const scores = responses.filter(hasScore).map((r) => r.score);
-  if (scores.length < 2) return null;
+/** Render a human-readable scale description from the question config */
+function formatScaleDescription(questionType: string, config: Record<string, unknown> | null): string | null {
+  if (!config) return null;
 
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const variance =
-    scores.reduce((sum, s) => sum + (s - mean) ** 2, 0) / scores.length;
-  const stddev = Math.sqrt(variance);
+  const type = typeof config.type === "string" ? config.type : undefined;
 
-  // When mean is near zero, CV is unstable — fall back to absolute stddev
-  if (Math.abs(mean) < 0.01) {
-    if (stddev < 0.5) return { label: "Low variance", variant: "secondary" };
-    if (stddev < 1.5) return { label: "Med variance", variant: "secondary" };
-    return { label: "High variance", variant: "destructive" };
+  if (type === "NUMERIC_SCALE" || questionType === "NUMERIC_SCALE") {
+    const min = typeof config.min === "number" ? config.min : undefined;
+    const max = typeof config.max === "number" ? config.max : undefined;
+    const minLabel = typeof config.minLabel === "string" ? config.minLabel : undefined;
+    const maxLabel = typeof config.maxLabel === "string" ? config.maxLabel : undefined;
+    if (min != null && max != null) {
+      const labels = [minLabel, maxLabel].filter(Boolean).join(" – ");
+      return labels ? `Scale: ${min}–${max} (${labels})` : `Scale: ${min}–${max}`;
+    }
   }
 
-  const cv = stddev / Math.abs(mean);
-  if (cv < 0.15) return { label: "Low variance", variant: "secondary" };
-  if (cv < 0.30) return { label: "Med variance", variant: "secondary" };
-  return { label: "High variance", variant: "destructive" };
+  if (questionType === "RANKED") {
+    const min = typeof config.scaleMin === "number" ? config.scaleMin : undefined;
+    const max = typeof config.scaleMax === "number" ? config.scaleMax : undefined;
+    if (min != null && max != null) return `Scale: ${min}–${max}`;
+  }
+
+  const options = Array.isArray(config.options) ? config.options : undefined;
+  if (options && options.length > 0 && typeof options[0]?.label === "string") {
+    return `Options: ${options.map((o: Record<string, unknown>) => String(o.label)).join(" / ")}`;
+  }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +188,59 @@ function verificationBorderClass(status: "UNREVIEWED" | "VERIFIED" | "INACCURATE
 }
 
 // ---------------------------------------------------------------------------
+// Internal: ResponseValue — display the response with confidence on hover
+// ---------------------------------------------------------------------------
+
+function ResponseValue({ response }: { response: ResponseData }): React.JSX.Element {
+  const confidenceTooltip = response.confidence !== null
+    ? `Confidence: ${response.confidence}%`
+    : undefined;
+
+  // Try to extract selectedValue from parsedJson in rawText for benchmark types
+  let displayValue: string | null = null;
+
+  if (response.score !== null) {
+    // Ranked or numeric scale — show the score
+    const config = response.questionConfig;
+    const max = typeof config?.scaleMax === "number" ? config.scaleMax : (typeof config?.max === "number" ? config.max : null);
+    displayValue = max !== null ? `${response.score} / ${max}` : String(response.score);
+  } else if (response.answerText) {
+    // Try to parse as benchmark JSON response
+    try {
+      const parsed = JSON.parse(response.answerText);
+      if (parsed && typeof parsed === "object" && "selectedValue" in parsed) {
+        // Look up the label from config options
+        const options = getConfigOptions(response.questionConfig);
+        const match = options.find((o) => o.value === parsed.selectedValue);
+        displayValue = match ? match.label : String(parsed.selectedValue);
+      } else if (parsed && typeof parsed === "object" && "score" in parsed) {
+        displayValue = String(parsed.score);
+      }
+    } catch {
+      // Not JSON — use as-is
+    }
+  }
+
+  if (displayValue) {
+    return (
+      <span className="text-sm font-medium" title={confidenceTooltip}>
+        {displayValue}
+      </span>
+    );
+  }
+
+  // Fallback: truncated text for open-ended
+  const truncated = response.answerText.length > 120
+    ? response.answerText.slice(0, 120) + "..."
+    : response.answerText;
+  return (
+    <p className="truncate text-sm" title={confidenceTooltip}>
+      {truncated}
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Internal: ResponseRow
 // ---------------------------------------------------------------------------
 
@@ -191,12 +248,10 @@ function ResponseRow({
   response,
   isExpanded,
   onToggle,
-  factConfidenceLevel,
 }: {
   response: ResponseData;
   isExpanded: boolean;
   onToggle: () => void;
-  factConfidenceLevel: string | null;
 }): React.JSX.Element {
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugData, setDebugData] = useState<DebugData | null>(null);
@@ -219,11 +274,6 @@ function ResponseRow({
       setDebugLoading(false);
     }
   }, [response.id, debugData]);
-
-  const truncatedAnswer =
-    response.answerText.length > 120
-      ? response.answerText.slice(0, 120) + "..."
-      : response.answerText;
 
   return (
     <>
@@ -265,52 +315,7 @@ function ResponseRow({
           </div>
         </TableCell>
         <TableCell className="max-w-md">
-          {response.selectedOptionValue !== null ? (
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{response.selectedOptionValue}</Badge>
-              {response.normalizedScore !== null && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  ({(response.normalizedScore * 100).toFixed(0)}%)
-                </span>
-              )}
-              {response.matrixRowKey && (
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  [{response.matrixRowKey}]
-                </span>
-              )}
-            </div>
-          ) : response.score !== null && response.questionConfig ? (
-            <ScoreBar
-              score={response.score}
-              min={response.questionConfig.scaleMin}
-              max={response.questionConfig.scaleMax}
-            />
-          ) : (
-            <p className="truncate text-sm">{truncatedAnswer}</p>
-          )}
-        </TableCell>
-        <TableCell className="text-center">
-          <SentimentBadge score={response.sentimentScore} />
-        </TableCell>
-        <TableCell className="text-center">
-          <span className="text-sm">{response.citations.length}</span>
-        </TableCell>
-        <TableCell className="text-center">
-          {factConfidenceLevel ? (
-            <span
-              className={`text-sm font-medium ${
-                factConfidenceLevel === "high"
-                  ? "text-green-600 dark:text-green-400"
-                  : factConfidenceLevel === "medium"
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {factConfidenceLevel.charAt(0).toUpperCase() + factConfidenceLevel.slice(1)}
-            </span>
-          ) : (
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>
-          )}
+          <ResponseValue response={response} />
         </TableCell>
         <TableCell className="text-right">
           <button
@@ -326,7 +331,7 @@ function ResponseRow({
 
       {isExpanded && (
         <TableRow>
-          <TableCell colSpan={7} className="bg-[hsl(var(--muted))]/30 p-6">
+          <TableCell colSpan={3} className="bg-[hsl(var(--muted))]/30 p-6">
             <div className="space-y-4">
               {/* Full answer or reasoning */}
               <div>
@@ -337,8 +342,8 @@ function ResponseRow({
                   <div className="space-y-2">
                     <ScoreBar
                       score={response.score}
-                      min={response.questionConfig.scaleMin}
-                      max={response.questionConfig.scaleMax}
+                      min={typeof response.questionConfig.scaleMin === "number" ? response.questionConfig.scaleMin : (typeof response.questionConfig.min === "number" ? response.questionConfig.min : 0)}
+                      max={typeof response.questionConfig.scaleMax === "number" ? response.questionConfig.scaleMax : (typeof response.questionConfig.max === "number" ? response.questionConfig.max : 10)}
                     />
                     {response.reasoningText && (
                       <p className="whitespace-pre-wrap text-sm text-[hsl(var(--muted-foreground))]">
@@ -383,60 +388,6 @@ function ResponseRow({
                 </div>
               )}
 
-              {/* Analysis */}
-              <div>
-                <h4 className="mb-1 text-sm font-medium">Reliability Analysis</h4>
-                <div className="flex flex-wrap gap-2">
-                  {response.sentimentScore !== null && (
-                    <Badge variant="secondary">
-                      Sentiment: {response.sentimentScore.toFixed(3)}
-                    </Badge>
-                  )}
-                  {response.flags.length > 0 &&
-                    response.flags.map((flag) => (
-                      <Badge key={flag} variant="destructive">
-                        {flag}
-                      </Badge>
-                    ))}
-                  {response.brandMentions.length > 0 && (
-                    <Badge variant="secondary">
-                      Brands: {response.brandMentions.join(", ")}
-                    </Badge>
-                  )}
-                  {response.institutionMentions.length > 0 && (
-                    <Badge variant="secondary">
-                      Institutions: {response.institutionMentions.join(", ")}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Entities */}
-              {response.entities && (
-                <div>
-                  <h4 className="mb-1 text-sm font-medium">Entities</h4>
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    {response.entities.people.length > 0 && (
-                      <span>
-                        <strong>People:</strong>{" "}
-                        {response.entities.people.join(", ")}
-                      </span>
-                    )}
-                    {response.entities.places.length > 0 && (
-                      <span>
-                        <strong>Places:</strong>{" "}
-                        {response.entities.places.join(", ")}
-                      </span>
-                    )}
-                    {response.entities.organizations.length > 0 && (
-                      <span>
-                        <strong>Organizations:</strong>{" "}
-                        {response.entities.organizations.join(", ")}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </TableCell>
         </TableRow>
@@ -523,7 +474,7 @@ function ResponseRow({
 // QuestionTitle — truncates long titles with expand/collapse
 // ---------------------------------------------------------------------------
 
-const TITLE_TRUNCATE_LENGTH = 100;
+const TITLE_TRUNCATE_LENGTH = 200;
 
 function QuestionTitle({
   order,
@@ -545,7 +496,7 @@ function QuestionTitle({
       : title;
 
   return (
-    <CardTitle className="text-lg">
+    <CardTitle className="text-lg leading-snug">
       Q{order}: {displayText}
       {isTruncatable && (
         <button
@@ -571,9 +522,6 @@ function QuestionTitle({
 
 export const QuestionResults = memo(function QuestionResults({
   questionGroups,
-  agreementMap,
-  truthMap = new Map(),
-  refereeMap = new Map(),
   expandedRows,
   onToggleRow,
   questionRefs,
@@ -595,11 +543,6 @@ export const QuestionResults = memo(function QuestionResults({
   return (
     <>
       {questionGroups.map((group) => {
-        const agreement = agreementMap.get(group.questionId);
-        const truth = truthMap.get(group.questionId);
-        const referee = refereeMap.get(group.questionId);
-        const varianceBadge = computeVarianceBadge(group.responses);
-
         return (
           <Card
             key={group.questionId}
@@ -619,32 +562,33 @@ export const QuestionResults = memo(function QuestionResults({
                 {group.responses.length} model output
                 {group.responses.length === 1 ? "" : "s"}
                 {formatAvgScore(group.responses)}
-                {agreement && (
-                  <>
-                    <AgreementBadge percent={agreement.agreementPercent} className="ml-2" />
-                    {agreement.humanReviewFlag && (
-                      <Badge variant="destructive" className="ml-1">
-                        Needs Review
-                      </Badge>
-                    )}
-                  </>
-                )}
-                {varianceBadge && (
-                  <Badge variant={varianceBadge.variant} className="ml-2">
-                    {varianceBadge.label}
-                  </Badge>
-                )}
-                {agreement && agreement.outlierModels.length > 0 && (
-                  <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
-                    Outliers: {agreement.outlierModels.join(", ")}
-                  </span>
-                )}
+                {(() => {
+                  const totalTok = group.responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0);
+                  const totalCost = group.responses.reduce((sum, r) => sum + (parseCostUsd(r.costUsd)), 0);
+                  return (
+                    <>
+                      {totalTok > 0 && (
+                        <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                          {totalTok.toLocaleString()} tokens
+                        </span>
+                      )}
+                      {totalCost > 0 && (
+                        <span className="ml-2 text-[hsl(var(--muted-foreground))]">
+                          {formatCost(totalCost)}
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
               </CardDescription>
-              {agreement && agreement.factConfidenceLevel && (
-                <div className="mt-2">
-                  <FactConfidenceCard agreement={agreement} />
-                </div>
-              )}
+              {(() => {
+                const scaleDesc = formatScaleDescription(group.questionType, group.questionConfig);
+                return scaleDesc ? (
+                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                    {scaleDesc}
+                  </p>
+                ) : null;
+              })()}
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="responses">
@@ -660,9 +604,6 @@ export const QuestionResults = memo(function QuestionResults({
                       <TableRow>
                         <TableHead>Model</TableHead>
                         <TableHead>Output</TableHead>
-                        <TableHead className="text-center">Sentiment</TableHead>
-                        <TableHead className="text-center">Citations</TableHead>
-                        <TableHead className="text-center">Consistency</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
@@ -675,7 +616,6 @@ export const QuestionResults = memo(function QuestionResults({
                             response={resp}
                             isExpanded={isExpanded}
                             onToggle={() => onToggleRow(resp.id)}
-                            factConfidenceLevel={agreement?.factConfidenceLevel ?? null}
                           />
                         );
                       })}
@@ -701,10 +641,6 @@ export const QuestionResults = memo(function QuestionResults({
                 </TabsContent>
               </Tabs>
 
-              {/* Truth Confidence Panel */}
-              {truth && (
-                <TruthConfidencePanel truth={truth} referee={referee} questionPrompt={group.questionPrompt} />
-              )}
             </CardContent>
           </Card>
         );
