@@ -114,6 +114,27 @@ export interface DebugData {
   usageJson: { inputTokens: number; outputTokens: number } | null;
 }
 
+export interface ConfigOption {
+  value: string;
+  label: string;
+  numericValue?: number;
+  score?: number;
+}
+
+/**
+ * Safely extract options array from a questionConfig JSON column.
+ * Returns typed options only if the array contains objects with string value/label fields.
+ */
+export function getConfigOptions(config: Record<string, unknown> | null | undefined): ConfigOption[] {
+  if (!config || !Array.isArray(config.options)) return [];
+  return config.options.filter(
+    (o): o is ConfigOption =>
+      typeof o === "object" && o !== null &&
+      typeof (o as Record<string, unknown>).value === "string" &&
+      typeof (o as Record<string, unknown>).label === "string"
+  );
+}
+
 export interface QuestionGroup {
   questionId: string;
   questionTitle: string;

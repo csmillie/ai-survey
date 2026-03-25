@@ -3,13 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { canAccessSurvey } from "@/lib/survey-auth";
-import {
-  outlierModelsSchema,
-  overconfidentModelsSchema,
-  factConfidenceSignalsSchema,
-  factComparisonSchema,
-  llmResponseSchema,
-} from "@/lib/schemas";
+import { llmResponseSchema } from "@/lib/schemas";
 import { RunProgressView } from "./run-progress";
 
 // ---------------------------------------------------------------------------
@@ -139,11 +133,15 @@ export default async function RunPage({ params }: RunPageProps) {
         // Fallback: extract confidence from raw JSON for responses stored before
         // the benchmark handler populated the dedicated column.
         try {
-          const raw = typeof resp.parsedJson === "object" && resp.parsedJson !== null
-            ? resp.parsedJson as Record<string, unknown>
-            : JSON.parse(resp.rawText);
-          const c = raw?.confidence;
-          return typeof c === "number" && c >= 0 && c <= 100 ? Math.round(c) : null;
+          let raw: unknown = resp.parsedJson;
+          if (typeof raw !== "object" || raw === null) {
+            raw = JSON.parse(resp.rawText);
+          }
+          if (typeof raw === "object" && raw !== null && "confidence" in raw) {
+            const c = (raw as Record<string, unknown>).confidence;
+            return typeof c === "number" && c >= 0 && c <= 100 ? Math.round(c) : null;
+          }
+          return null;
         } catch { return null; }
       })(),
       normalizedScore: resp.normalizedScore ?? null,
@@ -156,6 +154,7 @@ export default async function RunPage({ params }: RunPageProps) {
         // Recompute from tokens and model pricing when stored value is zero
         const usage = parseUsageJson(resp.usageJson);
         if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
+          if (!resp.modelTarget.inputTokenCostUsd || !resp.modelTarget.outputTokenCostUsd) return null;
           const inputCost = (usage.inputTokens * Number(resp.modelTarget.inputTokenCostUsd)) / 1_000_000;
           const outputCost = (usage.outputTokens * Number(resp.modelTarget.outputTokenCostUsd)) / 1_000_000;
           const total = inputCost + outputCost;
@@ -179,41 +178,6 @@ export default async function RunPage({ params }: RunPageProps) {
       entities:
         (resp.analysis?.entitiesJson as AnalysisEntities | null) ?? null,
     };
-  });
-
-  // Load ModelTrust metrics + Truth Engine data (may be empty for older runs)
-  const questionAgreements = await prisma.runQuestionAgreement.findMany({
-    where: { runId },
-    include: {
-      question: {
-        select: { title: true, promptTemplate: true, order: true },
-      },
-    },
-    orderBy: { agreementPercent: "asc" },
-  });
-
-  const _questionAgreementsData = questionAgreements.flatMap((a) => {
-    const outliers = outlierModelsSchema.safeParse(a.outlierModelsJson);
-    if (!outliers.success) return [];
-    const overconfident = overconfidentModelsSchema.safeParse(a.overconfidentModelsJson);
-    const signals = factConfidenceSignalsSchema.parse(a.factConfidenceSignals);
-    const comparison = factComparisonSchema.parse(a.factComparisonJson);
-    return [
-      {
-        questionId: a.questionId,
-        questionTitle: a.question.title,
-        questionPrompt: a.question.promptTemplate,
-        questionOrder: questionRankMap.get(a.questionId) ?? a.question.order,
-        agreementPercent: a.agreementPercent,
-        outlierModels: outliers.data,
-        humanReviewFlag: a.humanReviewFlag,
-        overconfidentModels: overconfident.success ? overconfident.data : [],
-        factConfidenceLevel: a.factConfidenceLevel,
-        factConfidenceScore: a.factConfidenceScore,
-        factConfidenceSignals: signals ?? [],
-        factComparison: comparison,
-      },
-    ];
   });
 
   // Compute avg latency from responses that have latency data

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { ModelLabel, formatCost } from "./shared-components";
 import type { ResponseData } from "./types";
+import { getConfigOptions } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,8 +49,18 @@ function divergenceBg(sigmas: number): string {
   return "bg-red-500/5";
 }
 
-/** Extract a display string for the response value */
-function getResponseDisplay(resp: ResponseData): string {
+/** Parse answer text as JSON once, returning null on failure */
+function parseAnswerJson(answerText: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(answerText);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract a display string and numeric value for the response */
+function getResponseValues(resp: ResponseData): { display: string; numeric: number | null } {
   if (resp.score !== null) {
     const config = resp.questionConfig;
     const max = typeof config?.scaleMax === "number"
@@ -57,66 +68,40 @@ function getResponseDisplay(resp: ResponseData): string {
       : typeof config?.max === "number"
         ? config.max
         : null;
-    return max !== null ? `${resp.score} / ${max}` : String(resp.score);
+    const display = max !== null ? `${resp.score} / ${max}` : String(resp.score);
+    return { display, numeric: resp.score };
   }
 
-  try {
-    const parsed = JSON.parse(resp.answerText);
-    if (parsed && typeof parsed === "object" && "selectedValue" in parsed) {
-      const options = (resp.questionConfig?.options ?? []) as Array<{ value: string; label: string }>;
-      const match = Array.isArray(options) ? options.find((o) => o.value === parsed.selectedValue) : null;
-      return match ? match.label : String(parsed.selectedValue);
+  const parsed = parseAnswerJson(resp.answerText);
+  if (parsed) {
+    if ("selectedValue" in parsed) {
+      const options = getConfigOptions(resp.questionConfig);
+      const match = options.find((o) => o.value === parsed.selectedValue);
+      const display = match ? match.label : String(parsed.selectedValue);
+      const numeric = match ? (match.numericValue ?? match.score ?? null) : null;
+      return { display, numeric };
     }
-    if (parsed && typeof parsed === "object" && "score" in parsed) {
-      return String(parsed.score);
+    if ("score" in parsed && typeof parsed.score === "number") {
+      return { display: String(parsed.score), numeric: parsed.score };
     }
-  } catch {
-    // Not JSON
   }
 
-  return resp.answerText.length > 80
+  const display = resp.answerText.length > 80
     ? resp.answerText.slice(0, 80) + "..."
     : resp.answerText;
+  return { display, numeric: null };
+}
+
+/** Extract a display string for the response value */
+function getResponseDisplay(resp: ResponseData): string {
+  return getResponseValues(resp).display;
 }
 
 /**
  * Extract a numeric value from any response for divergence calculation.
- * - RANKED: uses resp.score directly
- * - NUMERIC_SCALE: parses score from JSON
- * - Categorical (SINGLE_SELECT, BINARY, FORCED_CHOICE, LIKERT): looks up
- *   numericValue/score from config options matching the selectedValue
  */
 function getNumericValue(resp: ResponseData): number | null {
-  // Direct score (RANKED)
-  if (resp.score !== null) return resp.score;
-
-  try {
-    const parsed = JSON.parse(resp.answerText);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    // Numeric scale score
-    if ("score" in parsed && typeof parsed.score === "number") {
-      return parsed.score;
-    }
-
-    // Categorical — look up numericValue from config options
-    if ("selectedValue" in parsed && typeof parsed.selectedValue === "string") {
-      const options = (resp.questionConfig?.options ?? []) as Array<{
-        value: string;
-        numericValue?: number;
-        score?: number;
-      }>;
-      if (!Array.isArray(options)) return null;
-      const match = options.find((o) => o.value === parsed.selectedValue);
-      if (match) {
-        return match.numericValue ?? match.score ?? null;
-      }
-    }
-  } catch {
-    // Not JSON
-  }
-
-  return null;
+  return getResponseValues(resp).numeric;
 }
 
 // ---------------------------------------------------------------------------

@@ -100,7 +100,7 @@ function buildBinaryConfig(q: ImportQuestion): Prisma.InputJsonValue {
     value: o.value === true ? "yes" : o.value === false ? "no" : String(o.value),
     numericValue: o.score ?? null,
   }));
-  if (options.length < 2) {
+  if (options.length !== 2) {
     throw new Error(`BINARY question ${q.id} requires exactly 2 options, got ${options.length}`);
   }
   return toJsonValue({
@@ -115,7 +115,7 @@ function buildForcedChoiceConfig(q: ImportQuestion): Prisma.InputJsonValue {
     value: String(o.value),
     numericValue: o.score ?? null,
   }));
-  if (options.length < 2) {
+  if (options.length !== 2) {
     throw new Error(`FORCED_CHOICE question ${q.id} requires exactly 2 options, got ${options.length}`);
   }
   return toJsonValue({

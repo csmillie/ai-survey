@@ -36,6 +36,7 @@ import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
 import { getResponseDebugData, setVerificationStatusAction } from "./actions";
 import type { ResponseData, DebugData, QuestionGroup } from "./types";
+import { getConfigOptions } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,14 +75,13 @@ function formatAvgScore(responses: ResponseData[]): React.JSX.Element | null {
 function formatScaleDescription(questionType: string, config: Record<string, unknown> | null): string | null {
   if (!config) return null;
 
-  const options = config.options as Array<{ label: string; value: string }> | undefined;
-  const type = config.type as string | undefined;
+  const type = typeof config.type === "string" ? config.type : undefined;
 
   if (type === "NUMERIC_SCALE" || questionType === "NUMERIC_SCALE") {
-    const min = config.min as number | undefined;
-    const max = config.max as number | undefined;
-    const minLabel = config.minLabel as string | undefined;
-    const maxLabel = config.maxLabel as string | undefined;
+    const min = typeof config.min === "number" ? config.min : undefined;
+    const max = typeof config.max === "number" ? config.max : undefined;
+    const minLabel = typeof config.minLabel === "string" ? config.minLabel : undefined;
+    const maxLabel = typeof config.maxLabel === "string" ? config.maxLabel : undefined;
     if (min != null && max != null) {
       const labels = [minLabel, maxLabel].filter(Boolean).join(" – ");
       return labels ? `Scale: ${min}–${max} (${labels})` : `Scale: ${min}–${max}`;
@@ -89,13 +89,14 @@ function formatScaleDescription(questionType: string, config: Record<string, unk
   }
 
   if (questionType === "RANKED") {
-    const min = config.scaleMin as number | undefined;
-    const max = config.scaleMax as number | undefined;
+    const min = typeof config.scaleMin === "number" ? config.scaleMin : undefined;
+    const max = typeof config.scaleMax === "number" ? config.scaleMax : undefined;
     if (min != null && max != null) return `Scale: ${min}–${max}`;
   }
 
-  if (options && Array.isArray(options) && options.length > 0) {
-    return `Options: ${options.map((o) => o.label).join(" / ")}`;
+  const options = Array.isArray(config.options) ? config.options : undefined;
+  if (options && options.length > 0 && typeof options[0]?.label === "string") {
+    return `Options: ${options.map((o: Record<string, unknown>) => String(o.label)).join(" / ")}`;
   }
 
   return null;
@@ -209,8 +210,8 @@ function ResponseValue({ response }: { response: ResponseData }): React.JSX.Elem
       const parsed = JSON.parse(response.answerText);
       if (parsed && typeof parsed === "object" && "selectedValue" in parsed) {
         // Look up the label from config options
-        const options = (response.questionConfig?.options ?? []) as Array<{ value: string; label: string }>;
-        const match = Array.isArray(options) ? options.find((o) => o.value === parsed.selectedValue) : null;
+        const options = getConfigOptions(response.questionConfig);
+        const match = options.find((o) => o.value === parsed.selectedValue);
         displayValue = match ? match.label : String(parsed.selectedValue);
       } else if (parsed && typeof parsed === "object" && "score" in parsed) {
         displayValue = String(parsed.score);

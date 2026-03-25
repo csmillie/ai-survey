@@ -153,17 +153,21 @@ export async function importSurveyAction(
     return { error: `Failed to create survey: ${message}` };
   }
 
-  await createAuditEvent({
-    actorUserId: session.userId,
-    action: SURVEY_CREATED,
-    targetType: "Survey",
-    targetId: survey.id,
-    meta: {
-      title: survey.title,
-      importedQuestions: mapped.questions.length,
-      source: "json_import",
-    },
-  });
+  try {
+    await createAuditEvent({
+      actorUserId: session.userId,
+      action: SURVEY_CREATED,
+      targetType: "Survey",
+      targetId: survey.id,
+      meta: {
+        title: survey.title,
+        importedQuestions: mapped.questions.length,
+        source: "json_import",
+      },
+    });
+  } catch {
+    // Best-effort audit logging — survey was already created successfully
+  }
 
   redirect(`/app/surveys/${survey.id}`);
 }
