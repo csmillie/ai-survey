@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cancelRunAction } from "./actions";
-import { StatusBadge, StatCard } from "./shared-components";
+import { StatusBadge, StatCard, parseCostUsd } from "./shared-components";
 import { DecisionHeader } from "./decision-header";
 import { QuestionResults } from "./question-results";
 import type {
@@ -269,7 +269,7 @@ export function RunProgressView({
             totalResponses={responses.length}
             avgLatencyMs={avgLatencyMs}
             totalTokens={responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0)}
-            totalCostUsd={responses.reduce((sum, r) => sum + (r.costUsd ? parseFloat(r.costUsd) : 0), 0)}
+            totalCostUsd={responses.reduce((sum, r) => sum + (parseCostUsd(r.costUsd)), 0)}
             status={status}
           />
 

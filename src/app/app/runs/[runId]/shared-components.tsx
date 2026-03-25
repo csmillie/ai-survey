@@ -17,6 +17,13 @@ export function formatCost(usd: number): string {
   return `$${usd.toExponential(1)}`;
 }
 
+/** Parse a costUsd string to a number, returning 0 for null/NaN values */
+export function parseCostUsd(costUsd: string | null): number {
+  if (!costUsd) return 0;
+  const parsed = Number(costUsd);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
 // ---------------------------------------------------------------------------
 // StatusBadge
 // ---------------------------------------------------------------------------

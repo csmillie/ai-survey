@@ -124,7 +124,7 @@ function buildForcedChoiceConfig(q: ImportQuestion): Prisma.InputJsonValue {
   });
 }
 
-const VALID_LIKERT_POINTS = new Set([4, 5, 7]);
+export const VALID_LIKERT_POINTS = new Set([4, 5, 7]);
 
 function buildLikertConfig(q: ImportQuestion): Prisma.InputJsonValue {
   const scale = q.scale;
@@ -135,11 +135,15 @@ function buildLikertConfig(q: ImportQuestion): Prisma.InputJsonValue {
   if (!VALID_LIKERT_POINTS.has(points)) {
     throw new Error(`LIKERT question ${q.id} has unsupported scale length ${points} (expected 4, 5, or 7)`);
   }
-  const options = scale.labels.map((label, i) => ({
-    label,
-    value: label.toLowerCase().replace(/\s+/g, "_"),
-    numericValue: scale.min + i,
-  }));
+  const seen = new Set<string>();
+  const options = scale.labels.map((label, i) => {
+    let slug = label.trim().toLowerCase().replace(/\s+/g, "_");
+    if (seen.has(slug)) {
+      slug = `${slug}_${i}`;
+    }
+    seen.add(slug);
+    return { label, value: slug, numericValue: scale.min + i };
+  });
   return toJsonValue({ type: "LIKERT", points: points as 4 | 5 | 7, options });
 }
 
@@ -198,7 +202,8 @@ export interface MappedQuestion {
 // ---------------------------------------------------------------------------
 
 export function mapImportToSurvey(input: ImportSurveyJson): MappedSurvey {
-  // Build description with indices appendix
+  // Build description with indices appendix.
+  // Safe: description is rendered as plain text by React (auto-escaped), never as raw HTML.
   let description = input.description ?? "";
   if (input.indices && input.indices.length > 0) {
     description += "\n\n## Composite Indices\n";
@@ -220,6 +225,8 @@ export function mapImportToSurvey(input: ImportSurveyJson): MappedSurvey {
     const configJson = configBuilder(q);
 
     const tags = q.tags ?? [];
+    // benchmarkNotes stores the full benchmark object including passthrough keys
+    // from importBenchmarkSchema. This preserves source data for reference display.
     const benchmarkNotes = q.benchmark
       ? JSON.stringify(q.benchmark)
       : null;

@@ -30,7 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ScoreBar, ModelLabel, formatCost } from "./shared-components";
+import { ScoreBar, ModelLabel, formatCost, parseCostUsd } from "./shared-components";
 import { ModelComparison } from "./model-comparison";
 import { CommonalitiesView } from "./commonalities-view";
 import { SideBySideView } from "./side-by-side-view";
@@ -564,7 +564,7 @@ export const QuestionResults = memo(function QuestionResults({
                 {formatAvgScore(group.responses)}
                 {(() => {
                   const totalTok = group.responses.reduce((sum, r) => sum + (r.totalTokens ?? 0), 0);
-                  const totalCost = group.responses.reduce((sum, r) => sum + (r.costUsd ? parseFloat(r.costUsd) : 0), 0);
+                  const totalCost = group.responses.reduce((sum, r) => sum + (parseCostUsd(r.costUsd)), 0);
                   return (
                     <>
                       {totalTok > 0 && (

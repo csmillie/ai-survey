@@ -9,7 +9,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { ModelLabel, formatCost } from "./shared-components";
+import { ModelLabel, formatCost, parseCostUsd } from "./shared-components";
 import type { ResponseData } from "./types";
 import { getConfigOptions } from "./types";
 
@@ -168,7 +168,7 @@ export function ModelComparison({ responses }: ModelComparisonProps): React.JSX.
                 <TableCell className="text-center">
                   {resp.costUsd !== null ? (
                     <span className="text-sm">
-                      {formatCost(parseFloat(resp.costUsd))}
+                      {formatCost(parseCostUsd(resp.costUsd))}
                     </span>
                   ) : (
                     <span className="text-xs text-[hsl(var(--muted-foreground))]">-</span>

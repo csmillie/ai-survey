@@ -25,7 +25,7 @@ const usageJsonSchema = z.object({
   outputTokens: z.number().optional(),
 });
 
-function parseUsageJson(raw: unknown): { inputTokens?: number; outputTokens?: number } | null {
+function parseUsageJson(raw: unknown): z.infer<typeof usageJsonSchema> | null {
   const result = usageJsonSchema.safeParse(raw);
   return result.success ? result.data : null;
 }
@@ -121,6 +121,7 @@ export default async function RunPage({ params }: RunPageProps) {
       questionPrompt: resp.question.promptTemplate,
       questionType: resp.question.type,
       questionOrder: questionRankMap.get(resp.question.id) ?? resp.question.order,
+      // .catch(null) intentionally swallows malformed configJson — downstream renders defensively
       questionConfig: z.record(z.string(), z.unknown()).nullable().catch(null).parse(resp.question.configJson),
       modelName: resp.modelTarget.modelName,
       provider: resp.modelTarget.provider,
@@ -154,7 +155,7 @@ export default async function RunPage({ params }: RunPageProps) {
         // Recompute from tokens and model pricing when stored value is zero
         const usage = parseUsageJson(resp.usageJson);
         if (usage && typeof usage.inputTokens === "number" && typeof usage.outputTokens === "number") {
-          if (!resp.modelTarget.inputTokenCostUsd || !resp.modelTarget.outputTokenCostUsd) return null;
+          if (resp.modelTarget.inputTokenCostUsd == null || resp.modelTarget.outputTokenCostUsd == null) return null;
           const inputCost = (usage.inputTokens * Number(resp.modelTarget.inputTokenCostUsd)) / 1_000_000;
           const outputCost = (usage.outputTokens * Number(resp.modelTarget.outputTokenCostUsd)) / 1_000_000;
           const total = inputCost + outputCost;
