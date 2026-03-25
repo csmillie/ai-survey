@@ -34,6 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { SCALE_PRESETS, rankedConfigSchema } from "@/lib/schemas";
+import { trackQuestionCreated, trackQuestionTypeSelected } from "@/lib/analytics";
 import { deleteSurveyAction } from "@/app/app/surveys/actions";
 import {
   updateSurveyAction,
@@ -403,6 +404,7 @@ function QuestionsTab({
       alert(result.error);
       return;
     }
+    trackQuestionCreated(questionType);
     addFormRef.current?.reset();
     setQuestionType("OPEN_ENDED");
     setScalePreset("0-5");
@@ -440,8 +442,10 @@ function QuestionsTab({
                 <Select
                   value={questionType}
                   onChange={(e) => {
-                    setQuestionType(e.target.value);
+                    const newType = e.target.value;
+                    setQuestionType(newType);
                     setConfigValid(true);
+                    trackQuestionTypeSelected(newType);
                   }}
                 >
                   {ALL_TYPES.map((t) => (
