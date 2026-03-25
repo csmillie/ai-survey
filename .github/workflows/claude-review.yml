@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
   issue_comment:
     types: [created]
 
@@ -23,13 +23,65 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
-            Review this pull request for code quality, potential bugs, security, and performance.
-            Post your review as a single PR comment using gh pr comment.
+            You are reviewing a pull request for the ai-survey project.
+
+            ## Setup
+
+            1. Read CLAUDE.md for project conventions and coding standards.
+            2. Read all existing PR comments to understand what has already been discussed:
+               gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number || github.event.issue.number }}/comments
+            3. Identify only the files changed in this PR:
+               git diff origin/main...HEAD --name-only
+
+            ## Review Scope
+
+            Only review files changed in this PR. Do not flag pre-existing issues in unchanged code.
+
+            ## What to Flag
+
+            Classify each issue with a severity:
+
+            - 🔴 **Bug**: Will cause incorrect behavior at runtime. Includes logic errors, null/undefined crashes, off-by-one errors, race conditions, data corruption.
+            - 🔴 **Security**: Injection, auth bypass, data exposure, missing input validation at system boundaries.
+            - 🟡 **Convention Violation**: Breaks a rule explicitly stated in CLAUDE.md (e.g., raw SQL, `any` type, missing Zod validation on JSON columns, relative imports).
+            - 🔵 **Suggestion**: Non-blocking improvement. Performance optimization, readability, test coverage gap.
+
+            Only 🔴 items should be called out as blocking merge.
+
+            ## What NOT to Flag
+
+            - Issues already raised and addressed (or explicitly marked "not addressing" with a reason) in previous PR comments
+            - Cosmetic style preferences (IIFEs vs extracted functions, variable naming, comment style)
+            - Hypothetical future problems ("if someone later adds X, this will break")
+            - Issues in files not changed by this PR
+            - Suggestions that contradict CLAUDE.md conventions
+
+            ## Output Format
+
+            Post a single PR comment with this structure:
+
+            ```
+            ## Code Review
+
+            ### 🔴 Bugs / Security
+            (numbered list, or "None found")
+
+            ### 🟡 Convention Violations
+            (numbered list, or "None found")
+
+            ### 🔵 Suggestions
+            (numbered list, or "None")
+
+            ### Summary
+            (1-2 sentences: is this ready to merge?)
+            ```
+
+            Keep each item concise: state the problem, the file/line, and the fix. No preamble or praise paragraphs.
           claude_args: "--max-turns 20 --allowedTools Read,Glob,Grep,Bash"
