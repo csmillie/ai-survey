@@ -107,7 +107,7 @@ export default async function RunConfigPage({ params }: RunConfigPageProps) {
         <span className="font-medium text-[hsl(var(--foreground))]">
           {survey.title}
         </span>
-        . This evaluation has {fullSurvey.questions.length} prompt
+        . This evaluation has {fullSurvey.questions.length} question
         {fullSurvey.questions.length === 1 ? "" : "s"} and{" "}
         {fullSurvey.variables.length} variable
         {fullSurvey.variables.length === 1 ? "" : "s"}.

@@ -63,7 +63,7 @@ export default async function SurveysPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{survey.title}</CardTitle>
                     <span className="text-sm text-muted-foreground">
-                      {survey._count.questions} prompt{survey._count.questions !== 1 ? "s" : ""}
+                      {survey._count.questions} question{survey._count.questions !== 1 ? "s" : ""}
                       {" · "}
                       {survey._count.runs} run{survey._count.runs !== 1 ? "s" : ""}
                     </span>

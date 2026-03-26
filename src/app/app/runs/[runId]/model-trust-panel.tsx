@@ -79,7 +79,7 @@ function CalibrationWarning({
           q.overconfidentModels.includes(m.modelName)
         ).length;
         return count > 0
-          ? `${m.modelName} overconfident on ${count} prompt${count === 1 ? "" : "s"}`
+          ? `${m.modelName} overconfident on ${count} question${count === 1 ? "" : "s"}`
           : `${m.modelName} poorly calibrated (${m.calibrationScore.toFixed(2)}/10)`;
       }).join(". ")}
     </CardDescription>
@@ -247,7 +247,7 @@ export function ModelTrustPanel({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Prompt</TableHead>
+                  <TableHead>Question</TableHead>
                   <TableHead className="text-center">Agreement</TableHead>
                   <TableHead>Models</TableHead>
                   <TableHead className="text-center">Overconfidence</TableHead>
