@@ -14,7 +14,7 @@ Replace the current `src/app/page.tsx` redirect with a public landing page. Rout
 
 ### Sections (single-page scroll):
 
-1. **Nav bar** — "ModelTrust" wordmark (left), anchor links "Features" and "How It Works" (center-right), "Log In" button linking to `/login` (right). Sticky on scroll. Subtle border-bottom on scroll.
+1. **Nav bar** — "ModelTrust" wordmark (left), anchor links "Features" and "How It Works" (center-right), "Log In" button linking to `/login` (right). Sticky on scroll with static border-bottom.
 2. **Hero** — centered headline, subheading, primary CTA button "Request Beta Access" (smooth-scrolls to signup form).
 3. **Features** — 4 cards in a row: Multi-Model Evaluation, Benchmark Question Types, Cost & Token Tracking, Side-by-Side Comparison. Each card: title, 1-2 sentence description.
 4. **How It Works** — 3 steps in a horizontal flow: Create Evaluation → Select Models → Analyze Results. Each step: number, title, short description. Connected by arrow/line indicators.
@@ -24,7 +24,8 @@ Replace the current `src/app/page.tsx` redirect with a public landing page. Rout
 ### SEO & Crawlability
 
 - Server component — full HTML rendered server-side, no client JS required for content
-- Metadata export: title ("ModelTrust — AI Model Evaluation & Trust Scoring"), description, Open Graph tags (og:title, og:description, og:type), Twitter card tags
+- Metadata export: title ("ModelTrust — AI Model Evaluation & Trust Scoring"), description, Open Graph tags (og:title, og:description, og:type, og:url), Twitter card tags (twitter:card, twitter:title, twitter:description)
+- `og:image` and `twitter:image` are out of scope for v1 — no OG image asset exists yet. Can be added later as `public/og-image.png` (recommended 1200x630px).
 - Semantic HTML: `<header>`, `<main>`, `<section>` with ids for anchor links, `<footer>`
 - Single `<h1>` (hero headline), `<h2>` for section titles
 - `public/robots.txt` allowing all crawlers
@@ -38,8 +39,8 @@ Replace the current `src/app/page.tsx` redirect with a public landing page. Rout
 |------|------|---------|
 | `src/app/page.tsx` | Server component | Landing page — replaces redirect. Renders all sections. Exports metadata. |
 | `src/app/privacy/page.tsx` | Server component | Privacy policy prose page. Exports metadata. |
-| `src/app/beta-signup-form.tsx` | Client component | Beta form with useActionState, validation, success/error states. |
-| `src/app/beta/actions.ts` | Server action | Validate input, store BetaSignup, send notification email. |
+| `src/app/beta-signup-form.tsx` | Client component | Beta form with useActionState, success/error states. |
+| `src/app/actions.ts` | Server action | Validate input (via betaSignupSchema from @/lib/schemas), store BetaSignup, log notification. |
 | `public/robots.txt` | Static file | Allow all crawlers. |
 
 ### Modified files
@@ -47,6 +48,9 @@ Replace the current `src/app/page.tsx` redirect with a public landing page. Rout
 | File | Changes |
 |------|---------|
 | `prisma/schema.prisma` | Add `SignupStatus` enum and `BetaSignup` model |
+| `prisma/migrations/` | New migration for BetaSignup table (via `pnpm prisma:migrate`) |
+| `src/lib/schemas.ts` | Add `betaSignupSchema` Zod schema |
+| `src/lib/env.ts` | Add `getBetaNotifyEmail()` optional accessor |
 | `.env.example` | Add `BETA_NOTIFY_EMAIL` variable |
 
 ### What stays unchanged
@@ -74,18 +78,41 @@ model BetaSignup {
   role      String?
   status    SignupStatus  @default(PENDING)
   createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@index([status])
 }
 ```
 
-### Server action (`src/app/beta/actions.ts`)
+### Zod schema (in `src/lib/schemas.ts`)
+
+```typescript
+export const betaSignupSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  company: z.string().max(200).optional(),
+  role: z.string().max(100).optional(),
+});
+```
+
+### Env accessor (in `src/lib/env.ts`)
+
+```typescript
+export function getBetaNotifyEmail(): string | undefined {
+  const val = optionalEnv("BETA_NOTIFY_EMAIL");
+  return val || undefined;
+}
+```
+
+### Server action (`src/app/actions.ts`)
 
 - `"use server"` directive
-- Validates with Zod: email (required, valid format), name (required, 1-100 chars), company (optional, max 200), role (optional, max 100)
+- Imports `betaSignupSchema` from `@/lib/schemas`
+- Imports `getBetaNotifyEmail` from `@/lib/env`
+- Validates input with `betaSignupSchema.safeParse()`
 - Creates `BetaSignup` row via Prisma
 - Catches unique constraint on email — returns `{ success: false, error: "This email is already on the waitlist." }`
-- Sends notification: if `BETA_NOTIFY_EMAIL` env var is set, sends a simple notification (implementation: log to console for now — email transport is out of scope for v1). This is a hook point for adding Resend/SendGrid/SES later.
+- Sends notification: if `getBetaNotifyEmail()` returns a value, logs to console for v1 (hook point for Resend/SendGrid/SES later)
 - Returns `{ success: true }` or `{ success: false, error: string }`
 
 ### Form component (`src/app/beta-signup-form.tsx`)
@@ -97,7 +124,7 @@ model BetaSignup {
 - **Success state:** form replaced with confirmation message ("You're on the list. We'll be in touch.")
 - **Error state:** inline red error text above submit button
 - All inputs use existing shadcn/ui `Input` and `Label` components
-- Zod validation also runs client-side for immediate feedback
+- Validation is server-side only (matching the login page pattern). No client-side Zod import — avoids bundling Zod into the client and keeps the pattern consistent.
 
 ## 4. Privacy Policy
 
@@ -109,7 +136,7 @@ Route: `/privacy`. Server component. Same dark theme as landing page.
 
 ### Content sections:
 
-**Google Analytics**
+**Google Analytics** (already implemented in `src/app/layout.tsx` via PR #58)
 - ModelTrust uses Google Analytics 4 (measurement ID: G-04WT0TYQDD) to understand how visitors use the site
 - Data collected: pages visited, interaction events (evaluation creation, question type selection), browser type, device information, approximate location
 - IP addresses are anonymized by Google Analytics
@@ -134,7 +161,7 @@ Route: `/privacy`. Server component. Same dark theme as landing page.
 - We do not share personal data with third parties except as required to operate the service (Google Analytics) or as required by law
 
 **Contact**
-- For privacy questions or data removal requests, contact information provided (email address from env var or hardcoded)
+- For privacy questions or data removal requests, email: privacy@modeltrust.ai (hardcoded in the page — no env var needed for a static page)
 
 ### Copy quality
 
@@ -170,7 +197,7 @@ Use the blog-editor skill during implementation to ensure the privacy policy cop
 
 - Sticky: `sticky top-0 z-40`
 - Background with blur: `bg-zinc-950/80 backdrop-blur-sm`
-- Border appears on scroll (optional progressive enhancement)
+- Always show a subtle `border-b border-zinc-800` — no scroll detection needed. Keeps the nav as a server component.
 
 ### Responsive
 
