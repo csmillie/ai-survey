@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { betaSignupSchema } from "@/lib/schemas";
 import { getBetaNotifyEmail } from "@/lib/env";
+import { encryptEmail, hashEmail } from "@/lib/encryption";
 
 interface BetaSignupState {
   success?: boolean;
@@ -27,10 +28,14 @@ export async function betaSignupAction(
     };
   }
 
+  const emailForStorage = encryptEmail(parsed.data.email);
+  const emailForDedup = hashEmail(parsed.data.email);
+
   try {
     await prisma.betaSignup.create({
       data: {
-        email: parsed.data.email,
+        email: emailForStorage,
+        emailHash: emailForDedup,
         name: parsed.data.name,
         company: parsed.data.company,
         role: parsed.data.role,

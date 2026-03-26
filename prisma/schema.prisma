@@ -464,7 +464,8 @@ enum SignupStatus {
 
 model BetaSignup {
   id        String       @id @default(uuid())
-  email     String       @unique
+  email     String                            // encrypted if EMAIL_ENCRYPTION_KEY is set
+  emailHash String       @unique              // SHA-256 hash for dedup (always deterministic)
   name      String
   company   String?
   role      String?

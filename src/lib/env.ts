@@ -107,6 +107,11 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
+export function getEmailEncryptionKey(): string | undefined {
+  const val = optionalEnv("EMAIL_ENCRYPTION_KEY", "");
+  return val || undefined;
+}
+
 export function getBetaNotifyEmail(): string | undefined {
   const val = optionalEnv("BETA_NOTIFY_EMAIL", "");
   return val || undefined;
