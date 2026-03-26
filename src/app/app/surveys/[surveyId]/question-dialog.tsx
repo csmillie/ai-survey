@@ -466,7 +466,7 @@ export function QuestionDialog({
                   ? "Saving..."
                   : isEdit
                     ? "Save"
-                    : "Add Prompt"}
+                    : "Add Question"}
               </Button>
             </div>
           </div>

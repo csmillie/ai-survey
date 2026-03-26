@@ -197,7 +197,7 @@ export function ConfigMatrixLikert({ value, onChange }: ConfigEditorProps): Reac
 
         {/* Info note */}
         <div className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
-          Matrix rows are defined by the prompt template. Each row gets the same scale columns.
+          Matrix rows are defined by the question template. Each row gets the same scale columns.
         </div>
       </div>
     </ConfigJsonEditor>

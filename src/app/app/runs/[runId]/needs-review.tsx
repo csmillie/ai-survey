@@ -60,7 +60,7 @@ export function NeedsReview({
           >
             {totalFlagged}
           </Badge>
-          Prompt{totalFlagged === 1 ? "" : "s"} Flagged for Review
+          Question{totalFlagged === 1 ? "" : "s"} Flagged for Review
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -122,7 +122,7 @@ export function NeedsReview({
           })}
           {totalFlagged > 5 && (
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              +{totalFlagged - 5} more flagged prompt{totalFlagged - 5 === 1 ? "" : "s"}
+              +{totalFlagged - 5} more flagged question{totalFlagged - 5 === 1 ? "" : "s"}
             </p>
           )}
         </div>

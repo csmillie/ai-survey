@@ -217,7 +217,7 @@ function DeleteEvaluationDialog({ surveyId }: { surveyId: string }) {
             <DialogTitle>Delete Evaluation?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            This will permanently delete the evaluation and all of its prompts,
+            This will permanently delete the evaluation and all of its questions,
             runs, and results. This action cannot be undone.
           </p>
           <DialogFooter>
@@ -341,19 +341,19 @@ function QuestionsTab({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
-          <CardTitle className="text-xl">Decision Prompts</CardTitle>
+          <CardTitle className="text-xl">Decision Questions</CardTitle>
           <CardDescription>
-            Define the prompts that will be sent to AI models.
+            Define the questions that will be sent to AI models.
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={() => setAddDialogOpen(true)}>
-          Add Prompt
+          Add Question
         </Button>
       </CardHeader>
       <CardContent>
         {questions.length === 0 ? (
           <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-            No decision prompts yet. Add your first prompt to get started.
+            No decision questions yet. Add your first question to get started.
           </p>
         ) : (
           <Table>
@@ -361,7 +361,7 @@ function QuestionsTab({
               <TableRow>
                 <TableHead className="w-[50px]">#</TableHead>
                 <TableHead>Title</TableHead>
-                <TableHead>Prompt Preview</TableHead>
+                <TableHead>Question Preview</TableHead>
                 <TableHead className="text-center">Type</TableHead>
                 <TableHead className="text-center">Mode</TableHead>
                 <TableHead className="w-[140px]">Actions</TableHead>
@@ -494,7 +494,7 @@ function VariablesTab({
       <CardHeader>
         <CardTitle className="text-xl">Variables</CardTitle>
         <CardDescription>
-          Define variables that can be substituted into prompt templates using{" "}
+          Define variables that can be substituted into question templates using{" "}
           {"{{key}}"} syntax.
         </CardDescription>
       </CardHeader>
