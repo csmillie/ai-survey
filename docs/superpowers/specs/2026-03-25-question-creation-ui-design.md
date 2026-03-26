@@ -42,10 +42,11 @@ Each type gets a dedicated visual editor in the right panel. All benchmark types
 Empty state message: "No configuration required for open-ended questions. The model will respond with freeform text." No form fields.
 
 ### Ranked
-- **Preset pills:** 0–5, 0–10, 0–100, Custom
-- **Editable inputs:** Min, Max (number inputs)
+- **Preset pills:** 0–5, 0–10, 0–100. Selecting a preset sets min/max and stores the corresponding `scalePreset` value (`"0-5"`, `"0-10"`, `"0-100"`) as required by `rankedConfigSchema`. No "Custom" option — the schema only accepts these three preset keys.
+- **Editable inputs:** Min, Max (number inputs) — editable after selecting a preset, but `scalePreset` stays as the originally selected key.
 - **Visual preview:** Gradient bar with labeled endpoints
 - **Checkbox:** Include reasoning
+- **No "Show JSON" toggle** — Ranked is a legacy type, not a benchmark type.
 
 ### Single Select
 - **Editable option rows:** Each row has drag handle, label, value, score, X to remove
@@ -61,6 +62,7 @@ Empty state message: "No configuration required for open-ended questions. The mo
 ### Forced Choice
 - **Two "Pole" cards** side-by-side separated by "vs" divider
 - Each pole has editable fields: label, value, score
+- **Optional pole label fields:** `poleALabel` and `poleBLabel` text inputs above each card (maps to optional fields in `forcedChoiceConfigSchema`)
 - No presets — always custom content
 
 ### Likert
@@ -81,10 +83,10 @@ Empty state message: "No configuration required for open-ended questions. The mo
 ## 4. Shared Behaviors
 
 ### Auto-generated values
-When a user types a label (e.g., "Strongly agree"), the `value` field auto-generates a slug (`strongly_agree`). Users can click to override. Scores auto-increment based on row position (top row = highest score).
+When a user types a label (e.g., "Strongly agree"), the `value` field auto-generates a slug: trim, lowercase, replace spaces with underscores, strip non-alphanumeric characters except underscores. Users can click to override. Scores auto-increment based on row position (top row = highest score).
 
 ### Preset interaction
-Selecting a preset replaces all current options with the preset's defaults. If the user has made edits, show a brief inline confirmation: "Replace current options with preset?" — not a modal popup.
+Selecting a preset replaces all current options/values with the preset's defaults. If the user has made edits, show a brief inline confirmation: "Replace current options with preset?" — not a modal popup. Applies to all types with presets: Ranked (replaces min/max), Binary (replaces both options), Likert (replaces all option rows), Matrix Likert (replaces column options).
 
 ### Show JSON toggle
 - Flips the visual form to a monospace JSON textarea showing the current config serialized as JSON
@@ -97,10 +99,10 @@ The "Add Prompt" / "Save" button is disabled until:
 1. Prompt text is non-empty
 2. Type config is valid:
    - Binary / Forced Choice: exactly 2 options
-   - Single Select: at least 1 option
-   - Likert: options count matches 4, 5, or 7
+   - Single Select: at least 2 options (per `singleSelectConfigSchema`)
+   - Likert: options count matches 4, 5, or 7. The `points` field is auto-derived from `options.length` at submission time — no separate points selector in the UI.
    - Numeric Scale / Ranked: min < max
-   - Matrix Likert: at least 1 column option + non-empty stem
+   - Matrix Likert: at least 2 column options (per `matrixLikertConfigSchema`) + non-empty stem
 
 ### Edit mode
 Clicking "Edit" on an existing question opens the same dialog (not an inline table row), pre-populated with all current values. The dialog title changes to "Edit Decision Prompt" and the submit button label changes to "Save".
@@ -135,6 +137,22 @@ interface ConfigEditorProps {
 }
 ```
 
+Each config editor is responsible for producing a config object that matches its Zod schema. The parent `question-dialog.tsx` validates the assembled config through the appropriate Zod schema (from `src/lib/schemas.ts`) before calling the server action. This ensures no unsafe casts — the dialog dispatches to the correct schema based on the selected question type.
+
+### QuestionDialog props
+
+```ts
+interface QuestionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  surveyId: string;
+  existingQuestions: Array<{ threadKey: string | null }>; // for thread key enumeration
+  editQuestion?: QuestionData; // if present, dialog is in edit mode
+}
+```
+
+The `existingQuestions` prop provides thread key options for the Threaded mode selector — matching the current logic in `survey-builder.tsx`.
+
 ### Changes to existing files
 
 - **`survey-builder.tsx`**: Remove the add dialog JSX, the `BenchmarkConfigEditor` component, and the `QuestionEditRow` inline form. Replace with `<QuestionDialog>` calls for both add and edit flows. The questions table, variable tab, and share tab remain.
@@ -151,9 +169,10 @@ interface ConfigEditorProps {
 Presets are static arrays defined in a new constants file or colocated in each config editor. They are not stored in the database — they're UI-only shortcuts that populate the config form.
 
 ### Ranked presets
-- 0–5 (min: 0, max: 5)
-- 0–10 (min: 0, max: 10)
-- 0–100 (min: 0, max: 100)
+Each preset maps to a required `scalePreset` key in the schema:
+- 0–5: `{scalePreset: "0-5", scaleMin: 0, scaleMax: 5}`
+- 0–10: `{scalePreset: "0-10", scaleMin: 0, scaleMax: 10}`
+- 0–100: `{scalePreset: "0-100", scaleMin: 0, scaleMax: 100}`
 
 ### Binary presets
 - Yes/No: `[{label: "Yes", value: "yes", numericValue: 1}, {label: "No", value: "no", numericValue: 0}]`
@@ -170,7 +189,15 @@ Presets are static arrays defined in a new constants file or colocated in each c
 - 3-pt Amount: A great deal (3), Only some (2), Hardly any (1)
 - 5-pt Agree: Same as Likert 5-pt Agree/Disagree
 
-## 7. Out of Scope
+## 7. Accessibility
+
+- **Type sidebar:** Rendered as `role="listbox"` with `role="option"` items. Selected item has `aria-selected="true"`.
+- **Option rows reorder:** Drag handles are supplemented with keyboard-accessible up/down arrow buttons (visible on focus) for reordering. Each row has `aria-label` describing its position (e.g., "Option 1 of 5: Strongly agree").
+- **Show JSON toggle:** Uses `aria-expanded` to indicate whether the JSON editor is visible.
+- **Preset pills:** Rendered as a `role="radiogroup"` with `role="radio"` items.
+- **Dialog close on dirty state:** Closing the dialog silently discards changes (matching current behavior). No dirty-state warning — this is intentional to keep the flow fast.
+
+## 8. Out of Scope
 
 - Drag-to-reorder questions in the questions table (separate feature)
 - Custom theme/styling for the dialog beyond the 80vw width change
