@@ -455,3 +455,22 @@ enum VerificationStatus {
   VERIFIED
   INACCURATE
 }
+
+enum SignupStatus {
+  PENDING
+  INVITED
+  ONBOARDED
+}
+
+model BetaSignup {
+  id        String       @id @default(uuid())
+  email     String       @unique
+  name      String
+  company   String?
+  role      String?
+  status    SignupStatus  @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([status])
+}
