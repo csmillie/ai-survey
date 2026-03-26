@@ -73,8 +73,8 @@ export function ConfigJsonEditor({
 
   if (showJson) {
     return (
-      <div className="relative">
-        <div className="absolute top-0 right-0 z-10">
+      <div>
+        <div className="flex justify-end mb-3">
           <Button
             variant="outline"
             size="sm"
@@ -84,7 +84,7 @@ export function ConfigJsonEditor({
             Show Visual
           </Button>
         </div>
-        <div className="pt-10">
+        <div>
           <Textarea
             className="font-mono text-xs"
             rows={12}
@@ -101,8 +101,8 @@ export function ConfigJsonEditor({
   }
 
   return (
-    <div className="relative">
-      <div className="absolute top-0 right-0 z-10">
+    <div>
+      <div className="flex justify-end mb-3">
         <Button
           variant="outline"
           size="sm"
