@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ObfuscatedEmail } from "@/app/privacy/obfuscated-email";
 
 export const metadata: Metadata = {
   title: "Privacy Policy: ModelTrust",
@@ -82,13 +83,7 @@ export default function PrivacyPage(): React.ReactElement {
           <h2 className="text-xl font-semibold mt-10 mb-4">Contact</h2>
           <p className="text-zinc-400 leading-relaxed mb-4">
             For privacy questions or data removal requests, contact us at{" "}
-            <a
-              href="mailto:privacy@modeltrust.ai"
-              className="text-zinc-50 underline hover:text-zinc-300"
-            >
-              privacy@modeltrust.ai
-            </a>
-            .
+            <ObfuscatedEmail />.
           </p>
         </article>
       </main>
