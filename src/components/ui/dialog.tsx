@@ -106,7 +106,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
           onClick={() => onOpenChange(false)}
         />
         {/* Content */}
-        <div className="fixed inset-0 flex items-center justify-center p-4">
+        <div className="fixed inset-0 flex items-center justify-center p-2">
           <div
             ref={ref}
             className={cn(
