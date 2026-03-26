@@ -24,6 +24,7 @@ import {
 import type { QuestionData, MatrixRowData } from "@/app/app/surveys/[surveyId]/question-presets";
 import { labelToSlug } from "@/app/app/surveys/[surveyId]/question-presets";
 import { addQuestionAction, updateQuestionAction, syncMatrixRowsAction } from "./actions";
+import { trackQuestionCreated, trackQuestionTypeSelected } from "@/lib/analytics";
 import {
   rankedConfigSchema,
   singleSelectConfigSchema,
@@ -176,6 +177,7 @@ export function QuestionDialog({
       setConfig(DEFAULT_CONFIGS[type] ?? {});
       setConfigValid(true);
       setError(null);
+      trackQuestionTypeSelected(type);
     },
     []
   );
@@ -272,6 +274,9 @@ export function QuestionDialog({
             }));
             await syncMatrixRowsAction(surveyId, questionId, rowsToSync);
           }
+        }
+        if (!isEdit) {
+          trackQuestionCreated(selectedType);
         }
         onOpenChange(false);
       } else {
