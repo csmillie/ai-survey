@@ -326,7 +326,7 @@ export function QuestionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-7xl max-h-[85vh] flex flex-col p-0">
+      <DialogContent className="w-[90vw] max-w-7xl h-[85vh] flex flex-col p-0">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-0">
           <DialogTitle>
