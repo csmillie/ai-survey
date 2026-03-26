@@ -110,7 +110,8 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
           <div
             ref={ref}
             className={cn(
-              "relative z-50 w-full max-w-lg rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-6 shadow-lg",
+              "relative z-50 w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-6 shadow-lg",
+              className?.includes("max-w-") ? "" : "max-w-lg",
               className
             )}
             {...props}
