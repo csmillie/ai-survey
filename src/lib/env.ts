@@ -106,3 +106,8 @@ export function getMaxConcurrentRunsPerUser(): number {
 export function isProduction(): boolean {
   return process.env.NODE_ENV === "production";
 }
+
+export function getBetaNotifyEmail(): string | undefined {
+  const val = optionalEnv("BETA_NOTIFY_EMAIL", "");
+  return val || undefined;
+}

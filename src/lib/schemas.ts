@@ -35,6 +35,19 @@ export const loginSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 
 // ---------------------------------------------------------------------------
+// Beta Signup
+// ---------------------------------------------------------------------------
+
+export const betaSignupSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(100),
+  company: z.string().max(200).optional(),
+  role: z.string().max(100).optional(),
+});
+
+export type BetaSignupInput = z.infer<typeof betaSignupSchema>;
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
