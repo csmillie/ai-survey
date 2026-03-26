@@ -221,6 +221,13 @@ export const BENCHMARK_TYPES = ["SINGLE_SELECT", "BINARY", "FORCED_CHOICE", "LIK
 // QuestionData — moved from survey-builder.tsx for sharing with question-dialog.tsx
 // ---------------------------------------------------------------------------
 
+export interface MatrixRowData {
+  id: string;
+  rowKey: string;
+  label: string;
+  order: number;
+}
+
 export interface QuestionData {
   id: string;
   title: string;
@@ -230,4 +237,5 @@ export interface QuestionData {
   order: number;
   type: string;
   configJson: Record<string, unknown> | null;
+  matrixRows?: MatrixRowData[];
 }

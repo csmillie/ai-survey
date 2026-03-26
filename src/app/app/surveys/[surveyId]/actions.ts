@@ -30,8 +30,9 @@ import {
 // Action result type
 // ---------------------------------------------------------------------------
 
-interface ActionResult {
+export interface ActionResult {
   success: boolean;
+  questionId?: string;
   error?: string;
 }
 
@@ -71,7 +72,7 @@ export async function updateSurveyAction(surveyId: string, formData: FormData): 
   return { success: true };
 }
 
-// ---------------------------------------------------------------------------
+// --------------------------------------------------------------------------
 // Questions
 // ---------------------------------------------------------------------------
 
@@ -145,7 +146,7 @@ export async function addQuestionAction(surveyId: string, formData: FormData): P
   });
 
   revalidatePath(`/app/surveys/${surveyId}`);
-  return { success: true };
+  return { success: true, questionId: question.id };
 }
 
 export async function updateQuestionAction(
@@ -410,6 +411,48 @@ export async function removeShareAction(surveyId: string, shareId: string): Prom
     targetId: shareId,
     meta: { surveyId },
   });
+
+  revalidatePath(`/app/surveys/${surveyId}`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Matrix Rows
+// ---------------------------------------------------------------------------
+
+interface MatrixRowInput {
+  rowKey: string;
+  label: string;
+  order: number;
+}
+
+export async function syncMatrixRowsAction(
+  surveyId: string,
+  questionId: string,
+  rows: MatrixRowInput[],
+): Promise<ActionResult> {
+  const session = await requireSession();
+  await requireSurveyAccess(session.userId, surveyId, "EDIT");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.matrixRow.deleteMany({ where: { questionId } });
+
+      if (rows.length > 0) {
+        await tx.matrixRow.createMany({
+          data: rows.map((r) => ({
+            questionId,
+            rowKey: r.rowKey,
+            label: r.label,
+            order: r.order,
+          })),
+        });
+      }
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return { success: false, error: `Failed to update matrix rows: ${message}` };
+  }
 
   revalidatePath(`/app/surveys/${surveyId}`);
   return { success: true };

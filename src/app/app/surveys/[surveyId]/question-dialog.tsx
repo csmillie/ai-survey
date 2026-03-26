@@ -21,8 +21,9 @@ import { ConfigMatrixLikert } from "@/app/app/surveys/[surveyId]/config-matrix-l
 import {
   DEFAULT_CONFIGS,
 } from "@/app/app/surveys/[surveyId]/question-presets";
-import type { QuestionData } from "@/app/app/surveys/[surveyId]/question-presets";
-import { addQuestionAction, updateQuestionAction } from "./actions";
+import type { QuestionData, MatrixRowData } from "@/app/app/surveys/[surveyId]/question-presets";
+import { labelToSlug } from "@/app/app/surveys/[surveyId]/question-presets";
+import { addQuestionAction, updateQuestionAction, syncMatrixRowsAction } from "./actions";
 import {
   rankedConfigSchema,
   singleSelectConfigSchema,
@@ -102,6 +103,9 @@ export function QuestionDialog({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [matrixRows, setMatrixRows] = useState<MatrixRowData[]>(
+    editQuestion?.matrixRows ?? []
+  );
 
   // Thread key state
   const existingThreadKeys = useMemo(
@@ -140,6 +144,7 @@ export function QuestionDialog({
     setConfigValid(true);
     setError(null);
     setSubmitting(false);
+    setMatrixRows(editQuestion?.matrixRows ?? []);
 
     const editMode = editQuestion?.mode === "THREADED" ? "THREADED" : "STATELESS";
     setMode(editMode);
@@ -242,7 +247,7 @@ export function QuestionDialog({
         formData.set("configJson", JSON.stringify(config));
       }
 
-      let result: { success: boolean; error?: string };
+      let result: { success: boolean; error?: string; questionId?: string };
       if (isEdit && editQuestion) {
         const boundUpdate = updateQuestionAction.bind(
           null,
@@ -256,6 +261,18 @@ export function QuestionDialog({
       }
 
       if (result.success) {
+        // Sync matrix rows if this is a MATRIX_LIKERT question
+        if (selectedType === "MATRIX_LIKERT" && matrixRows.length > 0) {
+          const questionId = isEdit && editQuestion ? editQuestion.id : result.questionId;
+          if (questionId) {
+            const rowsToSync = matrixRows.map((r, i) => ({
+              rowKey: r.rowKey || labelToSlug(r.label) || `row_${i}`,
+              label: r.label,
+              order: i,
+            }));
+            await syncMatrixRowsAction(surveyId, questionId, rowsToSync);
+          }
+        }
         onOpenChange(false);
       } else {
         setError(result.error ?? "An unknown error occurred.");
@@ -275,6 +292,7 @@ export function QuestionDialog({
     editQuestion,
     surveyId,
     onOpenChange,
+    matrixRows,
   ]);
 
   // ---- config panel renderer ----
@@ -310,7 +328,12 @@ export function QuestionDialog({
         );
       case "MATRIX_LIKERT":
         return (
-          <ConfigMatrixLikert value={config} onChange={handleConfigChange} />
+          <ConfigMatrixLikert
+            value={config}
+            onChange={handleConfigChange}
+            matrixRows={matrixRows}
+            onMatrixRowsChange={setMatrixRows}
+          />
         );
       default:
         return (

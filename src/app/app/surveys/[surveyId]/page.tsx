@@ -29,6 +29,7 @@ export default async function SurveyDetailPage({
     include: {
       questions: {
         orderBy: { order: "asc" },
+        include: { matrixRows: { orderBy: { order: "asc" } } },
       },
       variables: {
         orderBy: { createdAt: "asc" },
