@@ -326,26 +326,24 @@ export function QuestionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[90vw] max-w-7xl h-[85vh] flex flex-col p-0">
-        {/* Header + prompt combined */}
-        <div className="border-b px-6 py-3">
-          <div className="flex items-center gap-3">
-            <DialogHeader className="p-0">
-              <DialogTitle className="text-sm font-medium whitespace-nowrap">
-                Question:
-              </DialogTitle>
-            </DialogHeader>
-            <Textarea
-              id="qd-prompt"
-              value={promptText}
-              onChange={(e) => {
-                setPromptText(e.target.value);
-                setError(null);
-              }}
-              placeholder="e.g., What do you think about {{brand}}? Use {{variable_name}} for substitution."
-              rows={1}
-              className="min-h-0 resize-y"
-            />
-          </div>
+        {/* Header */}
+        <DialogHeader className="px-6 pt-4 pb-0">
+          <DialogTitle className="text-sm font-medium">Question:</DialogTitle>
+        </DialogHeader>
+
+        {/* Prompt textarea */}
+        <div className="border-b px-6 pb-3 pt-2">
+          <Textarea
+            id="qd-prompt"
+            value={promptText}
+            onChange={(e) => {
+              setPromptText(e.target.value);
+              setError(null);
+            }}
+            placeholder="e.g., What do you think about {{brand}}? Use {{variable_name}} for substitution."
+            rows={1}
+            className="min-h-0 resize-y"
+          />
         </div>
 
         {/* Middle zone: sidebar + config panel */}
