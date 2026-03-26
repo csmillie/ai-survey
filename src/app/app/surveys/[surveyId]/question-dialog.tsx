@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { TypeSidebar } from "@/app/app/surveys/[surveyId]/type-sidebar";
 import { ConfigRanked } from "@/app/app/surveys/[surveyId]/config-ranked";
@@ -327,31 +326,26 @@ export function QuestionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[90vw] max-w-7xl h-[85vh] flex flex-col p-0">
-        {/* Header */}
-        <DialogHeader className="px-6 pt-6 pb-0">
-          <DialogTitle>
-            {isEdit ? "Edit Decision Prompt" : "Add Decision Prompt"}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Top zone: prompt textarea */}
-        <div className="border-b px-6 py-4">
-          <Label htmlFor="qd-prompt" className="mb-2 block">
-            Prompt
-          </Label>
-          <Textarea
-            id="qd-prompt"
-            value={promptText}
-            onChange={(e) => {
-              setPromptText(e.target.value);
-              setError(null);
-            }}
-            placeholder="e.g., What do you think about {{brand}}?"
-            rows={3}
-          />
-          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            Use {"{{variable_name}}"} syntax for variable substitution.
-          </p>
+        {/* Header + prompt combined */}
+        <div className="border-b px-6 py-3">
+          <div className="flex items-center gap-3">
+            <DialogHeader className="p-0">
+              <DialogTitle className="text-sm font-medium whitespace-nowrap">
+                Question:
+              </DialogTitle>
+            </DialogHeader>
+            <Textarea
+              id="qd-prompt"
+              value={promptText}
+              onChange={(e) => {
+                setPromptText(e.target.value);
+                setError(null);
+              }}
+              placeholder="e.g., What do you think about {{brand}}? Use {{variable_name}} for substitution."
+              rows={1}
+              className="min-h-0 resize-y"
+            />
+          </div>
         </div>
 
         {/* Middle zone: sidebar + config panel */}
