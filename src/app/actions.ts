@@ -36,13 +36,13 @@ export async function betaSignupAction(
         role: parsed.data.role,
       },
     });
-  } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message.includes("Unique constraint")
-    ) {
+  } catch (err: unknown) {
+    // Prisma unique constraint: P2002
+    const prismaError = err as { code?: string };
+    if (prismaError.code === "P2002") {
       return { error: "This email is already on the waitlist." };
     }
+    console.error("[beta-signup] Error:", err);
     return { error: "Something went wrong. Please try again." };
   }
 
