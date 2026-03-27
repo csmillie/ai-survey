@@ -22,7 +22,7 @@ const jsonLd = {
   publisher: {
     "@type": "Organization",
     name: "ModelTrust",
-    url: "https://modeltrust.ai",
+    url: "https://modeltrust.app",
   },
 };
 

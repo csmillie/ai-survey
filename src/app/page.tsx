@@ -476,8 +476,8 @@ export default function HomePage(): React.ReactElement {
               Frequently Asked Questions
             </h2>
             <div className="space-y-8">
-              {FAQ_ITEMS.map((item, i) => (
-                <div key={i}>
+              {FAQ_ITEMS.map((item) => (
+                <div key={item.question}>
                   <h3 className="text-lg font-semibold mb-2">{item.question}</h3>
                   <p className="text-zinc-400 leading-relaxed">{item.answer}</p>
                 </div>

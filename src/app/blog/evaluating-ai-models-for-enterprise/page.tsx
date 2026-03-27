@@ -8,8 +8,7 @@ export const metadata: Metadata = {
     "Generic benchmarks tell you how a model performs on average. Enterprise deployment requires knowing how it performs on your specific problems.",
 };
 
-export default function EvaluatingAiModelsForEnterprisePage(): React.ReactElement {
-  const jsonLd = {
+const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: "How to Evaluate AI Models for Enterprise Use",
@@ -25,10 +24,11 @@ export default function EvaluatingAiModelsForEnterprisePage(): React.ReactElemen
     publisher: {
       "@type": "Organization",
       name: "ModelTrust",
-      url: "https://modeltrust.ai",
+      url: "https://modeltrust.app",
     },
-  };
+};
 
+export default function EvaluatingAiModelsForEnterprisePage(): React.ReactElement {
   return (
     <BlogLayout>
       <script
