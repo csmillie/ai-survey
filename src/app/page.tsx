@@ -216,6 +216,12 @@ export default function HomePage(): React.ReactElement {
               FAQ
             </a>
             <Link
+              href="/blog"
+              className="text-sm text-zinc-400 hover:text-zinc-50"
+            >
+              Blog
+            </Link>
+            <Link
               href="/login"
               className="text-sm px-4 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700"
             >
@@ -501,6 +507,12 @@ export default function HomePage(): React.ReactElement {
             © 2026 ModelTrust. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
+            <Link
+              href="/blog"
+              className="text-sm text-zinc-400 hover:text-zinc-50"
+            >
+              Blog
+            </Link>
             <Link
               href="/privacy"
               className="text-sm text-zinc-400 hover:text-zinc-50"
