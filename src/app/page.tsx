@@ -114,6 +114,49 @@ const jsonLd = {
         },
       })),
     },
+    {
+      "@type": "DefinedTermSet",
+      "@id": "https://modeltrust.app/#glossary",
+      name: "AI Model Evaluation Glossary",
+      hasDefinedTerm: [
+        {
+          "@type": "DefinedTerm",
+          name: "AI Model Evaluation",
+          description:
+            "The systematic process of testing language models against defined questions to measure accuracy, consistency, and reliability for specific use cases.",
+        },
+        {
+          "@type": "DefinedTerm",
+          name: "Trust Score",
+          description:
+            "A quantified reliability metric calculated from response consistency, output validity, calibration accuracy, and agreement with other models.",
+        },
+        {
+          "@type": "DefinedTerm",
+          name: "AI Model Reliability",
+          description:
+            "The degree to which an AI model produces consistent, well-formed, and accurate outputs across repeated queries.",
+        },
+        {
+          "@type": "DefinedTerm",
+          name: "Model Agreement",
+          description:
+            "When multiple AI models converge on the same answer to a given question, indicating higher confidence in the result.",
+        },
+        {
+          "@type": "DefinedTerm",
+          name: "Model Disagreement",
+          description:
+            "When AI model outputs diverge on the same question, signaling uncertainty that may require human review.",
+        },
+        {
+          "@type": "DefinedTerm",
+          name: "Benchmark Evaluation",
+          description:
+            "A structured evaluation using standardized question types (Likert scales, binary choices, forced comparisons) that produce quantifiable, comparable results.",
+        },
+      ],
+    },
   ],
 };
 
@@ -189,10 +232,13 @@ export default function HomePage(): React.ReactElement {
             <h1 className="text-5xl sm:text-6xl font-bold tracking-tight">
               Which AI model can you actually trust?
             </h1>
-            <p className="mt-6 text-lg text-zinc-400 max-w-2xl mx-auto">
-              Run the same questions across multiple AI models. See where they
-              agree, where they diverge, and decide which one earns your
-              confidence.
+            <p className="mt-6 text-base text-zinc-300 max-w-2xl mx-auto leading-relaxed">
+              ModelTrust is an AI model evaluation platform that runs the same
+              questions across GPT-4, Claude, Gemini, and other models
+              simultaneously. It uses structured benchmarks (Likert scales,
+              binary choices, and forced comparisons) to measure reliability,
+              detect disagreement, and track cost per query, so organizations
+              can make evidence-based decisions about which AI to deploy.
             </p>
             <a
               href="#beta"
@@ -200,6 +246,114 @@ export default function HomePage(): React.ReactElement {
             >
               Request Beta Access
             </a>
+          </div>
+        </section>
+
+        {/* Key Concepts */}
+        <section id="concepts" className="py-24 border-t border-zinc-800">
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className="text-3xl font-bold text-center mb-4">
+              The Problem with Trusting AI
+            </h2>
+            <p className="text-center text-zinc-400 mb-12 max-w-2xl mx-auto">
+              Every organization using AI faces the same question: which model
+              gives the right answer? Here are the concepts behind how
+              ModelTrust helps you find out.
+            </p>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-8">
+              <div>
+                <dt className="text-lg font-semibold mb-1">AI Model Evaluation</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  The systematic process of testing language models against
+                  defined questions to measure accuracy, consistency, and
+                  reliability. Rather than relying on generic benchmarks,
+                  model evaluation tests AI against your specific use cases
+                  and criteria.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-semibold mb-1">Trust Scoring</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  A quantified reliability metric calculated from a model&apos;s
+                  performance across an evaluation. Trust scores factor in
+                  response consistency, output validity, calibration accuracy,
+                  and agreement with other models to produce a single number
+                  that represents how much you can rely on a model&apos;s outputs.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-semibold mb-1">AI Model Reliability</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  The degree to which an AI model produces consistent,
+                  well-formed, and accurate outputs across repeated queries.
+                  Reliable models give similar answers to similar questions,
+                  format their outputs correctly, and avoid hallucination.
+                  Unreliable models produce inconsistent or contradictory
+                  responses that require constant human verification.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-semibold mb-1">Model Agreement and Disagreement</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  When multiple AI models are asked the same question,
+                  agreement means they converge on the same answer.
+                  Disagreement means their outputs diverge. High disagreement
+                  on a question is a signal that the answer is uncertain and
+                  may need human review. ModelTrust measures this
+                  automatically for every question in an evaluation.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-semibold mb-1">Benchmark Evaluation</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  A structured evaluation using standardized question types
+                  (Likert scales, binary choices, forced comparisons, numeric
+                  scales) that produce quantifiable, comparable results.
+                  Benchmark evaluations let you measure model performance
+                  with statistical rigor rather than subjective assessment.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-lg font-semibold mb-1">Human Review Signals</dt>
+                <dd className="text-sm text-zinc-400 leading-relaxed">
+                  Automatic flags that indicate when AI outputs should not be
+                  trusted without human verification. ModelTrust generates
+                  these signals when models disagree, when confidence is low,
+                  or when responses contain patterns associated with
+                  unreliable outputs. The goal is to focus human attention
+                  where it matters most.
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        {/* Why Structured Evaluation */}
+        <section className="py-24 border-t border-zinc-800">
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className="text-3xl font-bold text-center mb-4">
+              Why Not Just Ask ChatGPT?
+            </h2>
+            <p className="text-zinc-400 leading-relaxed mb-6 max-w-3xl mx-auto">
+              Ad hoc testing means asking a model a few questions and eyeballing
+              the answers. It feels productive, but it tells you almost nothing.
+              You have no baseline, no comparison, and no way to know if the
+              answer you got today will be the answer you get tomorrow.
+            </p>
+            <p className="text-zinc-400 leading-relaxed mb-6 max-w-3xl mx-auto">
+              Structured evaluation is different. You define specific questions,
+              run them across multiple models simultaneously, and measure the
+              results quantitatively. When three models agree on an answer and
+              one disagrees, that disagreement is a data point. When a model
+              scores 92% reliability on your evaluation but only 64% on
+              another, you know exactly where to trust it and where not to.
+            </p>
+            <p className="text-zinc-400 leading-relaxed max-w-3xl mx-auto">
+              ModelTrust exists because choosing an AI model for production
+              should be based on evidence, not gut feeling. Generic leaderboard
+              benchmarks test general knowledge. Your business needs are
+              specific. ModelTrust lets you test what actually matters to you.
+            </p>
           </div>
         </section>
 
