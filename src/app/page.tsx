@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     description:
       "Compare AI model outputs, measure reliability, detect disagreement, and know when human review is needed.",
     type: "website",
-    url: "https://modeltrust.ai",
+    url: "https://modeltrust.app",
   },
   twitter: {
     card: "summary",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
       "Compare AI model outputs, measure reliability, detect disagreement, and know when human review is needed.",
   },
   alternates: {
-    canonical: "https://modeltrust.ai",
+    canonical: "https://modeltrust.app",
   },
 };
 
