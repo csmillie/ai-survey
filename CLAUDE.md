@@ -54,6 +54,15 @@ Do NOT commit if any of these fail. Fix issues first.
 5. All checks must pass before merge
 6. Squash-merge to main
 
+### PR Review Response
+
+After addressing review comments on a PR, **always** post a comment summarizing what was fixed. This applies to both human and bot reviews. The comment should:
+- List each issue raised and how it was resolved
+- Note any issues intentionally not addressed, with reasoning
+- Reference the commit SHA that contains the fixes
+
+This ensures reviewers can verify fixes without re-reading the full diff.
+
 ## Code Standards
 
 ### TypeScript
