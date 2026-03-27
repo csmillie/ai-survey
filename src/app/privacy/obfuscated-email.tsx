@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 
-const PARTS = ["privacy", "modeltrust.ai"] as const;
+const PARTS = ["privacy", "modeltrust.app"] as const;
 
 export function ObfuscatedEmail(): React.ReactElement {
   const [revealed, setRevealed] = useState(false);
@@ -31,7 +31,7 @@ export function ObfuscatedEmail(): React.ReactElement {
       onClick={handleClick}
       className="text-zinc-50 underline hover:text-zinc-300 cursor-pointer"
     >
-      privacy [at] modeltrust.ai
+      privacy [at] modeltrust.app
     </button>
   );
 }

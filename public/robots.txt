@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://modeltrust.ai/sitemap.xml
+Sitemap: https://modeltrust.app/sitemap.xml

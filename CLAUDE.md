@@ -10,10 +10,11 @@ LLM Survey Platform v1: a SurveyMonkey-style app for running structured prompt s
 
 ### Branch Strategy
 
-- `main` is the stable branch. Never commit directly to main.
+- `main` is the stable branch. **Never commit directly to main. No exceptions.** All changes must go through a feature branch and PR, even single-line fixes. If you find yourself on `main`, create a branch before making any changes.
 - Feature branches: `feat/<short-description>` (e.g., `feat/add-gemini-provider`)
 - Bug fixes: `fix/<short-description>` (e.g., `fix/json-repair-trailing-comma`)
 - Chores/refactors: `chore/<short-description>` or `refactor/<short-description>`
+- Always create a new branch from `main` before starting work: `git checkout main && git pull && git checkout -b <type>/<description>`
 
 ### Commit Conventions
 
@@ -52,6 +53,15 @@ Do NOT commit if any of these fail. Fix issues first.
 4. PR must include: description of what changed and why, test plan
 5. All checks must pass before merge
 6. Squash-merge to main
+
+### PR Review Response
+
+After addressing review comments on a PR, **always** post a comment summarizing what was fixed. This applies to both human and bot reviews. The comment should:
+- List each issue raised and how it was resolved
+- Note any issues intentionally not addressed, with reasoning
+- Reference the commit SHA that contains the fixes
+
+This ensures reviewers can verify fixes without re-reading the full diff.
 
 ## Code Standards
 
